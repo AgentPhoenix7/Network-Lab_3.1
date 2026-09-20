@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <signal.h>
 #include <sys/wait.h>
 #include <arpa/inet.h>
 
@@ -196,7 +197,6 @@ static void run_mock_station(uint16_t port, decide_fn decide, void *ctx, uint32_
 
 typedef struct {
     int started;
-    int wait_for_idle;   /* only START once medium_state == MEDIUM_IDLE   */
     int jam_after_start; /* send exactly one ACT_JAM right after starting */
     int jam_pending;
 } contend_ctx_t;
@@ -204,10 +204,6 @@ typedef struct {
 static int decide_contend(tick_info_t tick, action_msg_t *out, void *ctxp) {
     contend_ctx_t *ctx = ctxp;
     if (!ctx->started) {
-        if (ctx->wait_for_idle && tick.medium_state != MEDIUM_IDLE) {
-            out->action = ACT_IDLE;
-            return 0;
-        }
         out->action = ACT_START;
         out->frame = make_frame(tick.slot);
         ctx->started = 1;
@@ -290,15 +286,20 @@ static void test_staggered_no_collision(void) {
     header("Test 11: A starts first and finishes, then B starts -> both delivered, no collision");
     uint16_t port = 19311;
 
-    contend_ctx_t a = {0};                 /* starts immediately */
-    contend_ctx_t b = {0}; b.wait_for_idle = 1; /* only starts once medium senses IDLE */
+    int t_frame = 4;
+    contend_ctx_t a = {0};                                        /* starts immediately at slot 0 */
+    delay_ctx_t   b = { .enqueue_slot = t_frame, .start_at_slot = (uint32_t)t_frame, .started = 0 };
+    /* B starts exactly when A's transmission ends (slots 0..t_frame-1 are A's) -
+     * deterministic, unlike "wait for medium_state == IDLE": slot 0's tick always
+     * reports IDLE by definition (there is no slot -1), so a reactive "wait for
+     * IDLE" station would start immediately too and collide with A. */
 
     pid_t pa = fork();
     if (pa == 0) run_mock_station(port, decide_contend, &a, 0);
     pid_t pb = fork();
-    if (pb == 0) run_mock_station(port, decide_contend, &b, 0);
+    if (pb == 0) run_mock_station(port, decide_delay, &b, 0);
 
-    channel_params_t params = { .port = port, .n_stations = 2, .slot_frame_len = 4,
+    channel_params_t params = { .port = port, .n_stations = 2, .slot_frame_len = t_frame,
                                  .detect_collisions = 0, .max_slots = 30, .seed = 0, .sink_path = NULL };
     channel_metrics_t m;
     int rc = channel_serve(&params, &m);
@@ -377,6 +378,10 @@ static void test_desync_guard(void) {
                                  .detect_collisions = 0, .max_slots = 20, .seed = 0, .sink_path = NULL };
     channel_metrics_t m;
     int rc = channel_serve(&params, &m);
+    /* channel_serve does not notify/close stations on this error path (only
+     * matters here because the test drives channel_serve in-process; a real
+     * channel process would simply exit and take the socket down with it) */
+    kill(p, SIGKILL);
     waitpid(p, NULL, 0);
 
     assert_true(rc == -1, "channel_serve returns -1 on desync");
