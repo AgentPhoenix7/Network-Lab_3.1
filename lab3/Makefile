@@ -11,7 +11,7 @@ TEST_DIR := tests
 
 .PHONY: all clean test
 
-all: $(TEST_DIR)/channel_test $(TEST_DIR)/backoff_test $(TEST_DIR)/csma_test $(TEST_DIR)/station_test station
+all: $(TEST_DIR)/channel_test $(TEST_DIR)/backoff_test $(TEST_DIR)/csma_test $(TEST_DIR)/station_test station channel eval/eval_main
 
 $(TEST_DIR)/channel_test: $(TEST_DIR)/channel_test.o $(OBJS_COMMON)
 	$(CC) $(CFLAGS) -o $@ $^
@@ -28,6 +28,12 @@ $(TEST_DIR)/station_test: $(TEST_DIR)/station_test.o
 station: station.o $(OBJS_COMMON)
 	$(CC) $(CFLAGS) -o $@ $^
 
+channel: channel_main.o $(OBJS_COMMON)
+	$(CC) $(CFLAGS) -o $@ $^
+
+eval/eval_main: eval/eval_main.o
+	$(CC) $(CFLAGS) -o $@ $^
+
 %.o: %.c
 	$(CC) $(CFLAGS) $(INCLUDES) -c -o $@ $<
 
@@ -37,5 +43,8 @@ test: all
 	./$(TEST_DIR)/csma_test
 	./$(TEST_DIR)/station_test
 
+run-eval: eval/eval_main
+	./eval/eval_main 42 16
+
 clean:
-	rm -f *.o $(UTILS_DIR)/*.o $(LAB1_DIR)/*.o $(TEST_DIR)/*.o $(TEST_DIR)/channel_test $(TEST_DIR)/backoff_test $(TEST_DIR)/csma_test $(TEST_DIR)/station_test station
+	rm -f *.o $(UTILS_DIR)/*.o $(LAB1_DIR)/*.o $(TEST_DIR)/*.o eval/*.o $(TEST_DIR)/channel_test $(TEST_DIR)/backoff_test $(TEST_DIR)/csma_test $(TEST_DIR)/station_test station channel eval/eval_main

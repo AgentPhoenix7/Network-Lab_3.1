@@ -80,3 +80,10 @@ context/**/*
 lab2/REPORT.md
 lab2/eval/EVAL_RESULTS.csv
 lab3/tests/channel_test
+lab3/channel
+lab3/station
+lab3/tests/backoff_test
+lab3/tests/csma_test
+.gitignore
+lab3/tests/*
+lab3/eval/*
