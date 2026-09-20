@@ -4,5 +4,5 @@
 
 7/9 - Assignment 2 complete
 
-17/9 - Assignment 3 started
+20/9 - Assignment 3 complete
 
