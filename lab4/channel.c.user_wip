@@ -1,0 +1,54 @@
+#include "channel.h"
+
+int channel_serve(const channel_params_t *p, channel_metrics_t *out) {
+    if(p->n < 1 || p->n > 64) return -1;
+
+    int L = walsh_length_for(p->n);
+    size_t fc = CDMA_FRAME_CHIPS(L);
+
+    int listen_fd = tcp_listen(p->port , 2*p->n + 8);
+    int sfd[64];
+    int rfd[64];
+
+    for (int k = 0; k < 2 * p->n; k++) {
+        int fd = tcp_accept(listen_fd);
+        if (fd < 0) return -1;
+        hello_msg_t h;
+
+        if (recv_all(fd, &h, sizeof h) != (ssize_t)sizeof h) { 
+            close_conn(fd); return -1; 
+        }
+
+        int *slot = NULL;
+        if (h.id < p->n) {
+            if (h.role == ROLE_SENDER) slot = &sfd[h.id];
+            else if (h.role == ROLE_RECEIVER) slot = &rfd[h.id];
+        }
+        if (slot == NULL || *slot != -1) { close_conn(fd); return -1; }
+        *slot = fd;
+    }
+
+
+    size_t chips [p->n][fc];
+    uint32_t sum[fc];
+    uint8_t wire[fc];
+
+    time_t t0;
+    time(&t0);
+    int r = 0;
+
+    while(1) {
+        // if every sender done code
+        if(p->max_rounds != 0 && r == p->max_rounds) return -1;
+
+        for(int i = 0; i<p->n ; i++) {
+            snd_hdr_t sh;
+            if (recv_all(sfd[i], &sh, sizeof sh) != (ssize_t)sizeof sh) return -1;
+            if (ntohl(sh.round) != r) return -1;
+        }
+
+        chips[i] = 
+    }
+
+
+}

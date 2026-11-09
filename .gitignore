@@ -61,9 +61,29 @@ lab2/report/*
 *.fdb_latexmk
 *.synctex.gz
 
-# Lab3 markdown 
+# Lab3 markdown
 lab3/CLAUDE.md
 lab3/PLAN.md
+
+# Lab4 markdown (EXPERIMENTS.md and tests/tests.md are tracked deliverables)
+lab4/CLAUDE.md
+lab4/PLAN.md
+
+# Lab4 binaries and generated eval data
+lab4/tests/cli_test
+lab4/tests/walsh_test
+lab4/tests/cdma_test
+lab4/tests/framing_test
+lab4/tests/channel_test
+lab4/tools/walsh_dump
+lab4/channel
+lab4/sender
+lab4/receiver
+lab4/eval/data/
+lab4/eval/EVAL_E1.csv
+lab4/eval/EVAL_E3.csv
+lab4/eval/fig_*.png
+lab4/report/figures/
 
 *.json
 *.png
@@ -87,3 +107,15 @@ lab3/tests/csma_test
 .gitignore
 lab3/tests/*
 lab3/eval/*
+lab3/report/*
+lab4/eval/EVAL_INSIGHTS.md
+lab4/tests/__pycache__/eval_check.cpython-314.pyc
+lab5/plan.md
+.gitignore
+lab5/captures/ping.pcapng
+lab5/captures/web.pcapng
+lab5/tools/shot.py
+lab5/progress.md
+lab5/tools/*
+lab6/plan.md
+lab6/progress.md

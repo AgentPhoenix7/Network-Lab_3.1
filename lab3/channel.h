@@ -19,12 +19,12 @@ typedef struct {
     uint64_t idle_slots;
     uint64_t busy_slots;
     uint64_t collision_slots;
-    uint64_t collision_events; // # contiguous COLLISION periods       
-    uint64_t collided_attempts; // # station-transmissions lost to collision
-    uint64_t attempts; // # ACT_START seen    
-    uint64_t frames_delivered; // # successful transmissions   
+    uint64_t collision_events; // contiguous COLLISION periods       
+    uint64_t collided_attempts; // station-transmissions lost to collision
+    uint64_t attempts; // ACT_START seen    
+    uint64_t frames_delivered; // successful transmissions   
     uint64_t fcs_failures; // delivered but FCS bad (0 unless noisy
-    uint64_t sum_delay_slots; // Σ (start_slot + T_frame - enqueue_slot) over successes
+    uint64_t sum_delay_slots; // sum of (start_slot + T_frame - enqueue_slot) over successes
     double throughput; // frames_delivered * T_frame / total_slots
     double avg_delay_slots; // sum_delay_slots / frames_delivered   
 } channel_metrics_t;

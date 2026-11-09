@@ -14,6 +14,15 @@ csma_state_t csma_init(void) {
 
 action_type_t csma_step(csma_state_t *state, medium_state_t medium, int slot_frame_len,
                         csma_strategy_t strategy, double p, result_t last_result) {
+    // A frame that finishes on slot S is only reported back on the tick for
+    // slot S+1 (the barrier protocol's own one-tick lag), by which point
+    // frame_age has already been reset to 0 on the completion call below.
+    if(last_result == RES_COLLISION) {
+        state->backoff = backoff_on_collision(state->backoff);
+    } else if(last_result == RES_SUCCESS) {
+        state->backoff = backoff_init();
+    }
+
     //If jamming : return JAM, transition to backoff
     if(state->jamming) {
         state->jamming = 0;
@@ -27,7 +36,7 @@ action_type_t csma_step(csma_state_t *state, medium_state_t medium, int slot_fra
         if(medium == MEDIUM_COLLISION && strategy == CSMA_CD) {
             state->jamming = 1;
             state->active = 0;
-            state->frame_age = slot_frame_len + 1; // mark transmission done
+            state->frame_age = 0;
             return ACT_IDLE;
         }
 
@@ -37,13 +46,6 @@ action_type_t csma_step(csma_state_t *state, medium_state_t medium, int slot_fra
         if(state->frame_age >= slot_frame_len) {
             state->active = 0;
             state->frame_age = 0;
-
-            if(last_result == RES_COLLISION) {
-                state->backoff = backoff_on_collision(state->backoff);
-            } else if(last_result == RES_SUCCESS) {
-                state->backoff = backoff_init();
-            }
-
             state->sensing = 1;
             return ACT_IDLE;
         }

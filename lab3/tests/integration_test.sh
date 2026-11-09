@@ -32,10 +32,10 @@ CHANNEL_PID=$!
 sleep 0.2
 
 # Start 2 stations
-./station --strategy 1persistent --seed 42 --port $CHANNEL_PORT &
+./station --strategy 1persistent --seed 42 --port $CHANNEL_PORT --host 127.0.0.1 &
 S1_PID=$!
 
-./station --strategy 1persistent --seed 43 --port $CHANNEL_PORT &
+./station --strategy 1persistent --seed 43 --port $CHANNEL_PORT --host 127.0.0.1 &
 S2_PID=$!
 
 # Wait for all to finish (with timeout)
