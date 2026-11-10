@@ -1,0 +1,92 @@
+{
+  "lans": [
+    {
+      "id": 0,
+      "name": "Office",
+      "mode": "bus",
+      "cidr": "172.16.0.0/24"
+    },
+    {
+      "id": 1,
+      "name": "DMZ",
+      "mode": "star",
+      "cidr": "172.16.0.128/25"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "pc1",
+      "kind": "host",
+      "gateway": null,
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "172.16.0.10",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "pc2",
+      "kind": "host",
+      "gateway": null,
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "172.16.0.11",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "fw",
+      "kind": "router",
+      "routes": [],
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "172.16.0.1",
+          "prefix": 24,
+          "proxy": [
+            "172.16.0.128/25"
+          ]
+        },
+        {
+          "idx": 1,
+          "lan": 1,
+          "ip": "172.16.0.129",
+          "prefix": 25
+        }
+      ]
+    },
+    {
+      "id": "web",
+      "kind": "host",
+      "gateway": "172.16.0.129",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 1,
+          "ip": "172.16.0.130",
+          "prefix": 25
+        }
+      ]
+    },
+    {
+      "id": "db",
+      "kind": "host",
+      "gateway": "172.16.0.129",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 1,
+          "ip": "172.16.0.131",
+          "prefix": 25
+        }
+      ]
+    }
+  ]
+}

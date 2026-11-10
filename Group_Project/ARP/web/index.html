@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARP Lab Visualiser</title>
+<link rel="icon" href="data:,"><!-- no favicon on the bridge: avoids a 404 console error -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.30.2/cytoscape.min.js" defer></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="top">
+    <button class="btn ico" id="btn-log" aria-label="Toggle event log" aria-pressed="true">&#9776;</button>
+    <div class="brand"><strong>ARP Lab</strong><span class="lbl">visualiser</span></div>
+    <div class="seg" role="group" aria-label="Mode">
+      <button id="mode-edit" aria-pressed="false">Edit</button>
+      <button id="mode-run" aria-pressed="true">Run</button>
+      <button id="mode-replay" aria-pressed="false">Replay</button>
+    </div>
+    <label class="preset"><span class="lbl">Preset</span>
+      <select id="preset" class="btn" aria-label="Preset topology">
+        <optgroup label="Basics">
+          <option value="single_bus">Shared wire: 4 hosts on a bus</option>
+          <option value="single_star">Switched LAN: 4 hosts on a star</option>
+          <option value="bus_crowd">Noisy bus: 7 hosts, every frame reaches all</option>
+          <option value="star_crowd">Quiet switch: 7 hosts, learning in action</option>
+        </optgroup>
+        <optgroup label="Proxy ARP">
+          <option value="proxy_arp" selected>Proxy ARP: one subnet split in two</option>
+          <option value="proxy_dmz">Firewall DMZ: proxy answers for a /25</option>
+          <option value="proxy_hotel">Hotel rooms: gateway fakes the whole wing</option>
+        </optgroup>
+        <optgroup label="Routed networks">
+          <option value="two_lans">Two LANs + router</option>
+          <option value="three_lans">Three LANs in a chain</option>
+          <option value="home_wifi">Home Wi-Fi: modem to the ISP</option>
+          <option value="office_pair">Office floors: two buses, one router</option>
+          <option value="fork_routes">Fork: two routers on one core bus</option>
+          <option value="hub_spoke">Hub and spoke: 4 switches, 1 core router</option>
+          <option value="campus">Campus: 3 departments on a backbone</option>
+          <option value="data_center">Data center: spine, leaves and racks</option>
+        </optgroup>
+        <optgroup label="Long paths">
+          <option value="long_chain">Long chain: 4 routers, TTL ticks down</option>
+          <option value="triangle">Triangle: 3 routers, 3 sites</option>
+          <option value="ring_four">Ring of four routers</option>
+        </optgroup>
+      </select>
+    </label>
+    <button class="btn" id="btn-validate">Validate</button>
+    <button class="btn pri" id="btn-start">&#9654; Start</button>
+    <button class="btn" id="btn-stop" hidden>&#9632; Stop</button>
+    <div class="notice-slot"><button id="errbox" class="notice err" role="alert" hidden></button><div id="toast" class="notice" role="status" hidden></div></div>
+    <div class="status" role="status"><span class="dot" id="st-dot"></span><span id="st-text">Stopped</span><span class="mono muted" id="st-sub"></span></div>
+    <button class="btn ico" id="btn-insp" aria-label="Toggle inspector" aria-pressed="true" title="Show or hide the inspector">&#9707;</button>
+  </header>
+
+  <div id="banner" class="banner" role="alert" hidden></div>
+
+  <div class="middle">
+    <aside class="log-drawer" id="log" aria-label="Event log">
+      <div class="drawer-h"><span class="lbl">Event log</span><span class="mono muted" id="log-count">0 events</span><button class="btn ico sm" id="log-hide" aria-label="Hide event log" title="Hide">&#171;</button></div>
+      <div class="log-list" id="log-list"></div>
+    </aside>
+    <div class="resizer" id="rz-log" role="separator" aria-orientation="vertical" aria-label="Resize event log" tabindex="0"></div>
+
+    <main class="canvas-wrap">
+      <div class="toolbar" id="edit-tools" role="toolbar" aria-label="Topology tools" hidden>
+        <button class="btn sm" data-todo="+ LAN (bus)">+ LAN (bus)</button>
+        <button class="btn sm" data-todo="+ LAN (star)">+ LAN (star)</button>
+        <button class="btn sm" data-todo="+ Host">+ Host</button>
+        <button class="btn sm" data-todo="+ Router">+ Router</button>
+        <button class="btn sm" data-todo="Connect">Connect</button>
+        <button class="btn sm danger" data-todo="Delete">Delete</button>
+      </div>
+      <div id="cy" class="cy" aria-label="Network topology"></div>
+      <div id="overlay" class="overlay" aria-hidden="true"></div>
+      <div id="empty" class="empty" hidden>
+        <svg width="44" height="44" viewBox="0 0 44 44" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="4" y="19" width="36" height="6" rx="1"/><path d="M12 19v-8M22 19v-8M32 19v-8M22 25v8"/><rect x="8" y="5" width="8" height="6" rx="1"/><rect x="18" y="5" width="8" height="6" rx="1"/><rect x="28" y="5" width="8" height="6" rx="1"/><rect x="18" y="33" width="8" height="6" rx="1"/></svg>
+        <h2>Pick a preset</h2>
+        <p>There is no topology yet. Start from a preset, or build one in Edit mode with the toolbar.</p>
+        <button class="btn pri" id="btn-pick">Proxy ARP: one subnet split in two</button>
+      </div>
+      <div class="legend" aria-label="Legend">
+        <span class="i"><span class="mk req"></span>ARP request (broadcast)</span>
+        <span class="i"><span class="mk rep"></span>ARP reply</span>
+        <span class="i"><span class="mk proxy">P</span>Proxy ARP reply</span>
+        <span class="i"><span class="mk ip"></span>IPv4 / ICMP</span>
+        <span class="i"><span class="mk lost">&#10005;</span>Lost</span>
+        <span class="i"><span class="mk cor"></span>Corrupted</span>
+        <span class="i"><span class="mk ign"></span>Ignored (bus)</span>
+      </div>
+    </main>
+
+    <div class="resizer" id="rz-insp" role="separator" aria-orientation="vertical" aria-label="Resize inspector" tabindex="0"></div>
+    <aside class="inspector" id="insp" aria-label="Inspector">
+      <div class="drawer-h"><span class="lbl">Inspector</span><button class="btn ico sm" id="insp-hide" aria-label="Hide inspector" title="Hide">&#187;</button></div>
+      <div id="insp-body"></div>
+    </aside>
+  </div>
+
+  <section class="dock" aria-label="Control dock">
+    <div class="grp"><span class="lbl">Speed</span>
+      <input type="range" id="speed" min="0" max="100" value="50" aria-label="Speed">
+      <span class="mono w-speed" id="speed-txt">&times;1.0</span>
+      <button class="btn sm" id="btn-pause" aria-label="Pause or resume">&#10074;&#10074; Pause</button>
+    </div>
+    <div class="grp"><span class="lbl">Loss</span>
+      <input type="range" id="loss" min="0" max="50" value="0" aria-label="Loss percent"><span class="mono w-pct" id="loss-txt">0%</span></div>
+    <div class="grp"><span class="lbl">Corrupt</span>
+      <input type="range" id="corrupt" min="0" max="50" value="0" aria-label="Corruption percent"><span class="mono w-pct" id="corrupt-txt">0%</span></div>
+    <div class="grp"><span class="lbl">Delay</span>
+      <input type="range" id="delay" min="0" max="2000" step="50" value="300" aria-label="Line delay"><span class="mono w-ms" id="delay-txt">300 ms</span></div>
+    <label class="grp"><span class="lbl">Scope</span>
+      <select id="scope" class="btn sm" aria-label="Impairment scope"><option value="all">All LANs</option><option value="0">LAN A</option><option value="1">LAN B</option></select></label>
+    <div class="grp arp-timers" id="arp-timers" hidden>
+      <span class="lbl">ARP timers</span>
+      <label class="mono">TTL <input id="arp-ttl" class="mono num" type="number" min="1" value="30000"></label>
+      <label class="mono">retry <input id="arp-retry" class="mono num" type="number" min="1" value="1000"></label>
+      <label class="mono" title="0 = keep retrying until the ARP reply arrives">retries <input id="arp-retries" class="mono num" type="number" min="0" max="10" value="0"> <span class="muted">(0 = forever)</span></label>
+    </div>
+  </section>
+
+  <section class="timeline" aria-label="Timeline">
+    <div class="tl-btns">
+      <button class="btn sm ico" id="tl-start" aria-label="Jump to start">&#9664;&#9664;</button>
+      <button class="btn sm ico" id="tl-prev" aria-label="Previous event">&#9664;</button>
+      <button class="btn sm ico" id="tl-play" aria-label="Play or pause replay">&#10074;&#10074;</button>
+      <button class="btn sm ico" id="tl-next" aria-label="Next event">&#9654;&#9654;</button>
+    </div>
+    <div class="tl-track">
+      <div class="hist" id="hist" aria-hidden="true"></div>
+      <input type="range" id="scrub" min="0" max="1000" value="1000" aria-label="Timeline cursor">
+    </div>
+    <span class="mono w-t" id="tl-t">t = 0.000 s</span>
+    <div class="seg sm" role="group" aria-label="Live or replay">
+      <button id="tl-live" aria-pressed="true">Live</button>
+      <button id="tl-replay" aria-pressed="false">Replay</button>
+    </div>
+    <label class="grp"><span class="lbl">Replay</span>
+      <select id="rspd" class="btn sm" aria-label="Replay speed"><option value="0.25">&times;0.25</option><option value="0.5">&times;0.5</option><option value="1" selected>&times;1</option><option value="2">&times;2</option><option value="4">&times;4</option></select></label>
+    <button class="btn sm" id="btn-export">Export &#10515;</button>
+    <button class="btn sm" id="btn-open">Open &#10514;</button>
+    <input type="file" id="file-open" accept=".jsonl,application/x-ndjson,text/plain" hidden>
+  </section>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

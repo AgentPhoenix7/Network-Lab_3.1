@@ -1,0 +1,68 @@
+{
+  "lans": [
+    {
+      "id": 0,
+      "name": "LAN A",
+      "mode": "star",
+      "cidr": "141.23.56.0/24"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "h1",
+      "kind": "host",
+      "gateway": null,
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "141.23.56.10",
+          "prefix": 24,
+          "mac": "02:00:00:00:01:00"
+        }
+      ]
+    },
+    {
+      "id": "h2",
+      "kind": "host",
+      "gateway": null,
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "141.23.56.11",
+          "prefix": 24,
+          "mac": "02:00:00:00:02:00"
+        }
+      ]
+    },
+    {
+      "id": "h3",
+      "kind": "host",
+      "gateway": null,
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "141.23.56.12",
+          "prefix": 24,
+          "mac": "02:00:00:00:03:00"
+        }
+      ]
+    },
+    {
+      "id": "h4",
+      "kind": "host",
+      "gateway": null,
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "141.23.56.13",
+          "prefix": 24,
+          "mac": "02:00:00:00:04:00"
+        }
+      ]
+    }
+  ]
+}

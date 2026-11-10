@@ -1,0 +1,138 @@
+{
+  "lans": [
+    {
+      "id": 0,
+      "name": "Hop 0",
+      "mode": "bus",
+      "cidr": "10.0.0.0/24"
+    },
+    {
+      "id": 1,
+      "name": "Hop 1",
+      "mode": "bus",
+      "cidr": "10.0.1.0/24"
+    },
+    {
+      "id": 2,
+      "name": "Hop 2",
+      "mode": "bus",
+      "cidr": "10.0.2.0/24"
+    },
+    {
+      "id": 3,
+      "name": "Hop 3",
+      "mode": "bus",
+      "cidr": "10.0.3.0/24"
+    },
+    {
+      "id": 4,
+      "name": "Hop 4",
+      "mode": "bus",
+      "cidr": "10.0.4.0/24"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "src",
+      "kind": "host",
+      "gateway": "10.0.0.2",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "10.0.0.10",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "r1",
+      "kind": "router",
+      "routes": [],
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "10.0.0.2",
+          "prefix": 24
+        },
+        {
+          "idx": 1,
+          "lan": 1,
+          "ip": "10.0.1.1",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "r2",
+      "kind": "router",
+      "routes": [],
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 1,
+          "ip": "10.0.1.2",
+          "prefix": 24
+        },
+        {
+          "idx": 1,
+          "lan": 2,
+          "ip": "10.0.2.1",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "r3",
+      "kind": "router",
+      "routes": [],
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 2,
+          "ip": "10.0.2.2",
+          "prefix": 24
+        },
+        {
+          "idx": 1,
+          "lan": 3,
+          "ip": "10.0.3.1",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "r4",
+      "kind": "router",
+      "routes": [],
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 3,
+          "ip": "10.0.3.2",
+          "prefix": 24
+        },
+        {
+          "idx": 1,
+          "lan": 4,
+          "ip": "10.0.4.1",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "dst",
+      "kind": "host",
+      "gateway": "10.0.4.1",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 4,
+          "ip": "10.0.4.10",
+          "prefix": 24
+        }
+      ]
+    }
+  ]
+}

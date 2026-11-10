@@ -1,0 +1,89 @@
+{
+  "lans": [
+    {
+      "id": 0,
+      "name": "Home Wi-Fi",
+      "mode": "star",
+      "cidr": "192.168.1.0/24"
+    },
+    {
+      "id": 1,
+      "name": "ISP link",
+      "mode": "bus",
+      "cidr": "100.64.0.0/29"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "laptop",
+      "kind": "host",
+      "gateway": "192.168.1.1",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "192.168.1.10",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "phone",
+      "kind": "host",
+      "gateway": "192.168.1.1",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "192.168.1.11",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "tv",
+      "kind": "host",
+      "gateway": "192.168.1.1",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "192.168.1.12",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "modem",
+      "kind": "router",
+      "routes": [],
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "192.168.1.1",
+          "prefix": 24
+        },
+        {
+          "idx": 1,
+          "lan": 1,
+          "ip": "100.64.0.2",
+          "prefix": 29
+        }
+      ]
+    },
+    {
+      "id": "isp",
+      "kind": "host",
+      "gateway": "100.64.0.2",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 1,
+          "ip": "100.64.0.1",
+          "prefix": 29
+        }
+      ]
+    }
+  ]
+}

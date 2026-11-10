@@ -1,0 +1,165 @@
+{
+  "lans": [
+    {
+      "id": 0,
+      "name": "Backbone",
+      "mode": "bus",
+      "cidr": "10.0.0.0/24"
+    },
+    {
+      "id": 1,
+      "name": "CS dept",
+      "mode": "star",
+      "cidr": "10.1.0.0/24"
+    },
+    {
+      "id": 2,
+      "name": "EE dept",
+      "mode": "star",
+      "cidr": "10.2.0.0/24"
+    },
+    {
+      "id": 3,
+      "name": "ME dept",
+      "mode": "star",
+      "cidr": "10.3.0.0/24"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "r1",
+      "kind": "router",
+      "routes": [],
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "10.0.0.1",
+          "prefix": 24
+        },
+        {
+          "idx": 1,
+          "lan": 1,
+          "ip": "10.1.0.1",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "r2",
+      "kind": "router",
+      "routes": [],
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "10.0.0.2",
+          "prefix": 24
+        },
+        {
+          "idx": 1,
+          "lan": 2,
+          "ip": "10.2.0.1",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "r3",
+      "kind": "router",
+      "routes": [],
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "10.0.0.3",
+          "prefix": 24
+        },
+        {
+          "idx": 1,
+          "lan": 3,
+          "ip": "10.3.0.1",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "cs1",
+      "kind": "host",
+      "gateway": "10.1.0.1",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 1,
+          "ip": "10.1.0.10",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "cs2",
+      "kind": "host",
+      "gateway": "10.1.0.1",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 1,
+          "ip": "10.1.0.11",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "ee1",
+      "kind": "host",
+      "gateway": "10.2.0.1",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 2,
+          "ip": "10.2.0.10",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "ee2",
+      "kind": "host",
+      "gateway": "10.2.0.1",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 2,
+          "ip": "10.2.0.11",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "me1",
+      "kind": "host",
+      "gateway": "10.3.0.1",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 3,
+          "ip": "10.3.0.10",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "me2",
+      "kind": "host",
+      "gateway": "10.3.0.1",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 3,
+          "ip": "10.3.0.11",
+          "prefix": 24
+        }
+      ]
+    }
+  ]
+}

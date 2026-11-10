@@ -1,0 +1,103 @@
+{
+  "lans": [
+    {
+      "id": 0,
+      "name": "Switch",
+      "mode": "star",
+      "cidr": "192.168.60.0/24"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "n1",
+      "kind": "host",
+      "gateway": null,
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "192.168.60.1",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "n2",
+      "kind": "host",
+      "gateway": null,
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "192.168.60.2",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "n3",
+      "kind": "host",
+      "gateway": null,
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "192.168.60.3",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "n4",
+      "kind": "host",
+      "gateway": null,
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "192.168.60.4",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "n5",
+      "kind": "host",
+      "gateway": null,
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "192.168.60.5",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "n6",
+      "kind": "host",
+      "gateway": null,
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "192.168.60.6",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "n7",
+      "kind": "host",
+      "gateway": null,
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "192.168.60.7",
+          "prefix": 24
+        }
+      ]
+    }
+  ]
+}

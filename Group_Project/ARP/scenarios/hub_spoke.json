@@ -1,0 +1,165 @@
+{
+  "lans": [
+    {
+      "id": 0,
+      "name": "Spoke 1",
+      "mode": "star",
+      "cidr": "10.1.0.0/24"
+    },
+    {
+      "id": 1,
+      "name": "Spoke 2",
+      "mode": "star",
+      "cidr": "10.2.0.0/24"
+    },
+    {
+      "id": 2,
+      "name": "Spoke 3",
+      "mode": "star",
+      "cidr": "10.3.0.0/24"
+    },
+    {
+      "id": 3,
+      "name": "Spoke 4",
+      "mode": "star",
+      "cidr": "10.4.0.0/24"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "core",
+      "kind": "router",
+      "routes": [],
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "10.1.0.1",
+          "prefix": 24
+        },
+        {
+          "idx": 1,
+          "lan": 1,
+          "ip": "10.2.0.1",
+          "prefix": 24
+        },
+        {
+          "idx": 2,
+          "lan": 2,
+          "ip": "10.3.0.1",
+          "prefix": 24
+        },
+        {
+          "idx": 3,
+          "lan": 3,
+          "ip": "10.4.0.1",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "a1",
+      "kind": "host",
+      "gateway": "10.1.0.1",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "10.1.0.10",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "b1",
+      "kind": "host",
+      "gateway": "10.1.0.1",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 0,
+          "ip": "10.1.0.11",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "a2",
+      "kind": "host",
+      "gateway": "10.2.0.1",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 1,
+          "ip": "10.2.0.10",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "b2",
+      "kind": "host",
+      "gateway": "10.2.0.1",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 1,
+          "ip": "10.2.0.11",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "a3",
+      "kind": "host",
+      "gateway": "10.3.0.1",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 2,
+          "ip": "10.3.0.10",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "b3",
+      "kind": "host",
+      "gateway": "10.3.0.1",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 2,
+          "ip": "10.3.0.11",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "a4",
+      "kind": "host",
+      "gateway": "10.4.0.1",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 3,
+          "ip": "10.4.0.10",
+          "prefix": 24
+        }
+      ]
+    },
+    {
+      "id": "b4",
+      "kind": "host",
+      "gateway": "10.4.0.1",
+      "ifaces": [
+        {
+          "idx": 0,
+          "lan": 3,
+          "ip": "10.4.0.11",
+          "prefix": 24
+        }
+      ]
+    }
+  ]
+}
