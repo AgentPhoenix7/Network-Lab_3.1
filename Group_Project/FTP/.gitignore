@@ -1,6 +1,11 @@
 # Runtime files used by the examples
 /server-data/
 /downloads/
+/app-data/
+
+# Small, requested benchmark reports are deliverables (large media stays in .scratch)
+!/benchmarks/results/*.png
+!/benchmarks/results/*.json
 
 # Python integration-test caches and optional environment
 __pycache__/

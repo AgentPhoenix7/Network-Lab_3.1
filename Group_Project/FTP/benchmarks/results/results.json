@@ -1,0 +1,500 @@
+[
+  {
+    "source_name": "audio.wav",
+    "source_bytes": 134217806,
+    "source_sha256": "a44257e5a4b6530f3b3a2d0c5c911447ef1ef2fc206d4aeee37cb6f309cf6466",
+    "source_hash_seconds": 0.12348898900017957,
+    "timing_scope": "total_seconds = preparation + FTP upload; verification is separate",
+    "runs": [
+      {
+        "mode": "plain",
+        "source_bytes": 134217806,
+        "payload_bytes": 134217806,
+        "compression_ratio": 1.0,
+        "compression_seconds": 0.0,
+        "preparation_seconds": 0.0007249109999065695,
+        "transfer_seconds": 0.08250615700035269,
+        "total_seconds": 0.08323311699996339,
+        "download_seconds": 0.10834285400005683,
+        "verification_seconds": 0.16992291099995782,
+        "round_trip_seconds": 0.36153921699997227,
+        "throughput_mib_s": 1551.400271691839,
+        "effective_mib_s": 1537.850305265547,
+        "sha256": "a44257e5a4b6530f3b3a2d0c5c911447ef1ef2fc206d4aeee37cb6f309cf6466",
+        "verified": true
+      },
+      {
+        "mode": "gzip",
+        "source_bytes": 134217806,
+        "payload_bytes": 3933003,
+        "compression_ratio": 0.029303138810062204,
+        "compression_seconds": 1.0737764999998944,
+        "preparation_seconds": 1.0748097089999646,
+        "transfer_seconds": 0.041166054000314034,
+        "total_seconds": 1.115978651000205,
+        "download_seconds": 0.04218291000006502,
+        "verification_seconds": 0.5410395620001509,
+        "round_trip_seconds": 1.6992599720001635,
+        "throughput_mib_s": 91.11400250847744,
+        "effective_mib_s": 114.69760131331864,
+        "sha256": "a44257e5a4b6530f3b3a2d0c5c911447ef1ef2fc206d4aeee37cb6f309cf6466",
+        "verified": true
+      }
+    ],
+    "samples": [
+      {
+        "mode": "plain",
+        "elapsed": 2.136000148311723e-06,
+        "bytes": 0,
+        "speed_bps": 0.0
+      },
+      {
+        "mode": "plain",
+        "elapsed": 0.08057119800014334,
+        "bytes": 134217806,
+        "speed_bps": 1665828600.4356198
+      },
+      {
+        "mode": "plain",
+        "elapsed": 0.0825105120002263,
+        "bytes": 134217806,
+        "speed_bps": 1626675228.9651515
+      },
+      {
+        "mode": "gzip",
+        "elapsed": 4.371000159153482e-06,
+        "bytes": 0,
+        "speed_bps": 0.0
+      },
+      {
+        "mode": "gzip",
+        "elapsed": 0.003025577000244084,
+        "bytes": 3933003,
+        "speed_bps": 1299918329.522835
+      },
+      {
+        "mode": "gzip",
+        "elapsed": 0.04117273500014562,
+        "bytes": 3933003,
+        "speed_bps": 95524453.25738233
+      }
+    ],
+    "repeat": 1,
+    "transport": "loopback"
+  },
+  {
+    "source_name": "video.avi",
+    "source_bytes": 134454314,
+    "source_sha256": "29ef7b6f5ad45b1415cb6f598ed44940ed7a6e697e4ebd8fb6905b9cecb27cf6",
+    "source_hash_seconds": 0.17681528499997512,
+    "timing_scope": "total_seconds = preparation + FTP upload; verification is separate",
+    "runs": [
+      {
+        "mode": "plain",
+        "source_bytes": 134454314,
+        "payload_bytes": 134454314,
+        "compression_ratio": 1.0,
+        "compression_seconds": 0.0,
+        "preparation_seconds": 0.0009571340001457429,
+        "transfer_seconds": 0.0751826389996495,
+        "total_seconds": 0.07614049699986936,
+        "download_seconds": 0.07287159099996643,
+        "verification_seconds": 0.1676168310000321,
+        "round_trip_seconds": 0.31665208699996583,
+        "throughput_mib_s": 1705.521749408385,
+        "effective_mib_s": 1684.0660495300065,
+        "sha256": "29ef7b6f5ad45b1415cb6f598ed44940ed7a6e697e4ebd8fb6905b9cecb27cf6",
+        "verified": true
+      },
+      {
+        "mode": "gzip",
+        "source_bytes": 134454314,
+        "payload_bytes": 6415607,
+        "compression_ratio": 0.047715888089689705,
+        "compression_seconds": 1.1112713490001624,
+        "preparation_seconds": 1.11214426000015,
+        "transfer_seconds": 0.04145475799987253,
+        "total_seconds": 1.153600254000139,
+        "download_seconds": 0.04207631300005232,
+        "verification_seconds": 0.40536011100039104,
+        "round_trip_seconds": 1.601067298000089,
+        "throughput_mib_s": 147.59221655750508,
+        "effective_mib_s": 111.15256393815412,
+        "sha256": "29ef7b6f5ad45b1415cb6f598ed44940ed7a6e697e4ebd8fb6905b9cecb27cf6",
+        "verified": true
+      }
+    ],
+    "samples": [
+      {
+        "mode": "plain",
+        "elapsed": 3.731999640876893e-06,
+        "bytes": 0,
+        "speed_bps": 0.0
+      },
+      {
+        "mode": "plain",
+        "elapsed": 0.0733788189995721,
+        "bytes": 134454314,
+        "speed_bps": 1832331397.985351
+      },
+      {
+        "mode": "plain",
+        "elapsed": 0.07518411699993521,
+        "bytes": 134454314,
+        "speed_bps": 1788334017.4110959
+      },
+      {
+        "mode": "gzip",
+        "elapsed": 3.92299989471212e-06,
+        "bytes": 0,
+        "speed_bps": 0.0
+      },
+      {
+        "mode": "gzip",
+        "elapsed": 0.0029294689998096146,
+        "bytes": 6415607,
+        "speed_bps": 2190023857.708325
+      },
+      {
+        "mode": "gzip",
+        "elapsed": 0.0414579049997883,
+        "bytes": 6415607,
+        "speed_bps": 154749908.37170285
+      }
+    ],
+    "repeat": 1,
+    "transport": "loopback"
+  },
+  {
+    "source_name": "video.mp4",
+    "source_bytes": 1831488,
+    "source_sha256": "a2bd24ad133d01707eaca42a386cdbb62f001c99130d1dff4ae11debc00a7edb",
+    "source_hash_seconds": 0.0015800760002093739,
+    "timing_scope": "total_seconds = preparation + FTP upload; verification is separate",
+    "runs": [
+      {
+        "mode": "plain",
+        "source_bytes": 1831488,
+        "payload_bytes": 1831488,
+        "compression_ratio": 1.0,
+        "compression_seconds": 0.0,
+        "preparation_seconds": 0.0003816720000031637,
+        "transfer_seconds": 0.04055916700008311,
+        "total_seconds": 0.04094184900031905,
+        "download_seconds": 0.04236796299983325,
+        "verification_seconds": 0.0036750999997821054,
+        "round_trip_seconds": 0.08706730099993365,
+        "throughput_mib_s": 43.064076399859765,
+        "effective_mib_s": 42.6615580159225,
+        "sha256": "a2bd24ad133d01707eaca42a386cdbb62f001c99130d1dff4ae11debc00a7edb",
+        "verified": true
+      },
+      {
+        "mode": "gzip",
+        "source_bytes": 1831488,
+        "payload_bytes": 1828312,
+        "compression_ratio": 0.9982658909040081,
+        "compression_seconds": 0.051437734000046476,
+        "preparation_seconds": 0.052371818000210624,
+        "transfer_seconds": 0.04216173599979811,
+        "total_seconds": 0.09453570799996669,
+        "download_seconds": 0.043082968999897275,
+        "verification_seconds": 0.0023114549999263545,
+        "round_trip_seconds": 0.13996489800001655,
+        "throughput_mib_s": 41.355370110606756,
+        "effective_mib_s": 18.476014020087156,
+        "sha256": "a2bd24ad133d01707eaca42a386cdbb62f001c99130d1dff4ae11debc00a7edb",
+        "verified": true
+      }
+    ],
+    "samples": [
+      {
+        "mode": "plain",
+        "elapsed": 2.0019997464260086e-06,
+        "bytes": 0,
+        "speed_bps": 0.0
+      },
+      {
+        "mode": "plain",
+        "elapsed": 0.0008654119997117959,
+        "bytes": 1831488,
+        "speed_bps": 2116319164.2939222
+      },
+      {
+        "mode": "plain",
+        "elapsed": 0.04056257599995661,
+        "bytes": 1831488,
+        "speed_bps": 45152161.93374798
+      },
+      {
+        "mode": "gzip",
+        "elapsed": 3.5829998523695394e-06,
+        "bytes": 0,
+        "speed_bps": 0.0
+      },
+      {
+        "mode": "gzip",
+        "elapsed": 0.0014844879997326643,
+        "bytes": 1828312,
+        "speed_bps": 1231611168.516858
+      },
+      {
+        "mode": "gzip",
+        "elapsed": 0.04217012999970393,
+        "bytes": 1828312,
+        "speed_bps": 43355616.87888646
+      }
+    ],
+    "repeat": 1,
+    "transport": "loopback"
+  },
+  {
+    "source_name": "audio.wav",
+    "source_bytes": 134217806,
+    "source_sha256": "a44257e5a4b6530f3b3a2d0c5c911447ef1ef2fc206d4aeee37cb6f309cf6466",
+    "source_hash_seconds": 0.11482603000013114,
+    "timing_scope": "total_seconds = preparation + FTP upload; verification is separate",
+    "runs": [
+      {
+        "mode": "plain",
+        "source_bytes": 134217806,
+        "payload_bytes": 134217806,
+        "compression_ratio": 1.0,
+        "compression_seconds": 0.0,
+        "preparation_seconds": 0.0005360429995562299,
+        "transfer_seconds": 0.05393408800000543,
+        "total_seconds": 0.054470508999656886,
+        "download_seconds": 0.06464038100011749,
+        "verification_seconds": 0.11272483199991257,
+        "round_trip_seconds": 0.2318569489998481,
+        "throughput_mib_s": 2373.2685419021786,
+        "effective_mib_s": 2349.8967925451725,
+        "sha256": "a44257e5a4b6530f3b3a2d0c5c911447ef1ef2fc206d4aeee37cb6f309cf6466",
+        "verified": true
+      },
+      {
+        "mode": "gzip",
+        "source_bytes": 134217806,
+        "payload_bytes": 3933003,
+        "compression_ratio": 0.029303138810062204,
+        "compression_seconds": 0.6031459420000829,
+        "preparation_seconds": 0.6039900189998662,
+        "transfer_seconds": 0.04154029900018941,
+        "total_seconds": 0.6455314730001191,
+        "download_seconds": 0.041177121000146144,
+        "verification_seconds": 0.21287566199998764,
+        "round_trip_seconds": 0.8996040749998429,
+        "throughput_mib_s": 90.29313793412099,
+        "effective_mib_s": 198.28634193730946,
+        "sha256": "a44257e5a4b6530f3b3a2d0c5c911447ef1ef2fc206d4aeee37cb6f309cf6466",
+        "verified": true
+      }
+    ],
+    "samples": [
+      {
+        "mode": "plain",
+        "elapsed": 1.8119999367627315e-06,
+        "bytes": 0,
+        "speed_bps": 0.0
+      },
+      {
+        "mode": "plain",
+        "elapsed": 0.052506915999856574,
+        "bytes": 134217806,
+        "speed_bps": 2556192902.29056
+      },
+      {
+        "mode": "plain",
+        "elapsed": 0.053935174999878654,
+        "bytes": 134217806,
+        "speed_bps": 2488502280.7528105
+      },
+      {
+        "mode": "gzip",
+        "elapsed": 2.961000063805841e-06,
+        "bytes": 0,
+        "speed_bps": 0.0
+      },
+      {
+        "mode": "gzip",
+        "elapsed": 0.001963854000223364,
+        "bytes": 3933003,
+        "speed_bps": 2002696228.7179544
+      },
+      {
+        "mode": "gzip",
+        "elapsed": 0.0415426990002743,
+        "bytes": 3933003,
+        "speed_bps": 94673747.60542235
+      }
+    ],
+    "repeat": 2,
+    "transport": "loopback"
+  },
+  {
+    "source_name": "video.avi",
+    "source_bytes": 134454314,
+    "source_sha256": "29ef7b6f5ad45b1415cb6f598ed44940ed7a6e697e4ebd8fb6905b9cecb27cf6",
+    "source_hash_seconds": 0.125086169000042,
+    "timing_scope": "total_seconds = preparation + FTP upload; verification is separate",
+    "runs": [
+      {
+        "mode": "plain",
+        "source_bytes": 134454314,
+        "payload_bytes": 134454314,
+        "compression_ratio": 1.0,
+        "compression_seconds": 0.0,
+        "preparation_seconds": 0.000986379000096349,
+        "transfer_seconds": 0.0648357009999927,
+        "total_seconds": 0.06582288200024777,
+        "download_seconds": 0.06364249099988228,
+        "verification_seconds": 0.10489775899986853,
+        "round_trip_seconds": 0.23438247700005377,
+        "throughput_mib_s": 1977.700927330696,
+        "effective_mib_s": 1948.0402877427734,
+        "sha256": "29ef7b6f5ad45b1415cb6f598ed44940ed7a6e697e4ebd8fb6905b9cecb27cf6",
+        "verified": true
+      },
+      {
+        "mode": "gzip",
+        "source_bytes": 134454314,
+        "payload_bytes": 6415607,
+        "compression_ratio": 0.047715888089689705,
+        "compression_seconds": 1.0970449010001175,
+        "preparation_seconds": 1.0982689719999144,
+        "transfer_seconds": 0.04165829700014001,
+        "total_seconds": 1.1399287760000334,
+        "download_seconds": 0.04111592799972641,
+        "verification_seconds": 0.2748215940000591,
+        "round_trip_seconds": 1.4558995899997171,
+        "throughput_mib_s": 146.87109317108158,
+        "effective_mib_s": 112.4856470785483,
+        "sha256": "29ef7b6f5ad45b1415cb6f598ed44940ed7a6e697e4ebd8fb6905b9cecb27cf6",
+        "verified": true
+      }
+    ],
+    "samples": [
+      {
+        "mode": "plain",
+        "elapsed": 3.011999979207758e-06,
+        "bytes": 0,
+        "speed_bps": 0.0
+      },
+      {
+        "mode": "plain",
+        "elapsed": 0.06320195099988268,
+        "bytes": 134454314,
+        "speed_bps": 2127376004.583301
+      },
+      {
+        "mode": "plain",
+        "elapsed": 0.06483715700005632,
+        "bytes": 134454314,
+        "speed_bps": 2073723158.4642615
+      },
+      {
+        "mode": "gzip",
+        "elapsed": 5.223999778536381e-06,
+        "bytes": 0,
+        "speed_bps": 0.0
+      },
+      {
+        "mode": "gzip",
+        "elapsed": 0.00615528699972856,
+        "bytes": 6415607,
+        "speed_bps": 1042292097.8799071
+      },
+      {
+        "mode": "gzip",
+        "elapsed": 0.041662332999749196,
+        "bytes": 6415607,
+        "speed_bps": 153990584.25361395
+      }
+    ],
+    "repeat": 2,
+    "transport": "loopback"
+  },
+  {
+    "source_name": "video.mp4",
+    "source_bytes": 1831488,
+    "source_sha256": "a2bd24ad133d01707eaca42a386cdbb62f001c99130d1dff4ae11debc00a7edb",
+    "source_hash_seconds": 0.002408875000128319,
+    "timing_scope": "total_seconds = preparation + FTP upload; verification is separate",
+    "runs": [
+      {
+        "mode": "plain",
+        "source_bytes": 1831488,
+        "payload_bytes": 1831488,
+        "compression_ratio": 1.0,
+        "compression_seconds": 0.0,
+        "preparation_seconds": 0.000506007999774738,
+        "transfer_seconds": 0.04121575399994981,
+        "total_seconds": 0.04172278499981985,
+        "download_seconds": 0.04209958100000222,
+        "verification_seconds": 0.0018354539997744723,
+        "round_trip_seconds": 0.08568087799994828,
+        "throughput_mib_s": 42.37804472552842,
+        "effective_mib_s": 41.86305076264184,
+        "sha256": "a2bd24ad133d01707eaca42a386cdbb62f001c99130d1dff4ae11debc00a7edb",
+        "verified": true
+      },
+      {
+        "mode": "gzip",
+        "source_bytes": 1831488,
+        "payload_bytes": 1828312,
+        "compression_ratio": 0.9982658909040081,
+        "compression_seconds": 0.044038239999736106,
+        "preparation_seconds": 0.04469610299975102,
+        "transfer_seconds": 0.04081933499992374,
+        "total_seconds": 0.08551640699988639,
+        "download_seconds": 0.042144267999901786,
+        "verification_seconds": 0.00283984399993642,
+        "round_trip_seconds": 0.13052260299991758,
+        "throughput_mib_s": 42.715399375825235,
+        "effective_mib_s": 20.424654492424718,
+        "sha256": "a2bd24ad133d01707eaca42a386cdbb62f001c99130d1dff4ae11debc00a7edb",
+        "verified": true
+      }
+    ],
+    "samples": [
+      {
+        "mode": "plain",
+        "elapsed": 2.1070000002509914e-06,
+        "bytes": 0,
+        "speed_bps": 0.0
+      },
+      {
+        "mode": "plain",
+        "elapsed": 0.0008315709997077647,
+        "bytes": 1831488,
+        "speed_bps": 2202443327.922248
+      },
+      {
+        "mode": "plain",
+        "elapsed": 0.04121987200005606,
+        "bytes": 1831488,
+        "speed_bps": 44432161.26429284
+      },
+      {
+        "mode": "gzip",
+        "elapsed": 3.337999714858597e-06,
+        "bytes": 0,
+        "speed_bps": 0.0
+      },
+      {
+        "mode": "gzip",
+        "elapsed": 0.001154709999809711,
+        "bytes": 1828312,
+        "speed_bps": 1583351664.3151045
+      },
+      {
+        "mode": "gzip",
+        "elapsed": 0.04082190700000865,
+        "bytes": 1828312,
+        "speed_bps": 44787520.58299512
+      }
+    ],
+    "repeat": 2,
+    "transport": "loopback"
+  }
+]

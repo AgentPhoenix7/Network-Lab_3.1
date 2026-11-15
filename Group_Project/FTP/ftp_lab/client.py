@@ -7,9 +7,11 @@ import os
 import re
 import shlex
 import socket
+import struct
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
@@ -178,7 +180,7 @@ class FTPClient:
                 self.expect(self.command(verb, remote), (125, 150))
                 started = True
                 if self.passive:
-                    consume(endpoint)
+                    self.consume_data(endpoint, consume)
                 else:
                     deadline = time.monotonic() + self.timeout
                     while True:
@@ -191,13 +193,26 @@ class FTPClient:
                             if peer[0] != expected_peer:
                                 continue
                             data.settimeout(self.timeout)
-                            consume(data)
+                            self.consume_data(data, consume)
                             break
             return self.expect(self.read_response(), (226, 250))
         except BaseException:
             # After a preliminary reply, unread completion replies make reuse unsafe.
             if started:
                 self.close()
+            raise
+
+    @staticmethod
+    def consume_data(data, consume):
+        try:
+            consume(data)
+        except BaseException:
+            # An interrupted upload must not look like a valid shorter file.
+            # Reset the data stream before its context closes it with clean EOF.
+            try:
+                data.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
+            except OSError:
+                pass
             raise
 
     def list(self, remote='', *, names_only=False):
@@ -211,7 +226,7 @@ class FTPClient:
         self.transfer('NLST' if names_only else 'LIST', remote, receive)
         return content.decode('utf-8').splitlines()
 
-    def upload(self, local, remote):
+    def upload(self, local, remote, *, progress: Callable[[int], None] | None = None):
         with Path(local).open('rb') as source:
             self.expect(self.command('TYPE', 'I' if self.binary else 'A'), (200,))
 
@@ -219,10 +234,12 @@ class FTPClient:
                 chunks = iter(lambda: source.read(BLOCK_SIZE), b'')
                 for chunk in chunks if self.binary else encode_ascii(chunks):
                     data.sendall(chunk)
+                    if progress is not None:
+                        progress(len(chunk))
 
             return self.transfer('STOR', remote, send)
 
-    def download(self, remote, local):
+    def download(self, remote, local, *, progress: Callable[[int], None] | None = None):
         target = Path(local)
         staging = None
         try:
@@ -231,7 +248,13 @@ class FTPClient:
                 self.expect(self.command('TYPE', 'I' if self.binary else 'A'), (200,))
 
                 def receive(data):
-                    chunks = socket_chunks(data)
+                    def incoming():
+                        for chunk in socket_chunks(data):
+                            if progress is not None:
+                                progress(len(chunk))
+                            yield chunk
+
+                    chunks = incoming()
                     for chunk in chunks if self.binary else decode_ascii(chunks):
                         out.write(chunk)
 
