@@ -117,5 +117,12 @@ lab5/captures/web.pcapng
 lab5/tools/shot.py
 lab5/progress.md
 lab5/tools/*
-lab6/plan.md
-lab6/progress.md
+
+# Lab6: track ONLY the result PDF and attached screenshots, nothing else
+lab6/*
+!lab6/figures/
+!lab6/report/
+lab6/figures/*
+!lab6/figures/*.png
+lab6/report/*
+!lab6/report/*.pdf
