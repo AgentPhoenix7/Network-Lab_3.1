@@ -96,7 +96,6 @@ context/**/*
 # Temporary files
 *.tmp
 .DS_Store
-.gitignore
 lab2/REPORT.md
 lab2/eval/EVAL_RESULTS.csv
 lab3/tests/channel_test
@@ -104,14 +103,12 @@ lab3/channel
 lab3/station
 lab3/tests/backoff_test
 lab3/tests/csma_test
-.gitignore
 lab3/tests/*
 lab3/eval/*
 lab3/report/*
 lab4/eval/EVAL_INSIGHTS.md
 lab4/tests/__pycache__/eval_check.cpython-314.pyc
 lab5/plan.md
-.gitignore
 lab5/captures/ping.pcapng
 lab5/captures/web.pcapng
 lab5/tools/shot.py
