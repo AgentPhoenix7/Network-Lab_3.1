@@ -12,10 +12,13 @@ For a demonstration, jump to [running it yourself](#21-running-it-yourself).
 The shorter [README](../README.md) remains the quick-start reference.
 
 This walkthrough focuses on the socket protocol and terminal tools. The
-project now also has Relay, a local browser interface with authentication,
+project now also has Relay, a browser interface accessible across a trusted
+IPv4 LAN, with authentication,
 SQLite device/history storage, progress, and compression graphs. Continue
 with [the detailed app walkthrough](LOCAL_APP.md) for those modules and
 [the large-media report](../benchmarks/README.md) for measured results.
+The [multi-device guide](LAN_ACCESS.md) distinguishes host-only account
+setup, LAN browser access, and direct remote FTP clients.
 
 ---
 
@@ -253,6 +256,27 @@ the client explicitly sends `TYPE I` before a binary file operation.
 These bounds are implementation choices; they should not be presented as
 universal limits for every FTP server.
 
+The browser layer adds a separate set of defaults. Do not confuse its HTTP
+port with the FTP control or data ports:
+
+| Browser setting | Default or behavior |
+| --- | --- |
+| HTTP listener | `0.0.0.0:8080`, accepting the host's IPv4 interfaces |
+| Host-only alternative | `python3 -m ftp_lab.webapp --demo --host 127.0.0.1` |
+| First account | Created through loopback on the host computer |
+| Other browsers | Sign in at `http://HOST_LAN_IP:8080` after owner setup |
+| Shared data | Owner's saved profiles, transfer history, and host FTP folder |
+| Session-private data | Browser cookie/CSRF token and remembered external FTP passwords |
+| Internal demo FTP | Loopback, dynamically assigned port, generated credentials |
+| Transfer workers | Two, with at most eight nonterminal jobs |
+| File and unpacked bound | 8 GiB; this is a bound, not an 8 GiB test result |
+
+One workspace owner can sign in from multiple devices. This is different
+from creating a separate account for each person or turning every browser
+into a remotely accessible FTP server. The browser's file chooser refers
+to that browser device; **Host computer** refers to the Python server's
+shared FTP directory.
+
 ---
 
 ## 4. The four main modules
@@ -290,6 +314,47 @@ universal limits for every FTP server.
 Keeping these responsibilities apart lets a framing test use a socket pair
 without starting the entire server, and lets a filesystem test check a
 failed upload without needing a network connection.
+
+### 4.1 How browsers on other devices reach FTP
+
+```text
+phone browser -------- HTTP to HOST_LAN_IP:8080 --------+
+                                                     |
+second PC browser ----- independent HTTP session ------+
+                                                     v
+                                         webapp/server.py
+                                       auth + Host/Origin/CSRF
+                                                     |
+                                                     v
+                                         webapp/service.py
+                                        jobs + progress + bounds
+                                            |             |
+                                            v             v
+                                      database.py      FTPClient
+                                        SQLite            |
+                                                         FTP
+                                                          |
+                                               host shared folder or
+                                               saved external FTP server
+```
+
+The HTTP listener binds to all IPv4 interfaces by default. For each request,
+`getsockname()` on the accepted connection identifies the actual destination
+IP. The request Host must match that address and the app port; a loopback
+connection also accepts `localhost`. Mutating requests must carry the exact
+same Origin, the application header, and an authenticated CSRF token.
+Allowing network clients does not require accepting arbitrary Host headers.
+
+Only a loopback peer connecting to a loopback destination can create the
+first owner. A LAN browser can sign in afterward, but cannot take over a
+new workspace. Sessions have independent cookies and device passwords,
+while SQLite stores the shared account's device profiles and job history.
+The built-in FTP server can stay on loopback because the Python host,
+rather than the phone's browser, opens its FTP connections.
+
+Continue with [LOCAL_APP.md](LOCAL_APP.md#3-architecture-and-source-reading-order)
+for the complete service/database/frontend flow and
+[LAN_ACCESS.md](LAN_ACCESS.md) for network setup and its limits.
 
 ---
 
@@ -1442,6 +1507,23 @@ become confused with replies to later commands. A negative reply before
 the transfer starts, such as a missing-file `550`, can leave the control
 session reusable.
 
+The optional `progress(delta_bytes)` argument to `upload()` and `download()`
+lets the browser service measure actual payload movement without replacing
+the FTP implementation. It receives a block's byte count, not the cumulative
+total and not TCP/IP overhead. The service accumulates those deltas into
+progress, speed, estimates, and graph samples. Download callbacks run before
+writing the incoming block so an oversized payload can be rejected before
+the crossing chunk is written.
+
+`consume_data()` wraps the operation callback. If it raises, including
+cooperative cancellation, the client requests a data-socket reset with
+SO_LINGER before closing. This prevents the shipped server from treating
+that interrupted upload as a clean, complete smaller file. The app also
+compares a staged download's final length with the earlier SIZE reply;
+a source that shrank between SIZE and RETR is rejected before its browser
+attachment is published. External FTP servers may have different rollback
+behavior, so cancellation is not a universal remote undo operation.
+
 ### 18.3 The other client methods
 
 `pwd()` requires a `257` reply and extracts its quoted path, converting
@@ -1549,6 +1631,14 @@ calls `server_close()`, which sets the closing event, shuts down/closes
 registered sockets, and delegates to the threaded server's close logic.
 Workers are non-daemon and `block_on_close` is true, so close waits for
 their completion.
+
+Shutting down an already accepted data socket can cause `recv()` to return
+`b''`, which otherwise means clean EOF. `FTPSession.transfer()` therefore
+checks the server's closing event before leaving the ExitStack that owns
+the upload staging context. If shutdown caused that EOF, it raises instead
+of allowing the partial staging file to replace the old destination. The
+deterministic shutdown-EOF test checks this ordering directly, alongside
+the real concurrent shutdown test.
 
 In tests, `serve_forever()` runs in a background thread. The controlling
 thread calls `shutdown()`, then `server_close()`, then joins the service
@@ -1835,6 +1925,36 @@ needs incoming ephemeral data connections on the server; active mode
 needs them on the client. Fixed passive ranges, NAT setup, and public
 deployment are not provided by these programs.
 
+### 21.7 Use the browser workspace from another device
+
+On the host computer, from the repository root:
+
+```bash
+cd Group_Project/FTP
+python3 -m ftp_lab.webapp --demo
+```
+
+Create the first workspace account at `http://127.0.0.1:8080` on the host.
+Find its active LAN IPv4 address in network settings. On another computer
+or phone on the same trusted network, open `http://HOST_LAN_IP:8080`, using
+that address, and sign in with the workspace account.
+
+Upload a sample in one browser. In the other, refresh the **Host computer**
+folder, choose the file's **Download**, wait for completion, and select
+**Save file**. The source chooser and final saved copy belong to the browser
+device; the intermediate shared folder belongs to the Python host. The
+automated independent-session regression verifies the copied bytes exactly.
+
+The app's port 8080 carries HTTP. It is separate from the standalone FTP
+server's default control port 2121 and its per-transfer data ports. The
+browser service defaults to all IPv4 interfaces; the terminal server keeps
+its documented loopback default unless its `--host` is changed. See
+[LAN_ACCESS.md](LAN_ACCESS.md) for that direct-FTP workflow and troubleshooting.
+
+For host-only browser operation, add `--host 127.0.0.1`. Plaintext HTTP/FTP
+is intended for a trusted lab LAN. A host-interface test does not prove
+that a particular phone's Wi-Fi isolation or firewall path will permit it.
+
 ---
 
 ## 22. File-by-file reference and reading order
@@ -1962,6 +2082,7 @@ Python/OS exceptions; the server decides which wire reply to send.
 | `passive_port()` | Parse EPSV, or selected-error fallback PASV, into a valid data port |
 | `data_setup()` | Prepare the chosen passive connection or active listener |
 | `transfer()` | Run a data callback between preliminary and final replies |
+| `consume_data()` | Reset an interrupted data socket before close so cancellation does not look like ordinary EOF |
 | `list()` | Receive and decode LIST/NLST output |
 | `upload()` | Stream a local source into STOR |
 | `download()` | Receive RETR into a local staging file and publish on success |
@@ -1980,8 +2101,31 @@ docstring; it is not an alternative server or a hidden FTP implementation.
 - [.gitignore](../.gitignore): omit sample server/download data, Python
   caches/environments, local environment settings and logs. Source, tests,
   this explanation, and the other documentation remain trackable.
-- [tests/support.py](../tests/support.py) and the four test files: reusable
-  setup and the behavioral checks explained in section 20.
+- [tests/support.py](../tests/support.py), seven Python test modules and
+  the Node.js helper tests: setup and the checks explained in section 20.
+- [LOCAL_APP.md](LOCAL_APP.md): browser operation and module-by-module
+  database/auth/service/frontend explanation.
+- [LAN_ACCESS.md](LAN_ACCESS.md): multi-device URLs, host-only bootstrap,
+  ports, shared versus session-private state, and network troubleshooting.
+- [LOCAL_APP_PLAN.md](LOCAL_APP_PLAN.md): current design and JSON contract.
+- [benchmarks/README.md](../benchmarks/README.md): measured audio/video
+  observations, graphs, timing definitions and reproduction commands.
+
+### 22.7 Browser and benchmark modules
+
+| Module | Main symbols and responsibility |
+| --- | --- |
+| `webapp/database.py` | `Database`, `password_hash`, `token_hash`, `csrf_token`: schema, verifiers, session digests and persistent owner data |
+| `webapp/service.py` | `AppService`, `filename`, `remote_path`: job validation, disk streaming, session passwords, workers, cancellation and attachments |
+| `webapp/server.py` | `AppServer`, `AppHandler`, `main`: bind options, request destination/Origin checks, owner bootstrap, routes and HTTP streaming |
+| `webapp/static/app.js` | Session generation guard, API wrapper, source staging, job polling, dialogs and SVG rendering |
+| `benchmark.py` | `run_benchmark`, `csv_report`, `export_reports`, `render_graphs`: measured plain/gzip transfers, bounded SHA-256 verification, raw data and plots |
+| `tools/media_fixtures.py` | `generate`, `main`: offline playable WAV/raw AVI/MP4 sources and provenance manifest |
+
+The detailed [local app guide](LOCAL_APP.md) follows an upload and download
+through these layers. The [benchmark report](../benchmarks/README.md) explains
+why source bytes, compressed payload bytes, FTP throughput and effective
+throughput are separate measurements.
 
 ---
 
@@ -2068,6 +2212,10 @@ change the FTP file stream unless a separate extension were defined.
 Claim a Python, socket-based FTP subset with independent client/server,
 active/passive data modes, file/directory operations and the verified
 test cases. Explain the plaintext/trusted-lab scope and missing features.
+You can also present Relay's authenticated browser workflow, shared LAN
+workspace, independent browser sessions, and verified compression graphs.
+Keep the preserved loopback performance observations separate from a claim
+about real Wi-Fi speed or physical second-device verification.
 Do not describe it as SFTP, encrypted FTP, an ARP simulation, a production
 file service, or a complete implementation of every FTP extension.
 
@@ -2113,6 +2261,14 @@ file service, or a complete implementation of every FTP extension.
 | Timeout | A bound on a wait; it is distinct from a successful EOF |
 | Monotonic clock | A clock suitable for elapsed-time deadlines unaffected by wall-clock changes |
 | Interoperability test | Checking protocol behavior against an independent implementation |
+| LAN | A local network shared by the host and other devices, such as trusted Wi-Fi |
+| Wildcard bind | Listening on all host IPv4 interfaces with `0.0.0.0`, rather than using that value as a browser destination |
+| Browser session | An app owner's authenticated cookie/CSRF context, distinct from a short-lived FTP connection |
+| Host header | HTTP request authority that this app checks against the accepted socket destination |
+| Origin | Browser request source that must exactly match the requested app authority for mutations |
+| CSRF token | Session-derived value required to authorize app mutations from the frontend |
+| Payload throughput | FTP file bytes divided by measured upload time, excluding network headers |
+| Effective throughput | Original source bytes divided by preparation-plus-upload time |
 
 The repository source links throughout this document define the behavior
 of this particular implementation. For the wider protocol and Python

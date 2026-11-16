@@ -134,6 +134,11 @@ downloads remain available until their history entry is removed.
 
 ## 2. Where data lives and how restart works
 
+All devices signed in with the workspace owner see the same database-backed
+profiles and history. Their session cookies, CSRF tokens and external FTP
+passwords remain independent. The first-owner creation step is performed
+on the host's loopback URL; later LAN sign-ins use the host's assigned IP.
+
 The default data directory is relative to the shell's working directory.
 Run from `Group_Project/FTP` to use the ignored project-local `app-data/`.
 
@@ -351,7 +356,7 @@ application header, and authenticated CSRF header described above.
 
 | Method and path | Purpose |
 | --- | --- |
-| GET /api/session | Setup requirement, current user, CSRF token |
+| GET /api/session | Setup requirement/permission (`setup_allowed`), current user, CSRF token |
 | POST /api/setup, /api/login | Authenticate with username/password; set session cookie |
 | POST /api/logout | Revoke session and clear its device credentials |
 | GET, POST /api/devices | List profiles or save name/host/port/username |

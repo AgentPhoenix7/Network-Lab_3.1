@@ -29,6 +29,11 @@ Signing out cancels that session's jobs and revokes its credentials without
 signing out the other browsers. This is one shared account, not a separate
 account per device/person. Share its credentials only with intended users.
 
+The browser setup/account password authenticates to Relay. A saved external
+device's FTP password authenticates onward from Python to that device.
+These are separate authentication steps, and a shared saved profile does
+not share its remembered FTP password with another browser session.
+
 Upload in one browser, then refresh the host folder in another and download
 the file there. Each browser offers its own file chooser and saves downloads
 on the device running that browser. The host Python process performs the

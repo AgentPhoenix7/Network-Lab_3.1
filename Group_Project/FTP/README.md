@@ -295,6 +295,8 @@ LAN IPv4 address when running `make test`. It is otherwise reported skipped.
 | `tools/media_fixtures.py` | Offline playable audio/video fixture generation |
 | `tests/` | Core, interoperability, error and CLI tests |
 | `docs/LOCAL_APP.md` | Browser workflow and detailed app architecture |
+| `docs/LAN_ACCESS.md` | Multi-device setup, bind options, ports and verification |
+| `docs/LOCAL_APP_PLAN.md` | Browser design and HTTP/JSON contract |
 | `benchmarks/` | Saved measurements, plots and reproduction instructions |
 | `docs/IMPLEMENTATION.md` | Scope, design and implementation checklist |
 

@@ -1,22 +1,32 @@
 # Local FTP app design and implementation plan
 
-The original loopback-only design below was extended at the user's request
-on 2026-11-16. [LAN_ACCESS.md](LAN_ACCESS.md) specifies the current shared
-network binding, independent browser sessions, and host-only owner bootstrap.
+This design includes the user's 2026-11-16 multi-device extension.
+[LAN_ACCESS.md](LAN_ACCESS.md) explains shared network binding, independent
+browser sessions, and host-only owner bootstrap in detail.
 
 The user approved building a local browser app with saved FTP devices on
 2026-11-15, without further design questions. Retain Python and keep all
-changes inside FTP. Build on feat/ftp; preserve CLI interoperability.
+changes inside FTP. The CLI milestone used feat/ftp; follow-up browser/LAN
+work uses codex/ftp-local-app and preserves CLI interoperability.
 
 ## Design
 
-Use a loopback-only Python HTTP service, SQLite, and offline vanilla
+Use an IPv4 LAN-capable Python HTTP service, SQLite, and offline vanilla
 HTML/CSS/JS. No frontend build, cloud account, or deployment is required.
-One initial local owner account is created in the browser; salted scrypt
+Default to `--host 0.0.0.0 --port 8080`; allow explicit loopback-only binding.
+Validate Host against the accepted socket's destination IP/port, and require
+mutations' exact Origin, application header and authenticated CSRF token.
+One initial owner account is created through the host's loopback browser; salted scrypt
 password verifiers and hashed expiring sessions are stored in SQLite.
 Store device name/host/port/FTP username and transfer history in SQLite.
 FTP device passwords are session-memory only. Login is for the local app;
 connecting a saved device separately authenticates to that FTP server.
+All signed-in sessions share the owner's profiles, host-folder files and
+history; external FTP passwords, CSRF tokens, cookies and sign-out remain
+session-specific. Serialize first access to the internal demo profile.
+Label that folder **Host computer** so it is clear on remote browsers.
+Remote first-owner claims are rejected, and fresh specific-LAN-IP launches
+give instructions to bootstrap the owner on loopback before that bind mode.
 
 UI: quiet, minimalist light canvas, dark ink and a restrained mint/teal
 accent. Saved devices beside one transfer workspace. Show filename, bytes,
@@ -43,8 +53,10 @@ requests send `X-FTP-App: 1` and authenticated requests additionally send
 `X-CSRF-Token` from `/api/session`. Upload PUT sends the File as raw body.
 
 - GET `/api/session`: `{setup_required, setup_allowed, user: {id,username}|null, csrf}`.
-- POST `/api/setup`, `/api/login`: `{username,password}` -> session JSON;
+- POST `/api/setup`, `/api/login`: `{username,password}` -> user/CSRF session JSON;
   server sets HttpOnly SameSite=Strict cookie. POST `/api/logout` clears it.
+  Setup requires a loopback peer and destination; `setup_allowed` from
+  GET session controls the remote setup instruction in the browser.
 - GET `/api/devices`: `{devices:[{id,name,host,port,username,local,ready,last_connected}]}`.
 - POST `/api/devices`: `{name,host,port,username}` -> `{device}`.
 - POST `/api/devices/{id}/connect`: `{password}` -> `{device}`. A local demo
@@ -68,8 +80,12 @@ unpack,status,phase,done,total,percent,speed_bps,eta_seconds,elapsed_seconds,
 created,error,result,samples`. Status: awaiting_upload/queued/running/
 completed/failed/cancelled. Phase text is human-readable. Samples:
 `[{elapsed,bytes,speed_bps,mode}]`, in FTP payload bytes, no TCP/IP headers.
-Benchmark result: `{runs:[{mode,source_bytes,payload_bytes,compression_seconds,
-transfer_seconds,total_seconds,throughput_mib_s,effective_mib_s,sha256,verified}]}`.
+Benchmark result includes original filename/hash/size and
+`{runs:[{mode,source_bytes,payload_bytes,compression_ratio,compression_seconds,
+preparation_seconds,transfer_seconds,total_seconds,download_seconds,
+verification_seconds,round_trip_seconds,throughput_mib_s,effective_mib_s,
+sha256,verified}],samples:[...]}`. Total is preparation plus FTP upload;
+verification, browser staging and initial source hashing are separate.
 
 ## Work packages and ownership
 
@@ -90,3 +106,8 @@ Use failing behavior tests before implementation. Independently review the
 complete feature after integration. Verify actual browser login/device/
 upload/download/benchmark flows and large audio/video tests; do not infer
 runtime success from source inspection. Keep investigation data in .scratch.
+Current verification is 69 Python and 6 frontend tests, including seven
+network cases (the real-interface case requires `FTP_TEST_LAN_HOST`). LAN
+browser verification uses a disposable workspace; the host's owner account
+is left for its user. The app/FTP path is plaintext for a trusted lab LAN;
+public internet deployment and certificate provisioning are outside scope.

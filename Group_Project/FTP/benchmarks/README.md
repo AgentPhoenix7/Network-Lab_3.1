@@ -151,10 +151,24 @@ For a later LAN study, record both machines, connection type, server disk,
 background load, larger repetition counts, and varied mode order. Keep
 that evidence separate from these original local observations.
 
-## Fresh validation
+## Validation milestones
 
-On 2026-11-16, the complete project suite passed 61 Python and 6 frontend
+Before the LAN extension on 2026-11-16, the project suite passed 61 Python and 6 frontend
 tests. The internal browser also completed a separate 128 MiB WAV upload,
 verified original/gzip comparison, and graph rendering in an isolated app
 workspace. Those UI timings are a new observation, not replacements for
 the saved 2026-11-15 CSV data.
+
+The later multi-device extension passed **69 Python and 6 frontend tests**,
+including the opt-in real LAN-interface case. Its internal-browser check
+signed in and uploaded a 128 MiB WAV through the host's LAN URL. This is
+functional reachability/transfer evidence; it does not turn the preserved
+loopback benchmark graphs into physical Wi-Fi/LAN throughput results.
+See [LAN_ACCESS.md](../docs/LAN_ACCESS.md) for reproduction and the distinction
+between host-interface testing and a physical second-device test.
+
+The benchmark CLI's `--local` still intentionally starts an isolated
+loopback FTP server. To measure a second computer's FTP server, use the
+documented remote-server options above, not the browser HTTP port 8080.
+Record those new results in a separate output directory instead of
+overwriting the original observations.
