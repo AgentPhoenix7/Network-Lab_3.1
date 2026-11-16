@@ -29,10 +29,10 @@ chunks, checks downloaded size/SHA-256 after decompression, and cleans up
 its own temporary files. All 12 saved runs have `verified=True`.
 
 The [media manifest](results/media-manifest.json) records generation
-commands, FFprobe stream metadata, sizes, and SHA-256 hashes. Absolute paths
-in that capture identify the original observation environment; commands
-below reproduce the process in another checkout. Large source files are
-kept in ignored scratch storage instead of the Git repository.
+commands, FFprobe stream metadata, sizes, and SHA-256 hashes. Filenames
+are normalized to the portable example directory; measured bytes, hashes,
+codec metadata and generation timings are unchanged. Large source media
+is generated locally rather than committed to the Git repository.
 
 ## Observed results
 
@@ -102,39 +102,31 @@ cleanup. The UI's end-to-end comparison is therefore preparation plus
 FTP upload, not the time from choosing a file until all verification and
 browser saving finish. The separate fields make that boundary inspectable.
 
-The time-series samples use cumulative payload bytes divided by elapsed
-upload time. They are running averages rather than instantaneous link
-rates, exclude protocol headers, and include the final completion latency.
-Original and gzip traces each start at their own upload time zero.
+The sample export records cumulative payload bytes and running-average
+speed (bytes divided by elapsed upload time), excluding protocol headers.
+The exported time-series graph plots cumulative payload MiB against elapsed
+seconds, not instantaneous throughput. Original and gzip traces each start
+at their own upload time zero and include final completion latency.
 
 ## Reproduce locally
 
-From the repository root, with Python 3.11+, FFmpeg and FFprobe installed:
-
-```bash
-mkdir -p .scratch/tmp
-TMPDIR="$PWD/.scratch/tmp" TMP="$PWD/.scratch/tmp" TEMP="$PWD/.scratch/tmp" \
-  python3 Group_Project/FTP/tools/media_fixtures.py \
-  --output .scratch/ftp-media-new --mib 128 --mp4
-```
-
-The generator refuses to overwrite existing fixture names. Use a fresh
-output directory for a new observation. WAV and AVI are each at least the
-requested size; the MP4 is allowed to be much smaller after encoding.
-Keep enough disk space for sources, gzip, server copies, and downloads.
-
-Then run the benchmark from the FTP directory:
+From `Group_Project/FTP`, with Python 3.11+, FFmpeg and FFprobe installed:
 
 ```bash
 cd Group_Project/FTP
-TMPDIR="$PWD/../../.scratch/tmp" TMP="$PWD/../../.scratch/tmp" \
-TEMP="$PWD/../../.scratch/tmp" MPLCONFIGDIR="$PWD/../../.scratch/matplotlib" \
-  python3 -m ftp_lab.benchmark --local \
-  ../../.scratch/ftp-media-new/audio.wav \
-  ../../.scratch/ftp-media-new/video.avi \
-  ../../.scratch/ftp-media-new/video.mp4 \
-  --repeat 2 --output ../../.scratch/ftp-benchmark-new --plots
+python3 tools/media_fixtures.py \
+  --output benchmarks/generated-media --mib 128 --mp4
+python3 -m ftp_lab.benchmark --local \
+  benchmarks/generated-media/audio.wav \
+  benchmarks/generated-media/video.avi \
+  benchmarks/generated-media/video.mp4 \
+  --repeat 2 --output benchmarks/generated-results --plots
 ```
+
+The generator refuses to overwrite existing fixture names. Use fresh output
+directories for a new observation. WAV and AVI are each at least the requested
+size; MP4 is allowed to be much smaller after encoding. Keep enough disk
+space for sources, gzip, server copies, and downloads.
 
 `--plots` requires Matplotlib in the interpreter's environment. Omit that
 option for standard-library-only CSV/JSON exports. The browser's built-in

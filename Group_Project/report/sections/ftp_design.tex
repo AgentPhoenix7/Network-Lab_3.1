@@ -1,0 +1,85 @@
+\section{FTP system design}\label{sec:ftp-design}
+
+The implementation uses Python's standard library on Linux/POSIX. \code{socketserver} provides generic TCP connection/thread management; the project implements FTP command parsing, replies, login state, data setup, and file transfer itself. Python's \code{ftplib} is used only as an independent test client, not as the implementation.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[font=\small,
+ box/.style={draw,rounded corners=2pt,align=center,minimum height=1.0cm,minimum width=3.8cm,fill=gray!6},
+ arrow/.style={-{Stealth[length=5pt]},thick}]
+\node[box] (cli) at (0,0) {Terminal client\\\code{client.py}};
+\node[box] (srv) at (8,0) {Concurrent FTP server\\\code{server.py}};
+\draw[arrow,<->] (cli) -- node[above,font=\scriptsize]{control: commands/replies} node[below,font=\scriptsize]{data: one socket per listing/file} (srv);
+\node[box] (protocol) at (0,-2.2) {Framing, replies, ASCII codec\\\code{protocol.py}};
+\node[box] (fs) at (8,-2.2) {Virtual root and staged files\\\code{filesystem.py}};
+\draw[arrow] (cli)--(protocol);\draw[arrow] (srv)--(fs);
+\node[box] (bench) at (0,-4.4) {Repeatable plain/gzip experiments\\\code{benchmark.py}};
+\draw[arrow] (bench.west) -- ++(-0.8,0) |- (cli.west);
+\end{tikzpicture}
+\caption{Terminal FTP modules. The benchmark invokes the same socket client; the framing/codec helpers are shared by client and server.}
+\label{fig:ftp-modules}
+\end{figure}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Responsibilities and entry points. Paths are under \code{Group\_Project/FTP}.}
+\begin{tabularx}{\linewidth}{@{}l Y@{}}
+\toprule
+Module & Responsibility \\
+\midrule
+\code{protocol.py} & Bounded CRLF framing, multiline replies, byte chunks, NVT ASCII encode/decode. \\
+\code{filesystem.py} & Normalize virtual paths, walk through directory descriptors, reject symlinks/special files, stage replacements. \\
+\code{server.py} & Per-session authentication, FTP dispatch, passive/active endpoints, capacity and shutdown. \\
+\code{client.py} & Reply validation, transfer callbacks, data-setup fallback, terminal and script modes. \\
+\code{benchmark.py} & Gzip preparation, timed upload/download, SHA-256 verification, CSV/JSON and plots. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Session state and resource bounds}
+Each accepted control connection has its own pending username, authenticated flag, current virtual directory, transfer representation, and passive listener or active endpoint. Different clients do not change one another's directory or TYPE. They share the configured FTP root and one configured account. The threaded server limits concurrent admitted clients to 32 by default and applies a 30-second blocking-operation/inactivity timeout.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Important implementation limits, not universal FTP limits.}
+\begin{tabularx}{\linewidth}{@{}l l Y@{}}
+\toprule
+Item & Value & Reason \\
+\midrule
+FTP control port & 2121 & Unprivileged lab default; configurable. \\
+File-data block & 65,536 bytes & Bounded streaming memory use. \\
+Command line & 512 encoded bytes & Includes CRLF; reject oversized requests. \\
+Reply line & 16 KiB & Permit quoted and deep working-directory replies. \\
+Normalized path & 4,096 UTF-8 bytes & Bound path handling. \\
+Admitted sessions & 32 & Bound concurrency; excess clients receive 421. \\
+Socket timeout & 30 s & Bound a blocked operation, not an entire large-file transfer. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Virtual root and safe publication}
+The server presents its configured root as \code{/}. A client's \code{CWD} changes virtual session state, not the process-wide working directory. Descriptor-relative opens and no-follow flags prevent path traversal through symbolic links; only supported regular files and directories are exposed.
+
+An upload is written into a hidden staging file in the destination directory. A clean, successful transfer atomically replaces the final name. A detected reset, timeout, filesystem error, or server shutdown removes the staging file and preserves an existing destination. A client download follows the same principle: receive into a temporary local file and replace the requested destination only after a successful completion reply. This does not prove disk durability: no claim of an \code{fsync}-based crash guarantee is made.
+
+\subsection{Supported terminal operations}
+\begin{table}[htbp]
+\centering\small
+\caption{Terminal commands and the protocol operations behind them.}
+\begin{tabularx}{\linewidth}{@{}l l Y@{}}
+\toprule
+Terminal command & Wire operation & Effect \\
+\midrule
+\code{pwd}, \code{cd}, \code{cdup} & PWD/CWD/CDUP & Navigate the virtual root. \\
+\code{ls}, \code{nlst} & LIST/NLST & Detailed listing or names. \\
+\code{mkdir}, \code{rmdir} & MKD/RMD & Create/remove an empty directory. \\
+\code{put}, \code{get} & STOR/RETR & Upload/download one file. \\
+\code{size}, \code{delete} & SIZE/DELE & Binary length or regular-file removal. \\
+\code{ascii}, \code{binary} & TYPE before transfer & Change local representation preference. \\
+\code{active}, \code{passive} & EPRT/PORT or EPSV/PASV & Choose next data-setup direction. \\
+\code{noop}, \code{quit} & NOOP/QUIT & Check or close the control session. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Quoted names are parsed with shell-style quoting in the terminal. Batch input is accepted from \code{--script file} or \code{--script -}. Batch execution stops at the first error with exit status~1; interactive mode reports recoverable command errors and continues. Passwords come from \code{FTP\_PASSWORD} or an interactive prompt and are redacted in control traces.

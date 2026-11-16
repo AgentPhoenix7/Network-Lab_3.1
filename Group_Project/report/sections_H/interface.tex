@@ -1,0 +1,37 @@
+\section{Interface}\label{sec:interface}
+The C programs do all the ARP work. A small Python bridge and a web page only show what they do. This section describes the three links between them, then shows the page itself.
+
+\subsection{How the pieces connect}
+Each C program (a channel for each LAN and a station for each node) opens a TCP connection to the bridge, on port 9700 by default. It sends one JSON line for each event, such as \code{tx}, \code{rx} or \code{arp}. The bridge, written with FastAPI and uvicorn, gives each event a sequence number and a time stamp. It adds the decoded frame fields to every \code{tx} event and appends the event to \code{runs/<run>.jsonl}. It then forwards the event over a WebSocket at \code{/ws} to the browser.
+
+The browser page uses plain JavaScript and the Cytoscape library. It draws the topology and the moving packet markers, one ARP cache table for each node, a packet inspector, the event log and a replay bar. Commands travel the other way on the same links. A click in the browser becomes a JSON command on the WebSocket. The bridge turns it into a text line on the C program's TCP connection, for example \code{PING 141.23.56.21 1}, \code{FLUSH} or \code{SPEED 0.5}.
+
+\begin{table}[H]
+\centering\small
+\begin{tabularx}{\linewidth}{@{}lY@{}}
+\toprule
+File & Job \\
+\midrule
+\code{bridge/telemetry.py} & TCP server for the C programs: reads event lines, writes command lines back. \\
+\code{bridge/decode.py} & Turns the 65-byte frame (\code{frame.h} from lab~1~\cite{lab1}) into named ARP, IPv4 and ICMP fields. \\
+\code{bridge/recorder.py} & Numbers and time-stamps events and writes them to the \code{.jsonl} file. \\
+\code{bridge/launcher.py} & Starts the channel and station programs and stops them. \\
+\code{bridge/server.py} & FastAPI app: the \code{/ws} WebSocket, the command handlers and the static page. \\
+\code{web/ws-client.js} & The only file that touches the WebSocket; it reconnects after a break. \\
+\code{web/app.js} & Joins the parts: handles messages, controls and the replay cursor. \\
+\code{web/graph.js} & Cytoscape drawing of LANs, nodes and packet markers. \\
+\code{web/panels.js} & Inspector panels: node, LAN, line and packet; ARP cache tables. \\
+\code{web/timeline.js} & Replay bar helpers and run file export and import. \\
+\bottomrule
+\end{tabularx}
+\caption{Source files of the interface and what each one does.}\label{tab:i-files}
+\end{table}
+
+\subsection{Screenshot}
+Figure~\ref{fig:i-full} shows the page after the ping of Section~\ref{sec:example}. The event log is on the left and the network is in the middle. The inspector on the right shows h1's ARP cache, which maps 141.23.56.21 to r1's MAC address. The controls for speed, loss and delay sit at the bottom, with the replay bar below them.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{ui_full.png}
+\caption{The full interface after the example ping, with h1 selected.}\label{fig:i-full}
+\end{figure}

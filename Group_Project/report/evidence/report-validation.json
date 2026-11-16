@@ -1,0 +1,29 @@
+{
+  "date": "2026-11-16",
+  "pdf_pages": {
+    "report": 37,
+    "report_H": 41
+  },
+  "terminal_test_count": 52,
+  "terminal_tests_passed": true,
+  "binary_passive_copy_match": true,
+  "binary_active_copy_match": true,
+  "ascii_round_trip_match": true,
+  "saved_benchmark_runs": 12,
+  "saved_benchmark_all_verified": true,
+  "source_diagnostics": {
+    "ruff": "passed",
+    "pyright_errors": 0,
+    "pyright_warnings": 0
+  },
+  "original_arp_sections_preserved": true,
+  "lecture_figure_count": 4,
+  "benchmark_graph_count": 4,
+  "references_resolved": true,
+  "text_scope_checks_passed": true,
+  "lecture_figure_render_matches_source": true,
+  "portable_path_checks_passed": true,
+  "rendered_review_passed": true,
+  "source_excerpt_ranges_valid": true,
+  "benchmark_arithmetic_verified": true
+}

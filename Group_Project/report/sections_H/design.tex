@@ -1,0 +1,70 @@
+\section{System design and reuse of earlier labs}\label{sec:design}
+This section shows how the project is split into separate programs. It also lists the code that the project links from the earlier labs.
+
+\subsection{Layers and processes}
+The project runs as a set of small programs on one computer. They talk to each other over TCP sockets. Figure~\ref{fig:d-layers} shows the layers, from the browser at the top to the simulated network at the bottom.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\footnotesize,
+  box/.style={draw, rounded corners=2pt, minimum height=0.9cm, align=center, inner sep=3pt},
+  stn/.style={box, fill=hostfill, minimum width=2.2cm},
+  chan/.style={box, minimum width=2.4cm},
+  lnk/.style={-{Stealth[length=5pt]}, thick},
+  lab/.style={font=\scriptsize, align=center, inner sep=1pt}]
+  \node[box, fill=gray!12, minimum width=3cm] (br) at (0,0) {Browser\\[-1pt]\scriptsize web page};
+  \node[box, fill=gray!12, minimum width=3.4cm] (bg) at (6.2,0) {Bridge\\[-1pt]\scriptsize Python, FastAPI};
+  \draw[lnk, <->] (br) -- node[lab, above] {WebSocket, JSON} (bg);
+
+  \node[stn] (h1) at (-2.6,-3.0) {Station h1\\[-1pt]\scriptsize host};
+  \node[chan, fill=lanbus] (l1) at (0.6,-3.0) {Channel LAN 1\\[-1pt]\scriptsize bus (hub)};
+  \node[stn, fill=routerfill] (r1) at (3.8,-3.0) {Station r1\\[-1pt]\scriptsize router};
+  \node[chan, fill=lanstar] (l2) at (7.0,-3.0) {Channel LAN 2\\[-1pt]\scriptsize star (switch)};
+  \node[stn] (h2) at (10.2,-3.0) {Station h2\\[-1pt]\scriptsize host};
+  \draw[lnk, <->] (h1) -- (l1);
+  \draw[lnk, <->] (l1) -- (r1);
+  \draw[lnk, <->] (r1) -- (l2);
+  \draw[lnk, <->] (l2) -- (h2);
+  \node[lab] at (0.6,-4.15) {frames over TCP: 65 bytes each, one connection per network card};
+
+  \begin{scope}[on background layer]
+    \node[draw, dashed, rounded corners=3pt, fit=(h1)(l1)(r1)(l2)(h2), inner sep=7pt, fill=gray!4] (grp) {};
+  \end{scope}
+  \draw[lnk, dashed, ->] (grp.north -| bg) -- node[lab, right] {telemetry: one JSON line\\per event, TCP port 9700} (bg.south);
+\end{tikzpicture}
+\caption{The layers. Each LAN is one channel process, and each host or router is one station process. The example shows two LANs joined by a router. Every C process also reports events to the bridge.}
+\label{fig:d-layers}
+\end{figure}
+
+Each LAN is one \emph{channel} process. The channel stands for the cable or the switch. In bus mode it acts as a hub and repeats each frame to every other port. In star mode it acts as a learning switch and sends a frame only to the port that owns the destination MAC address. The channel can also delay, lose or corrupt frames on purpose.
+
+Each host or router is one \emph{station} process. A station has one network card (NIC) for every LAN it joins. Each NIC is one TCP connection to the channel of that LAN. A router therefore has two or more connections.
+
+Stations and channels exchange whole frames of 65 bytes. A frame has a 17-byte header, a 44-byte payload and a 4-byte frame check sequence (FCS). The FCS is a CRC-32 value that lets the receiver detect flipped bits. The frame layout comes from the first lab \cite{lab1}.
+
+Every C process also sends a short text line for each event to the bridge. The bridge is a Python program. It starts the C processes, collects their events and passes them to the browser as JSON over a WebSocket. The browser page draws the network and replays the events. Section~\ref{sec:interface} describes this part.
+
+\subsection{Code linked from earlier labs}
+The project links code from the first, second and fourth labs. Table~\ref{tab:d-reuse} lists each file and the project file that uses it. The \code{Makefile} names the lab sources in \code{LAB\_SRCS} and adds the lab folders to the include path with \code{-I}. The lab code is compiled and linked at build time. The project never copies it and never edits it.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\caption{Files linked from earlier labs. The reports for these labs are \cite{lab1}, \cite{lab2} and \cite{lab4}.}
+\label{tab:d-reuse}
+\begin{tabularx}{\linewidth}{@{}l l Y l@{}}
+\toprule
+Lab & File & What it provides & Used by (project file) \\
+\midrule
+lab1 & \code{frame.h} & The 65-byte \code{frame\_t}: 17-byte header, 44-byte payload, 4-byte FCS & \code{l2.h}, \code{delayq.h} \\
+lab1 & \code{scheme.c} & \code{compute\_fcs}, here with CRC-32 over header and payload & \code{ether.c} \\
+lab1 & \code{error.c} & 16-bit checksum (\code{checksum16\_compute}, \code{checksum16\_verify}) and the CRC routine behind \code{scheme.c} & \code{ipv4.c} \\
+lab1 & \code{error\_inject/bit\_flip.c} & \code{flip\_bit} and \code{random\_bit\_index} to damage a frame & \code{impair.c} \\
+lab2 & \code{timer.c} & \code{timer\_now\_ns}, a monotonic clock in nanoseconds & \code{simclock.c} \\
+lab4 & \code{cli.c} & \code{cli\_parse}, a table-driven \code{--flag value} parser & \code{station.c}, \code{channel\_main.c} \\
+lab4 & \code{tests/test\_util.h} & Assert macros for test programs & \code{tests/*\_test.c} \\
+utils & \code{utils.c} & \code{tcp\_listen}, \code{tcp\_accept}, \code{tcp\_connect}, \code{send\_all}, \code{recv\_all}, \code{close\_conn} & \code{channel.c}, \code{nic.c}, \code{telemetry.c}, \code{station.c} \\
+\bottomrule
+\end{tabularx}
+\end{table}

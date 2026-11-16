@@ -1,0 +1,149 @@
+\section{Preset topologies}\label{sec:topologies}
+The simulator ships with 18 ready-made networks, called presets. This section draws four of them, taken directly from the JSON files in \code{scenarios/}. The other 14 are summarised at the end.
+
+% Styles for this section only (prefix tp).
+\tikzset{
+  tphost/.style={draw=black!70, rounded corners=3pt, fill=hostfill, align=center,
+                 font=\footnotesize, inner sep=3pt, minimum width=2.5cm},
+  tprouter/.style={draw=black!80, rounded corners=2pt, fill=routerfill, align=center,
+                   font=\footnotesize, inner sep=4pt},
+  tpswitch/.style={draw=black!70, fill=white, align=center, font=\footnotesize,
+                   inner sep=4pt, minimum width=1.7cm},
+  tplan/.style={draw=black!45, rounded corners=6pt, thick},
+  tpbus/.style={line width=2.4pt, black!65},
+  tpwire/.style={thick, black!70},
+  tptitle/.style={anchor=north west, align=left, font=\footnotesize},
+  tpnote/.style={font=\footnotesize, inner sep=2pt}
+}
+
+\subsection{How to read the diagrams}
+Each shaded box is one LAN. Blue boxes are bus LANs and green boxes are star LANs. Hosts are white boxes, and routers are orange boxes. Every box shows the name, the IP address and the MAC address of the machine.
+
+A MAC address is shown by its last two bytes only. For example, \code{MAC ..:03:01} stands for \code{02:00:00:00:03:01}. The first four bytes are always \code{02:00:00:00}. The last two bytes are the node number and the interface number, both in hex. The node number is the position of the node in the JSON file, counted from 1. The bridge uses this rule to fill in any MAC that the file leaves out (\code{bridge/topology.py}, function \code{auto\_fill}). The four presets below set their MACs in the file, and each value follows the rule.
+
+On a \emph{bus} LAN, all stations share one wire, like a hub. Every frame reaches every other station. A station drops a unicast frame when the destination MAC is not its own. On a \emph{star} LAN, each station has its own cable to a switch. The switch learns which MAC sits behind which port. It sends a unicast frame to that port only, and it floods broadcasts. Section~\ref{sec:design} explains how the project builds both.
+
+\subsection{One LAN: \code{single\_bus} and \code{single\_star}}
+These two presets are the simplest networks. Each has four hosts on one LAN and no router. Figure~\ref{fig:t-single} draws both. The only difference is the wiring.
+
+\begin{figure}[htbp]
+\centering
+\begin{minipage}[t]{0.485\linewidth}
+\centering
+\begin{tikzpicture}
+\path[tplan, fill=lanbus] (-4,-2.95) rectangle (4,3.7);
+\node[tptitle] at (-3.85,3.6) {\textbf{LAN A: bus (hub)}\\141.23.56.0/24};
+\draw[tpbus] (-3.7,0)--(3.7,0);
+\node[tphost] (a1) at (-2.0,1.85) {\textbf{h1}\\141.23.56.10\\MAC ..:01:00};
+\node[tphost] (a2) at ( 2.0,1.85) {\textbf{h2}\\141.23.56.11\\MAC ..:02:00};
+\node[tphost] (a3) at (-2.0,-1.85) {\textbf{h3}\\141.23.56.12\\MAC ..:03:00};
+\node[tphost] (a4) at ( 2.0,-1.85) {\textbf{h4}\\141.23.56.13\\MAC ..:04:00};
+\foreach \h/\y in {a1/0, a2/0, a3/0, a4/0} {\draw[tpwire] (\h) -- (\h |- 0,\y);}
+\end{tikzpicture}
+
+\smallskip
+{\small \textbf{(a)} \code{single\_bus}. A frame from h1 reaches h2, h3 and h4. Only its target keeps it.}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.485\linewidth}
+\centering
+\begin{tikzpicture}
+\path[tplan, fill=lanstar] (-4,-2.95) rectangle (4,3.7);
+\node[tptitle] at (-3.85,3.6) {\textbf{LAN A: star (switch)}\\141.23.56.0/24};
+\node[tpswitch] (sw) at (0,0) {switch};
+\node[tphost] (b1) at (-2.0,1.85) {\textbf{h1}\\141.23.56.10\\MAC ..:01:00};
+\node[tphost] (b2) at ( 2.0,1.85) {\textbf{h2}\\141.23.56.11\\MAC ..:02:00};
+\node[tphost] (b3) at (-2.0,-1.85) {\textbf{h3}\\141.23.56.12\\MAC ..:03:00};
+\node[tphost] (b4) at ( 2.0,-1.85) {\textbf{h4}\\141.23.56.13\\MAC ..:04:00};
+\foreach \h in {b1,b2,b3,b4} {\draw[tpwire] (sw) -- (\h);}
+\end{tikzpicture}
+
+\smallskip
+{\small \textbf{(b)} \code{single\_star}. The switch sends a known unicast to one port. Broadcasts go to all.}
+\end{minipage}
+\caption{The one-LAN presets. Both use the prefix 141.23.56.0/24 and the same four hosts. No host has a gateway, because no router exists.}
+\label{fig:t-single}
+\end{figure}
+
+On the bus, every host sees every frame. On the star, a host sees a unicast frame only when the frame is for it. These two presets show this difference with the same ARP traffic. Each host can reach every other host directly, so the target of each ARP request is always the final destination.
+
+\subsection{Two LANs and a router: \code{two\_lans}}
+This preset joins two LANs with one router, \code{r1}. Figure~\ref{fig:t-two} shows it. LAN A is a bus with prefix 141.23.56.0/24. LAN B is a star with prefix 141.23.57.0/24. The two prefixes differ, so the LANs are separate networks.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+% LAN boxes first, so wires are drawn on top
+\path[tplan, fill=lanstar] (-7.5,-8.45) rectangle (7.5,-4.7);
+% LAN A
+\path[tplan, fill=lanbus] (-7.5,0) rectangle (7.5,4.2);
+\node[tptitle] at (-7.35,4.1) {\textbf{LAN A: bus (hub)}\\141.23.56.0/24};
+\draw[tpbus] (-7.1,0.95)--(7.1,0.95);
+\node[tphost] (h1) at (-4.5,2.4) {\textbf{h1}\\141.23.56.10\\MAC ..:01:00};
+\draw[tpwire] (h1.south) -- (-4.5,0.95);
+% router
+\node[tprouter] (r1) at (0,-2.7) {\textbf{r1} (router)};
+\draw[tpwire] (0,0.95) -- (r1.north);
+\node[tpnote, anchor=west, align=left] at (0.25,-1.2) {\textbf{if0}  141.23.56.1/24\\MAC ..:02:00};
+\draw[tpwire] (r1.south) -- (0,-6.2);
+\node[tpnote, anchor=west, align=left] at (0.25,-3.9) {\textbf{if1}  141.23.57.1/24\\MAC ..:02:01};
+\node[tptitle] at (-7.35,-4.8) {\textbf{LAN B: star (switch)}\\141.23.57.0/24};
+\node[tpswitch] (sw) at (0,-7.0) {switch};
+\node[tphost] (h3) at (-4.5,-7.0) {\textbf{h3}\\141.23.57.10\\MAC ..:03:00};
+\draw[tpwire] (sw.west) -- (h3.east);
+\draw[tpwire] (0,-6.2) -- (sw.north);
+\end{tikzpicture}
+\caption{Preset \code{two\_lans}. The router has one interface on each LAN.}
+\label{fig:t-two}
+\end{figure}
+
+Host h1 has gateway 141.23.56.1, which is r1's if0. Host h3 has gateway 141.23.57.1, which is r1's if1. When h1 pings h3, h1 asks for the MAC of its gateway, not of h3. The router then asks for h3's MAC on LAN B. So two separate ARP exchanges happen, one on each LAN.
+
+\subsection{Proxy ARP: \code{proxy\_arp}}
+This is the preset used in the worked example of Section~\ref{sec:example}. It looks like \code{two\_lans}, but the address plan is different. Figure~\ref{fig:t-proxy} shows it.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+% LAN boxes first, so wires are drawn on top
+\path[tplan, fill=lanstar] (-7.5,-8.45) rectangle (7.5,-4.7);
+% LAN A
+\path[tplan, fill=lanbus] (-7.5,0) rectangle (7.5,4.2);
+\node[tptitle] at (-7.35,4.1) {\textbf{LAN A: bus (hub)}\\141.23.56.0/24};
+\draw[tpbus] (-7.1,0.95)--(7.1,0.95);
+\node[tphost] (h1) at (-4.5,2.4) {\textbf{h1}\\141.23.56.10\\MAC ..:01:00};
+\node[tphost] (h2) at ( 4.5,2.4) {\textbf{h2}\\141.23.56.11\\MAC ..:02:00};
+\draw[tpwire] (h1.south) -- (-4.5,0.95);
+\draw[tpwire] (h2.south) -- (4.5,0.95);
+% router
+\node[tprouter] (r1) at (0,-2.7) {\textbf{r1} (router)};
+\draw[tpwire] (0,0.95) -- (r1.north);
+\node[tpnote, anchor=west, align=left] at (0.25,-1.2) {\textbf{if0}  141.23.56.1/24\\MAC ..:03:00};
+\node[tpnote, anchor=east, align=left, draw=proxyc, dashed, text=proxyc, inner sep=3pt]
+  at (-0.5,-1.2) {\textbf{proxy list of if0}\\141.23.56.21/32\\141.23.56.22/32\\141.23.56.23/32};
+\draw[tpwire] (r1.south) -- (0,-6.2);
+\node[tpnote, anchor=west, align=left] at (0.25,-3.9) {\textbf{if1}  141.23.56.17/29\\MAC ..:03:01};
+\node[tptitle] at (-7.35,-4.8) {\textbf{LAN B: star (switch)}\\141.23.56.16/29};
+\node[tpswitch] (sw) at (0,-7.0) {switch};
+\node[tphost] (h3) at (-4.5,-7.0) {\textbf{h3}\\141.23.56.21\\MAC ..:04:00};
+\node[tphost] (h4) at ( 4.5,-7.0) {\textbf{h4}\\141.23.56.22\\MAC ..:05:00};
+\draw[tpwire] (sw.west) -- (h3.east);
+\draw[tpwire] (sw.east) -- (h4.west);
+\draw[tpwire] (0,-6.2) -- (sw.north);
+\end{tikzpicture}
+\caption{Preset \code{proxy\_arp}. LAN B (141.23.56.16/29) is a small slice of LAN A's address range. The dashed box is the proxy list.}
+\label{fig:t-proxy}
+\end{figure}
+
+The slice 141.23.56.16/29 covers the eight addresses .16 to .23. Hosts h1 and h2 use the mask /24, so they believe that every address in 141.23.56.0/24 sits on their own wire. They do not know about LAN B. When h1 wants h3 (141.23.56.21), it sends an ARP request on LAN A.
+
+Router r1 answers for h3. Its if0 holds a proxy list with three entries, 141.23.56.21, .22 and .23, each written as a /32 (a single address). The rule is short: r1 answers a request on if0 when the target is in the list and the route to it leaves through another interface. The list also names .23, which no host owns. Hosts h3 and h4 use r1's if1 (141.23.56.17) as their gateway. Section~\ref{sec:core} gives the pseudocode (Pseudocode~\ref{alg:proxy}).
+
+\subsection{The other presets}
+The remaining 14 presets reuse the same building blocks in larger shapes.
+
+\begin{itemize}[leftmargin=1.5em, itemsep=1pt]
+\item \textbf{Proxy variants:} \code{proxy\_dmz} and \code{proxy\_hotel}. Each has a router that answers for a whole range. The range is a /25 (DMZ) or a /26 (hotel rooms), not a list of single addresses.
+\item \textbf{Routed networks:} \code{three\_lans}, \code{home\_wifi}, \code{office\_pair}, \code{fork\_routes}, \code{hub\_spoke}, \code{campus}, \code{data\_center}. They have two to four LANs, one to three routers, and hosts that use gateways.
+\item \textbf{Long paths:} \code{long\_chain}, \code{triangle} and \code{ring\_four}. Packets cross three to five routers, so the TTL falls at each hop and ARP runs on each link.
+\item \textbf{Crowds:} \code{bus\_crowd} and \code{star\_crowd}. Seven hosts share one LAN and no router exists. They show how a bus and a star scale.
+\end{itemize}

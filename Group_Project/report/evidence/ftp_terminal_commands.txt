@@ -1,0 +1,19 @@
+pwd
+mkdir experiment
+cd experiment
+put source.bin sample.bin
+ls
+size sample.bin
+get sample.bin passive-copy.bin
+active
+get sample.bin active-copy.bin
+passive
+ascii
+put source.txt text.txt
+get text.txt text-copy.txt
+binary
+delete sample.bin
+delete text.txt
+cdup
+rmdir experiment
+quit

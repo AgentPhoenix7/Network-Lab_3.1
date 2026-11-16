@@ -1744,14 +1744,14 @@ background thread could be missed by the main test.
 
 ### 20.4 What the Makefile actually does
 
-`make test` does not compile Python. It creates the repository's
-`.scratch/tmp`, sets `TMPDIR`, `TMP`, and `TEMP` to that path, disables
+`make test` does not compile Python. It creates `build/tmp` under the FTP directory, sets `TMPDIR`, `TMP`, and
+`TEMP` to that path, disables
 bytecode generation for the run, and invokes unittest discovery.
 `ResourceWarning` is treated as an error to help expose resource leaks.
 
 Tests using `tempfile` inherit that temporary location from the command's
 environment. Running unittest manually without the variables would not
-automatically place its temporary data in `.scratch`.
+automatically place its temporary data in `build`.
 
 `make server` and `make client` are convenience wrappers around the
 corresponding `python3 -m ...` commands. The server still requires its
@@ -1891,8 +1891,8 @@ make test
 Or, from the repository root without make:
 
 ```bash
-mkdir -p .scratch/tmp
-TMPDIR="$PWD/.scratch/tmp" TMP="$PWD/.scratch/tmp" TEMP="$PWD/.scratch/tmp" \
+mkdir -p Group_Project/FTP/build/tmp
+TMPDIR="$PWD/Group_Project/FTP/build/tmp" TMP="$PWD/Group_Project/FTP/build/tmp" TEMP="$PWD/Group_Project/FTP/build/tmp" \
   PYTHONPATH="$PWD/Group_Project/FTP" \
   python3 -W error::ResourceWarning -m unittest discover -s Group_Project/FTP/tests -v
 ```

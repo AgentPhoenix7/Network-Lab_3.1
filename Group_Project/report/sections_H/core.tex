@@ -1,0 +1,547 @@
+\begingroup
+\algtext*{EndIf}\algtext*{EndFor}\algtext*{EndFunction}
+\lstdefinestyle{corelst}{basicstyle=\ttfamily\scriptsize}
+\section{Core ARP implementation}\label{sec:core}
+This is the heart of the project. Three C files hold the whole of ARP and proxy ARP: the packet, the cache and the rules. Each part below gives the idea first, then pseudocode, then a short excerpt from the real code. Section~\ref{sec:example} shows these parts at work on one ping.
+
+\subsection{Overview of the ARP engine}
+A host that wants to send an IP packet knows the IP address of the next machine on the path. This machine is the \emph{next hop}. The host does not know the next hop's MAC address. ARP finds it \cite{rfc826}. The host broadcasts the question ``who has this IP address?'' and the owner answers with its MAC address.
+
+The engine has three layers. Each layer is one pair of C files.
+\begin{itemize}[nosep]
+\item \code{arp.c} holds the rules: send, queue, learn, reply, retry and expire.
+\item \code{arp\_cache.c} remembers the answers, each with a state and a queue of waiting packets.
+\item \code{arp\_pkt.c} builds and reads the 28 bytes that travel on the wire.
+\end{itemize}
+This layout follows the ARP package in Forouzan \cite{forouzan}: an output module, an input module and a cache-control module.
+
+All three files are \emph{pure}. They never read a clock, open a socket or print. Time arrives as an argument called \code{now}, in simulated milliseconds. Frames to send go into an output queue, and things that happened go to a callback. So the tests can run ARP with a fake clock and no processes. Table~\ref{tab:core-params} lists the fixed limits and the default timing values.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\caption{Limits and defaults of the ARP engine. The defaults are set in \code{net\_init} (\code{src/net.c}, line 55).}
+\label{tab:core-params}
+\begin{tabularx}{\linewidth}{@{}l r Y@{}}
+\toprule
+Name & Value & Meaning \\
+\midrule
+\code{ARP\_CACHE\_SIZE} & 32 & Entries in one station's cache \\
+\code{ARP\_QUEUE\_MAX} & 4 & IP packets that can wait on one entry \\
+\code{ttl\_ms} & 30000 & Life of a learned entry, in simulated ms \\
+\code{retry\_ms} & 1000 & Gap between repeated requests \\
+\code{max\_attempts} & 0 & Requests before giving up; 0 means never give up \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{The ARP packet}\label{sec:core-pkt}
+The ARP packet is a fixed block of 28 bytes. It carries the sender and target addresses at both levels: MAC and IP. The first four fields say what kind of addresses follow. For IP over Ethernet they are always the same: hardware type 1, protocol type \code{0x0800}, hardware length 6 and protocol length 4. The operation field is 1 for a request and 2 for a reply. Section~\ref{sec:concepts} gives the field table.
+
+The code keeps IP addresses in host byte order inside C variables. They change to network order only inside the packed packet struct, and only in \code{arp\_pkt.c}. No other file has to think about byte order. A request leaves the target MAC field (\code{tha}) at zero, because that is the unknown. A reply is a request with the operation changed and the target MAC filled in.
+
+\begin{algorithm}[H]\small
+\caption{Build an ARP packet (\code{arp\_pkt\_request}, \code{arp\_pkt\_reply})}
+\label{alg:build}
+\begin{algorithmic}[1]
+\Require sender MAC \textit{sha}, sender IP \textit{spa}, target IP \textit{tpa} in host order; for a reply, also target MAC \textit{tha}
+\Ensure a 28-byte packet $p$ with multi-byte fields in network order
+\State set all 28 bytes of $p$ to 0 \Comment{so \textit{tha} starts as zero}
+\State $p.htype \gets 1$, $p.ptype \gets \texttt{0x0800}$, $p.hlen \gets 6$, $p.plen \gets 4$
+\State $p.oper \gets 1$ (request)
+\State $p.sha \gets sha$, $p.spa \gets \mathrm{toNetwork}(spa)$, $p.tpa \gets \mathrm{toNetwork}(tpa)$
+\If{building a reply}
+  \State $p.oper \gets 2$, $p.tha \gets tha$
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+
+The parser does the reverse. It checks the packet in a fixed order, so each error code has exactly one cause.
+
+\begin{algorithm}[H]\small
+\caption{Parse an ARP packet (\code{arp\_pkt\_parse})}
+\label{alg:parse}
+\begin{algorithmic}[1]
+\Require byte buffer \textit{buf} of length \textit{len}
+\Ensure return code, and packet \textit{out} in host order when the code is 0
+\If{$len < 28$} \Return $-1$ \Comment{too short}
+\EndIf
+\State copy 28 bytes of \textit{buf} into $p$ \Comment{a copy, not a pointer cast}
+\If{$(htype, ptype, hlen, plen) \ne (1, \texttt{0x0800}, 6, 4)$} \Return $-2$ \Comment{not Ethernet and IPv4}
+\EndIf
+\If{$oper \notin \{1, 2\}$} \Return $-3$ \Comment{bad operation}
+\EndIf
+\State $out \gets p$, then convert $htype$, $ptype$, $oper$, $spa$, $tpa$ to host order
+\State \Return $0$
+\end{algorithmic}
+\end{algorithm}
+
+The first excerpt shows the packed struct. The second shows the parser's tail, where bytes become host-order fields.
+
+%SRC src/arp_pkt.h 5-11
+\Needspace*{12\baselineskip}\begin{lstlisting}[style=corelst, firstnumber=5, caption={\code{src/arp\_pkt.h}, lines 5--11: the packet struct.}]
+#pragma pack(push,1)
+typedef struct {
+    uint16_t htype, ptype; uint8_t hlen, plen; uint16_t oper;
+    uint8_t sha[6]; uint32_t spa; uint8_t tha[6]; uint32_t tpa;
+} arp_pkt_t;                                   /* 28 bytes, RFC 826 / Forouzan Fig. 21.2 */
+#pragma pack(pop)
+_Static_assert(sizeof(arp_pkt_t) == 28, "arp_pkt_t must be 28 bytes");
+\end{lstlisting}
+
+%SRC src/arp_pkt.c 29-41
+\Needspace*{18\baselineskip}\begin{lstlisting}[style=corelst, firstnumber=29, caption={\code{src/arp\_pkt.c}, lines 29--41: copy first, then convert.}]
+    /* memcpy, not a cast: buf may not be aligned for 16/32-bit reads */
+    memcpy(&p, buf, sizeof p);
+    if (ntohs(p.htype) != 1 || ntohs(p.ptype) != 0x0800 || p.hlen != 6 || p.plen != 4) return -2;
+    if (ntohs(p.oper) != ARP_REQUEST && ntohs(p.oper) != ARP_REPLY) return -3;
+
+    *out = p;                               /* copy the bytes, then fix the multi-byte fields */
+    out->htype = ntohs(p.htype);
+    out->ptype = ntohs(p.ptype);
+    out->oper = ntohs(p.oper);
+    out->spa = ntohl(p.spa);
+    out->tpa = ntohl(p.tpa);
+    return 0;
+}
+\end{lstlisting}
+
+\emph{Note.} The packed struct has no gaps, and the \code{\_Static\_assert} stops the build if its size is not 28. The parser copies the bytes instead of casting the buffer, because a cast to a 16-bit or 32-bit field can fail on an unaligned address. It fills the output only after every check passes.
+
+\subsection{The ARP cache}\label{sec:core-cache}
+The cache is a table of what this station has learned. A station needs it because asking before every packet would flood the LAN. Each slot is in one of three states. A \emph{free} slot holds nothing. A \emph{pending} slot means a request is on the wire and the answer has not come back. A \emph{resolved} slot holds a MAC address that is ready to use.
+
+Each slot also keeps a queue of IP packets that are waiting for the answer. The queue holds at most 4 packets. The table has 32 slots and uses no \code{malloc}. Figure~\ref{fig:core-states} shows how a slot moves between the states.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  font=\footnotesize,
+  st/.style={draw, circle, minimum size=1.5cm, thick, align=center},
+  tr/.style={-{Stealth[length=5pt]}, thick},
+  lb/.style={font=\scriptsize, align=center, inner sep=1.5pt}]
+  \node[st, fill=gray!10] (f) at (0,0) {FREE};
+  \node[st, fill=arpreq!15] (p) at (8,0) {PENDING};
+  \node[st, fill=arprep!15] (r) at (4,-5.6) {RESOLVED};
+
+  \draw[tr] (f) to[bend left=22] node[lb, above] {miss in \code{arp\_output}:\\park the packet, broadcast a request} (p);
+  \draw[tr] (p) to[bend left=22] node[lb, below] {give up (FAIL):\\drop the queue} (f);
+  \draw[tr] (p) to[bend left=18] node[lb, right, xshift=2pt] {any ARP from that IP:\\merge, send queued packets} (r);
+  \draw[tr] (r) to[bend right=25] node[lb, right, xshift=1pt, pos=0.5] {\code{ttl\_ms} runs out\\(EXPIRE)} (f);
+  \draw[tr] (f) to[bend right=25] node[lb, below left, xshift=-1pt] {request for me or a proxy target\\from an unknown sender: learn} (r);
+  \draw[tr] (p) to[loop above, looseness=5, min distance=7mm] node[lb, above] {\code{retry\_ms} passes: resend (RETRY)} (p);
+  \draw[tr] (r) to[loop below, looseness=5, min distance=7mm] node[lb, below] {ARP from that IP: refresh \code{ttl\_ms} (LEARN)} (r);
+\end{tikzpicture}
+\caption{States of one cache slot. The labels name the event that moves the slot. A full table can also reuse a RESOLVED slot.}
+\label{fig:core-states}
+\end{figure}
+
+The cache is keyed by the pair (interface, IP), not by IP alone. A router can meet the same address range on two interfaces, and a single IP key would mix them up. A free slot never matches a lookup, so a slot that was freed or flushed is invisible.
+
+The only hard question is what to do when the table is full. The rule has two parts. A free slot always wins. Otherwise the cache evicts the resolved entry that expires first, because it has the least life left. It never evicts a pending entry. A pending entry still holds waiting packets and has a request on the wire.
+
+\begin{algorithm}[H]\small
+\caption{Pick a slot for a new entry (\code{arp\_cache\_alloc})}
+\label{alg:alloc}
+\begin{algorithmic}[1]
+\Require \textit{cache}, \textit{iface}, \textit{ip}
+\Ensure a cleared slot with \textit{iface} and \textit{ip} set, or \textsc{nil} if none can be used
+\State $victim \gets \textsc{nil}$
+\For{each slot $e$ in table order}
+  \If{$e$ is FREE}
+    \State $victim \gets e$; stop the loop \Comment{a free slot always wins}
+  \EndIf
+  \If{$e$ is RESOLVED \textbf{and} ($victim = \textsc{nil}$ \textbf{or} $e.expires\_at < victim.expires\_at$)}
+    \State $victim \gets e$ \Comment{pending slots are never candidates}
+  \EndIf
+\EndFor
+\If{$victim = \textsc{nil}$} \Return \textsc{nil}
+\EndIf
+\State clear $victim$ to all zero, then set $victim.iface$ and $victim.ip$ \Comment{state stays FREE}
+\State \Return $victim$
+\end{algorithmic}
+\end{algorithm}
+
+The queue works as follows. \code{arp\_cache\_enqueue} returns $-1$ if the queue already holds 4 packets or the packet is longer than 44 bytes. Otherwise it copies the packet to the end of the queue. The caller drops a packet that does not fit.
+
+%SRC src/arp_cache.c 15-29
+\Needspace*{20\baselineskip}\begin{lstlisting}[style=corelst, firstnumber=15, caption={\code{src/arp\_cache.c}, lines 15--29: the slot picker.}]
+arp_entry_t *arp_cache_alloc(arp_cache_t *c, uint8_t iface, uint32_t ip) {
+    arp_entry_t *victim = NULL;
+    for (int i = 0; i < ARP_CACHE_SIZE; i++) {
+        arp_entry_t *e = &c->e[i];
+        if (e->state == ARP_FREE) { victim = e; break; }   /* a free slot always wins */
+        /* RESOLVED only: PENDING is never evicted, since its packets are still waiting. */
+        if (e->state == ARP_RESOLVED && (!victim || e->expires_at < victim->expires_at))
+            victim = e;
+    }
+    if (!victim) return NULL;
+    memset(victim, 0, sizeof *victim);
+    victim->iface = iface;
+    victim->ip = ip;
+    return victim;
+}
+\end{lstlisting}
+
+\emph{Note.} The entry has one deadline per state: \code{retry\_at} for pending and \code{expires\_at} for resolved. This keeps the timer code simple (Section~\ref{sec:core-timers}). The allocator returns the slot still marked free. The caller sets the state, so a failed enqueue leaves no half-made entry behind.
+
+\subsection{Sending a packet: \texttt{arp\_output}}\label{sec:core-output}
+The network layer calls \code{arp\_output} with a next-hop IP and an IP packet. The function must put the packet on the LAN, but it needs the next hop's MAC first. There are three cases, and Pseudocode~\ref{alg:output} shows them in order.
+
+If the cache already has the MAC, the packet goes out at once. If a request for that IP is already on the wire, the entry is pending. The packet joins the queue behind it. If there is no entry at all, the function makes a pending entry, parks the packet in it and broadcasts a request. The return value tells the caller what happened: 0 for sent, 1 for parked and $-1$ for dropped.
+
+\begin{algorithm}[H]\small
+\caption{Send path (\code{arp\_output})}
+\label{alg:output}
+\begin{algorithmic}[1]
+\Require \textit{iface}, \textit{next\_hop}, IP packet \textit{pkt}, time \textit{now}
+\Ensure $0$ sent now, $1$ parked behind a request, $-1$ dropped
+\If{$iface \ge nifs$} \Return $-1$
+\EndIf
+\State $e \gets \textsc{find}(cache, iface, next\_hop)$
+\If{$e \ne \textsc{nil}$ \textbf{and} $e.state = \text{RESOLVED}$} \Comment{case 1: hit}
+  \State queue $pkt$ as an IPv4 frame to $e.mac$ on $iface$
+  \State \Return $0$ (or $-1$ if the output queue is full)
+\EndIf
+\If{$e \ne \textsc{nil}$} \Comment{case 2: PENDING, a request is already out}
+  \If{enqueue$(e, pkt)$ fails}
+    \State emit QUEUE\_FULL; \Return $-1$
+  \EndIf
+  \State emit QUEUED; \Return $1$
+\EndIf
+\State $e \gets \textsc{alloc}(cache, iface, next\_hop)$ \Comment{case 3: miss}
+\If{$e = \textsc{nil}$ \textbf{or} enqueue$(e, pkt)$ fails} \Return $-1$
+\EndIf
+\State $e.state \gets \text{PENDING}$; $e.attempts \gets 1$; $e.retry\_at \gets now + retry\_ms$
+\State broadcast an ARP request for $next\_hop$ out of $iface$
+\State emit PENDING; emit QUEUED; \Return $1$
+\end{algorithmic}
+\end{algorithm}
+
+The order of the miss case matters. The new entry becomes pending only after its first packet is parked. If the cache is full or the enqueue fails, the slot is still free, so no half-made entry stays in the table.
+
+%SRC src/arp.c 57-65
+\Needspace*{14\baselineskip}\begin{lstlisting}[style=corelst, firstnumber=57, caption={\code{src/arp.c}, lines 57--65: the miss path of \code{arp\_output}.}]
+    e = arp_cache_alloc(&a->cache, iface, next_hop);
+    if (!e || arp_cache_enqueue(e, ip_pkt, len) != 0) return -1;   /* slot stays FREE, so invisible */
+    e->state = ARP_PENDING;
+    e->attempts = 1;
+    e->retry_at = now + a->retry_ms;
+    arp_send_request(a, iface, next_hop, out);
+    arp_emit(a, AEV_PENDING, e);
+    arp_emit(a, AEV_QUEUED, e);
+    return 1;
+\end{lstlisting}
+
+\emph{Note.} The request is a broadcast, sent from the interface's own MAC and IP address. The function does not wait for the reply. It returns at once, and the reply is handled later by \code{arp\_input}. This is why the engine needs no threads or blocking calls.
+
+\subsection{Receiving a packet: \texttt{arp\_input}}\label{sec:core-input}
+Every ARP frame that reaches a station goes to \code{arp\_input}. It follows the reception algorithm in RFC~826 \cite{rfc826}. The order of the steps is the most important part, so Pseudocode~\ref{alg:input} keeps the RFC order exactly.
+
+First the packet is parsed. Packets that are not Ethernet and IPv4 are ignored. Next comes the \emph{merge}: if the sender is already in the cache, the entry is refreshed with the sender's MAC and a new life time. If the entry was pending, it becomes resolved and the waiting packets are sent (Pseudocode~\ref{alg:merge}). Only after the merge does the station ask whether the packet is for it.
+
+\begin{algorithm}[H]\small
+\caption{Refresh a known sender (\code{arp\_merge})}
+\label{alg:merge}
+\begin{algorithmic}[1]
+\Require entry $e$, parsed packet $p$, time \textit{now}
+\State $was\_pending \gets (e.state = \text{PENDING})$
+\State $e.mac \gets p.sha$; $e.state \gets \text{RESOLVED}$; $e.expires\_at \gets now + ttl\_ms$
+\If{$was\_pending$}
+  \State send every queued packet to $e.mac$, in order; empty the queue
+\EndIf
+\State emit RESOLVED if $was\_pending$, otherwise emit LEARN
+\end{algorithmic}
+\end{algorithm}
+
+\paragraph{Why merge comes first.} On a bus every host sees every request, including requests meant for others. A host that already holds the sender in its cache should keep that entry fresh, even when the request is for someone else. If the target test came first, such a request would return early and the entry would go stale. A host that does \emph{not} know the sender learns nothing from a request meant for someone else. That sender is unlikely to talk to it. Table~\ref{tab:core-cases} sums up the four cases.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\caption{What \code{arp\_input} does for each combination. ``Target is mine'' also covers a proxy target (Section~\ref{sec:core-proxy}).}
+\label{tab:core-cases}
+\begin{tabularx}{\linewidth}{@{}l l Y@{}}
+\toprule
+Sender in cache? & Target is mine? & Action \\
+\midrule
+yes & yes & merge, then reply if the packet is a request \\
+yes & no & merge only (refresh the entry), no reply \\
+no & yes & learn the sender as RESOLVED, then reply if it is a request \\
+no & no & nothing \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{algorithm}[H]\small
+\caption{Receive path (\code{arp\_input})}
+\label{alg:input}
+\begin{algorithmic}[1]
+\Require \textit{iface}, payload bytes, time \textit{now}
+\If{$iface \ge nifs$ \textbf{or} parse fails} \Return \Comment{ignore bad packets}
+\EndIf
+\State $e \gets \textsc{find}(cache, iface, p.spa)$; $merge \gets (e \ne \textsc{nil})$
+\If{$merge$} \State \textsc{Merge}$(e, p, now)$ \Comment{step 1: refresh a known sender}
+\EndIf
+\State $for\_me \gets (p.tpa = \text{my IP on } iface)$ \Comment{step 2: is it for me?}
+\State $proxy \gets \lnot for\_me$ \textbf{and} \textsc{ProxyShouldAnswer}$(iface, p.tpa)$
+\If{$\lnot for\_me$ \textbf{and} $\lnot proxy$} \Return
+\EndIf
+\If{$\lnot merge$} \Comment{step 3: learn the asker}
+  \State $n \gets \textsc{alloc}(cache, iface, p.spa)$
+  \If{$n \ne \textsc{nil}$}
+    \State $n.state \gets \text{RESOLVED}$; $n.mac \gets p.sha$; $n.expires\_at \gets now + ttl\_ms$; emit LEARN
+  \EndIf
+\EndIf
+\If{$p.oper = \text{REQUEST}$} \State \textsc{SendReply}$(iface, p, proxy)$ \Comment{step 4: answer}
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+
+%SRC src/arp.c 92-98
+\Needspace*{12\baselineskip}\begin{lstlisting}[style=corelst, firstnumber=92, caption={\code{src/arp.c}, lines 92--98: merge before the target test.}]
+    arp_entry_t *e = arp_cache_find(&a->cache, iface, p.spa);
+    int merge = (e != NULL);
+    if (merge) arp_merge(a, e, &p, now, out);
+
+    int for_me = (p.tpa == a->ifs[iface].ip);
+    int proxy = !for_me && proxy_should_answer(a, iface, p.tpa);
+    if (!for_me && !proxy) return;                      /* not for us: done */
+\end{lstlisting}
+
+\emph{Note.} A reply (operation 2) is merged or learned but never answered, because only requests get a reply. The same function therefore handles both the request that a host receives and the reply that completes its own pending entry. A reply that finishes a pending entry sends the waiting packets in the same call.
+
+\subsection{Proxy ARP}\label{sec:core-proxy}
+Proxy ARP lets a router answer a request on behalf of a host that is on another LAN \cite{forouzan, topic14}. The asker believes the target is on its own LAN. It sends the request, the router replies with the \emph{router's} MAC address, and the asker then sends its IP packets to the router. The router forwards them. This works without any change on the asking host.
+
+The rule has two tests. First, the target IP must be in the proxy list of the interface that received the request. The proxy list is a short set of address ranges that the configuration gives to each interface. Second, the route to the target must leave through a \emph{different} interface than the one that heard the request. Without the second test, a router would answer for hosts on the asker's own LAN and steal their traffic.
+
+\begin{algorithm}[H]\small
+\caption{Proxy decision (\code{in\_proxy\_list}, \code{proxy\_should\_answer})}
+\label{alg:proxy}
+\begin{algorithmic}[1]
+\Require interface \textit{iface} that heard the request, target IP \textit{tpa}
+\Ensure true if this station must answer for \textit{tpa}
+\Function{InProxyList}{$f, tpa$}
+  \For{each range $(net, prefix)$ in the proxy list of $f$}
+    \If{$tpa$ lies inside $net/prefix$} \Return true
+    \EndIf
+  \EndFor
+  \State \Return false
+\EndFunction
+\Function{ProxyShouldAnswer}{$iface, tpa$}
+  \If{\textbf{not} \textsc{InProxyList}$(ifs[iface], tpa)$} \Return false
+  \EndIf
+  \State $out \gets egress(tpa)$ \Comment{route lookup; $-1$ means no route}
+  \State \Return $out \ge 0$ \textbf{and} $out \ne iface$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+The reply itself is built by one function for both the normal and the proxy case. Its sender MAC is the interface's own MAC. Its sender IP is the address that was \emph{asked for}, not the router's own. So the asker sees ``IP X is at MAC M'' and stores it. For a proxy answer, M belongs to the router.
+
+%SRC src/arp.c 33-43
+\Needspace*{16\baselineskip}\begin{lstlisting}[style=corelst, firstnumber=33, caption={\code{src/arp.c}, lines 33--43: the proxy decision.}]
+static int in_proxy_list(const arp_iface_t *f, uint32_t tpa) {
+    for (int i = 0; i < f->nproxy; i++)
+        if (ip_in_prefix(tpa, f->proxy_net[i], f->proxy_prefix[i])) return 1;
+    return 0;
+}
+
+static int proxy_should_answer(const arp_ctx_t *a, uint8_t iface, uint32_t tpa) {
+    if (!in_proxy_list(&a->ifs[iface], tpa)) return 0;
+    int out = a->egress(a->u, tpa);
+    return out >= 0 && out != iface;   /* never answer for a host on the asking segment */
+}
+\end{lstlisting}
+
+%SRC src/arp.c 78-84
+\Needspace*{12\baselineskip}\begin{lstlisting}[style=corelst, firstnumber=78, caption={\code{src/arp.c}, lines 78--84: the reply carries our MAC and the asked-for IP.}]
+/* Answer the asker: sha is our MAC, spa is the IP that was asked for. */
+static void arp_send_reply(arp_ctx_t *a, uint8_t iface, const arp_pkt_t *req, int proxy, txq_t *out) {
+    arp_pkt_t r;
+    arp_pkt_reply(&r, a->ifs[iface].mac, req->tpa, req->sha, req->spa);
+    txq_push(out, iface, FT_ARP, req->sha, &r, sizeof r);
+    arp_emit_ip(a, proxy ? AEV_PROXY_REPLY : AEV_REPLY_SENT, iface, req->tpa, a->ifs[iface].mac);
+}
+\end{lstlisting}
+
+\emph{Note.} The egress test uses a function that the network layer hands to ARP when the station starts. The function looks up the route to the target (\code{net\_egress} in \code{src/net.c}). So ARP does not own a route table, and tests can replace the lookup with a stub. Section~\ref{sec:example} shows a proxy answer in the \code{proxy\_arp} preset.
+
+\subsection{Timers: retry and expiry}\label{sec:core-timers}
+ARP has two timing jobs. A request may get no answer, so a pending entry must ask again. A learned address may go stale, so a resolved entry must expire. A station cannot keep an address forever, because the owner may change its card or leave the LAN.
+
+The engine has no timer thread. The station's main loop calls \code{arp\_tick} on every pass with the current time. \code{arp\_tick} checks every slot. A pending slot whose \code{retry\_at} has passed either gives up or sends the request again. If \code{max\_attempts} is not 0 and the slot has used them all, it fails. The waiting packets are dropped with the slot. With the default of 0 the station asks forever. A resolved slot whose \code{expires\_at} has passed is freed.
+
+\begin{algorithm}[H]\small
+\caption{Timer pass (\code{arp\_tick\_entry}, \code{arp\_tick})}
+\label{alg:tick}
+\begin{algorithmic}[1]
+\Require time \textit{now}
+\Function{TickEntry}{$e, now$}
+  \If{$e.state = \text{PENDING}$ \textbf{and} $now \ge e.retry\_at$}
+    \If{$max\_attempts \ne 0$ \textbf{and} $e.attempts \ge max\_attempts$}
+      \State emit FAIL; free $e$ \Comment{the queue is dropped with the slot}
+    \Else
+      \State $e.attempts \gets \min(e.attempts + 1,\ 255)$; $e.retry\_at \gets now + retry\_ms$
+      \State broadcast a request for $e.ip$ out of $e.iface$; emit RETRY
+    \EndIf
+  \ElsIf{$e.state = \text{RESOLVED}$ \textbf{and} $now \ge e.expires\_at$}
+    \State emit EXPIRE; free $e$
+  \EndIf
+\EndFunction
+\Function{Tick}{$now$}
+  \For{each slot $e$} \State \textsc{TickEntry}$(e, now)$
+  \EndFor
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+The loop must also know how long it can sleep. \code{arp\_next\_deadline} scans the table once and returns the earliest \code{retry\_at} of a pending slot or \code{expires\_at} of a resolved slot. It returns the largest 64-bit value if the table has no deadline. The station sleeps until that time, or until a frame arrives.
+
+%SRC src/arp.c 113-128
+\Needspace*{21\baselineskip}\begin{lstlisting}[style=corelst, firstnumber=113, caption={\code{src/arp.c}, lines 113--128: retry, fail and expire.}]
+static void arp_tick_entry(arp_ctx_t *a, arp_entry_t *e, uint64_t now, txq_t *out) {
+    if (e->state == ARP_PENDING && now >= e->retry_at) {
+        if (a->max_attempts && e->attempts >= a->max_attempts) {   /* max_attempts 0 = retry forever */
+            arp_emit(a, AEV_FAIL, e);   /* the queue is dropped with the slot */
+            arp_cache_free(e);
+        } else {
+            if (e->attempts < UINT8_MAX) e->attempts++;   /* saturates: forever means forever */
+            e->retry_at = now + a->retry_ms;
+            arp_send_request(a, e->iface, e->ip, out);
+            arp_emit(a, AEV_RETRY, e);
+        }
+    } else if (e->state == ARP_RESOLVED && now >= e->expires_at) {
+        arp_emit(a, AEV_EXPIRE, e);
+        arp_cache_free(e);
+    }
+}
+\end{lstlisting}
+
+\emph{Note.} The FAIL event is emitted \emph{before} the slot is freed. The network layer needs this order, because it reads the waiting packets during the callback so it can report each one as dropped. The attempt counter stops at 255, so ``forever'' cannot wrap around to zero.
+
+\subsection{How ARP plugs into the rest}\label{sec:core-glue}
+ARP is only one part of a station. Three nearby pieces decide when ARP runs and what it carries: routing and forwarding, the learning switch and the receive loop. Each gets a short description here, with pseudocode only.
+
+\subsubsection{Routing and forwarding with TTL}
+The route table gives the next hop for a destination. Several routes can match one address, so the \emph{longest prefix} wins. A /29 route beats a /24 route, and a /24 beats the default route /0. A route with no gateway means ``on the same LAN'', and then the next hop is the destination itself. That is the IP address ARP will ask for.
+
+\begin{algorithm}[H]\small
+\caption{Route lookup (\code{route\_lookup}, \code{src/route.c} lines 5--16)}
+\label{alg:route}
+\begin{algorithmic}[1]
+\Require destination IP \textit{dst}
+\Ensure interface and next hop, or ``no route''
+\State $best \gets \textsc{none}$
+\For{each route $r$ in table order}
+  \If{$dst$ lies inside $r.net/r.prefix$ \textbf{and} ($best = \textsc{none}$ \textbf{or} $r.prefix > best.prefix$)}
+    \State $best \gets r$ \Comment{ties go to the earlier route}
+  \EndIf
+\EndFor
+\If{$best = \textsc{none}$} \Return no route
+\EndIf
+\State $iface \gets best.iface$; $next\_hop \gets best.via$ if it is not 0, otherwise $dst$
+\end{algorithmic}
+\end{algorithm}
+
+A router also forwards packets. Each hop lowers the \emph{time to live} (TTL) field of the IP header by one. A packet whose TTL has run out is dropped, so a routing loop cannot keep a packet alive for ever. After the change the header checksum is recomputed, so the packet still verifies at the next hop.
+
+\begin{algorithm}[H]\small
+\caption{IPv4 receive and forward (\code{net\_input\_ipv4}, \code{src/net.c} lines 71--91)}
+\label{alg:forward}
+\begin{algorithmic}[1]
+\Require packet \textit{pkt} from the network
+\State parse $pkt$; \textbf{if} length, checksum or type is bad \Return \Comment{dropped, no event}
+\If{$dst$ is one of my interface IPs}
+  \State emit DELIVER
+  \If{the packet is an echo request}
+    \State build an echo reply from $dst$ to $src$; \textsc{SendIP}(reply)
+  \EndIf
+  \State \Return
+\EndIf
+\If{I am not a router} \Return \Comment{host: not mine, ignore}
+\EndIf
+\If{$ttl \le 1$} emit DROP (TTL); \Return
+\EndIf
+\State copy $pkt$; $ttl \gets ttl - 1$; recompute the header checksum
+\If{\textsc{SendIP}$(copy) = 0$} \State emit FORWARD
+\EndIf
+\Statex
+\Function{SendIP}{$pkt$} \Comment{\code{net\_send\_ip}}
+  \If{route lookup for $dst$ fails} emit DROP (no route); \Return $-1$
+  \EndIf
+  \If{\textsc{ArpOutput}$(iface, next\_hop, pkt) < 0$} emit DROP (queue full); \Return $-2$
+  \EndIf
+  \State \Return $0$ \Comment{sent now or parked behind a request}
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+%SRC src/net.c 86-90
+\Needspace*{10\baselineskip}\begin{lstlisting}[style=corelst, firstnumber=86, caption={\code{src/net.c}, lines 86--90: the forwarding step.}]
+    if (!n->is_router) return;                             /* host: not mine, so dropped silently (no event) */
+    if (in.ttl <= 1) { net_emit(n, NET_OP_DROP, NET_R_TTL, &in); return; }
+    memcpy(out, pkt, IPV4_PKT_LEN);
+    ip_dec_ttl(out);                                       /* checksum is recomputed inside */
+    if (net_send_ip(n, out, &in, now, txq) == 0) net_emit(n, NET_OP_FORWARD, NET_R_NONE, &in);
+\end{lstlisting}
+
+\emph{Note.} \code{SendIP} is where IP meets ARP. It calls \code{route\_lookup}, then \code{arp\_output} (Pseudocode~\ref{alg:output}) with the next hop. The same function sends a host's own ping and a router's forwarded packet.
+
+\subsubsection{Switch learning and flooding}
+A channel in star mode works like a learning switch. It keeps a table that maps a MAC address to the port where that address was last seen. It builds the table on its own, from the \emph{source} address of every frame it carries. When a frame arrives, the switch learns the sender first. It then looks up the destination. A known destination gets a unicast. An unknown or broadcast destination is \emph{flooded}: the frame goes out of every port except the one it came in on. A bus channel always floods.
+
+\begin{algorithm}[H]\small
+\caption{Choose the output ports (\code{pick\_dests} in \code{src/channel.c} lines 29--45; \code{switch\_learn} in \code{src/switch.c} lines 22--38)}
+\label{alg:switch}
+\begin{algorithmic}[1]
+\Require frame from port $p$
+\Ensure the list of ports to send to
+\If{channel is in star mode}
+  \If{$\textsc{Learn}(src, p) = 1$} emit switch\_learn \EndIf
+  \State $to \gets \textsc{Lookup}(dst)$ \Comment{$-1$ for unknown or broadcast}
+  \If{$to \ge 0$}
+    \If{$to = p$ \textbf{or} port $to$ has closed} \Return none
+    \EndIf
+    \State \Return $\{to\}$
+  \EndIf
+\EndIf
+\State \Return all open ports except $p$ \Comment{flood, or bus}
+\Statex
+\Function{Learn}{$mac, port$}
+  \If{$mac$ is the broadcast address} \Return $0$ \Comment{never a station address}
+  \EndIf
+  \If{$mac$ is in the table}
+    \State \textbf{if} stored port $= port$ \textbf{then} \Return $0$; \textbf{else} store $port$; \Return $1$ \Comment{host moved}
+  \EndIf
+  \State store $(mac, port)$ in the next free slot, or overwrite the oldest slot if all 16 are used; \Return $1$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\emph{Note.} The table never ages. Entries leave only when a full table overwrites the oldest one. This is enough for a short lab run, and it keeps the switch easy to follow.
+
+\subsubsection{Receive dispatch in the station}
+Each frame that a station receives goes through three checks before ARP or IP sees it. The FCS check comes first, because a damaged frame cannot be trusted. The MAC filter comes next. The station accepts a frame only if the destination is its own MAC address for that interface or the broadcast address. Last, the frame type field says whether the payload is ARP or IPv4.
+
+\begin{algorithm}[H]\small
+\caption{Station receive (\code{on\_rx} in \code{src/station.c} lines 50--64)}
+\label{alg:rx}
+\begin{algorithmic}[1]
+\Require NIC number $i$ with a frame ready
+\State read one frame from NIC $i$; \textbf{if} the read fails, drop the NIC and \Return
+\If{FCS check fails} verdict \texttt{fcs\_fail}; \Return
+\EndIf
+\If{$dst \ne$ my MAC on $i$ \textbf{and} $dst \ne$ broadcast} verdict \texttt{ignored}; \Return
+\EndIf
+\State verdict \texttt{accepted}; $now \gets$ simulated time
+\If{type is ARP} \textsc{ArpInput}$(i, payload, now)$ \Comment{Pseudocode~\ref{alg:input}}
+\ElsIf{type is IPv4} \textsc{NetInputIPv4}$(i, payload, now)$ \Comment{Pseudocode~\ref{alg:forward}}
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+
+\emph{Note.} The main loop waits for a frame or for the next ARP deadline (\code{arp\_next\_deadline}). On each pass it handles received frames, then calls \code{net\_tick} for retries and expiry. Last, it turns every packet in the output queue into a frame and sends it. Each frame gets the next sequence number of its NIC. Section~\ref{sec:interface} shows how the browser sees these steps.
+
+\endgroup

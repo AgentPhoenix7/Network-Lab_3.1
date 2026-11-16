@@ -34,8 +34,7 @@ def generate(output, mib=128, mp4=False):
             raise ValueError('Output already exists: ' + str(output / name))
     if shutil.disk_usage(output).free < mib * MIB * 2.5 + 32 * MIB:
         raise ValueError('Insufficient free space for the requested media fixtures')
-    project = next((parent for parent in Path(__file__).resolve().parents if (parent / '.git').exists()), Path.cwd())
-    temporary = project / '.scratch' / 'tmp'
+    temporary = Path(os.environ.get('TMPDIR', str(Path(__file__).resolve().parents[1] / 'build' / 'tmp')))
     temporary.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, TMPDIR=str(temporary), TMP=str(temporary), TEMP=str(temporary))
     base = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin', '-n', '-filter_threads', '1']

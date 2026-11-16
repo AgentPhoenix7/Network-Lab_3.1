@@ -28,7 +28,7 @@
         "pcm_s16le",
         "-threads",
         "1",
-        "/home/agntdrgn/Documents/GitHub/Network-Lab_3.1/.scratch/ftp-media/audio.wav"
+        "benchmarks/generated-media/audio.wav"
       ],
       "probe": {
         "streams": [
@@ -74,7 +74,7 @@
           }
         ],
         "format": {
-          "filename": "/home/agntdrgn/Documents/GitHub/Network-Lab_3.1/.scratch/ftp-media/audio.wav",
+          "filename": "benchmarks/generated-media/audio.wav",
           "nb_streams": 1,
           "nb_programs": 0,
           "nb_stream_groups": 0,
@@ -119,7 +119,7 @@
         "I420",
         "-threads",
         "1",
-        "/home/agntdrgn/Documents/GitHub/Network-Lab_3.1/.scratch/ftp-media/video.avi"
+        "benchmarks/generated-media/video.avi"
       ],
       "probe": {
         "streams": [
@@ -172,7 +172,7 @@
           }
         ],
         "format": {
-          "filename": "/home/agntdrgn/Documents/GitHub/Network-Lab_3.1/.scratch/ftp-media/video.avi",
+          "filename": "benchmarks/generated-media/video.avi",
           "nb_streams": 1,
           "nb_programs": 0,
           "nb_stream_groups": 0,
@@ -204,7 +204,7 @@
         "-filter_threads",
         "1",
         "-i",
-        "/home/agntdrgn/Documents/GitHub/Network-Lab_3.1/.scratch/ftp-media/video.avi",
+        "benchmarks/generated-media/video.avi",
         "-an",
         "-c:v",
         "libx264",
@@ -218,7 +218,7 @@
         "2",
         "-movflags",
         "+faststart",
-        "/home/agntdrgn/Documents/GitHub/Network-Lab_3.1/.scratch/ftp-media/video.mp4"
+        "benchmarks/generated-media/video.mp4"
       ],
       "probe": {
         "streams": [
@@ -285,7 +285,7 @@
           }
         ],
         "format": {
-          "filename": "/home/agntdrgn/Documents/GitHub/Network-Lab_3.1/.scratch/ftp-media/video.mp4",
+          "filename": "benchmarks/generated-media/video.mp4",
           "nb_streams": 1,
           "nb_programs": 0,
           "nb_stream_groups": 0,
@@ -305,5 +305,6 @@
         }
       }
     }
-  ]
+  ],
+  "path_note": "File paths normalized to the portable example directory; media bytes, hashes, codec metadata and generation timings are unchanged."
 }

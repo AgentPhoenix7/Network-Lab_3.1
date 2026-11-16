@@ -257,14 +257,14 @@ make test
 Without make (from the repository root):
 
 ```bash
-mkdir -p .scratch/tmp
-TMPDIR="$PWD/.scratch/tmp" TMP="$PWD/.scratch/tmp" TEMP="$PWD/.scratch/tmp" \
+mkdir -p Group_Project/FTP/build/tmp
+TMPDIR="$PWD/Group_Project/FTP/build/tmp" TMP="$PWD/Group_Project/FTP/build/tmp" TEMP="$PWD/Group_Project/FTP/build/tmp" \
   PYTHONPATH="$PWD/Group_Project/FTP" \
   python3 -W error::ResourceWarning -m unittest discover -s Group_Project/FTP/tests -v
 ```
 
 Tests use dynamically assigned loopback ports and isolated directories under
-the repository's `.scratch/tmp`, and clean up their sockets and temporary
+the FTP component's `build/tmp`, and clean up their sockets and temporary
 files. They need local TCP socket access; a sandbox that denies local
 network traffic must allow it for this test run.
 

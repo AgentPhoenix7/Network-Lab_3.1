@@ -105,7 +105,7 @@ verification, browser staging and initial source hashing are separate.
 Use failing behavior tests before implementation. Independently review the
 complete feature after integration. Verify actual browser login/device/
 upload/download/benchmark flows and large audio/video tests; do not infer
-runtime success from source inspection. Keep investigation data in .scratch.
+runtime success from source inspection. Keep only finalized source, documentation and measurement records in the submission.
 Current verification is 69 Python and 6 frontend tests, including seven
 network cases (the real-interface case requires `FTP_TEST_LAN_HOST`). LAN
 browser verification uses a disposable workspace; the host's owner account

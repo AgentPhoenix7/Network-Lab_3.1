@@ -1,0 +1,46 @@
+\section{FTP verification and limitations}\label{sec:ftp-analysis}
+
+\subsection{Independent behavioral checks}
+The terminal/benchmark subset was freshly validated on 16 November 2026 with Python~3.14.10. Python~3.11 is the declared source-compatibility floor; it is not an additional runtime tested in this report. ResourceWarning was treated as an error. The following command selects only the four core/CLI test modules and the benchmark tests:
+
+\begin{lstlisting}[style=ftpterm]
+# From the repository root
+PYTHONPATH="$PWD/Group_Project/FTP:$PWD/Group_Project/FTP/tests" \
+  python3 -W error::ResourceWarning -m unittest \
+  test_core test_server test_client test_cli test_benchmark -v
+\end{lstlisting}
+
+\begin{table}[H]
+\centering\small
+\caption{Fresh terminal-focused validation: all 52 tests passed.}
+\begin{tabularx}{\linewidth}{@{}l r Y@{}}
+\toprule
+Module & Tests & Main coverage \\
+\midrule
+\code{test\_core} & 11 & Framing, replies, ASCII boundaries, rooted file operations. \\
+\code{test\_server} & 18 & Independent \code{ftplib}, modes, concurrency, errors, reset/shutdown preservation. \\
+\code{test\_client} & 9 & Own client, independent wire peers, progress, failed-copy preservation, batch behavior. \\
+\code{test\_cli} & 2 & Separate terminal subprocesses, script input and shutdown. \\
+\code{test\_benchmark} & 12 & Plain/gzip verification, bounded retrieval, cleanup, exports and offline artifacts. \\
+\midrule
+Total & 52 & Real sockets, isolated roots and verified file outcomes. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Using an independent FTP client and controlled wire peers matters: if our client and server shared the same mistake, a round trip between them alone might still pass. The tests also check empty and all-byte files, UTF-8/quoted names, active/passive modes, authentication state, malformed input, symlinks/traversal, timeouts, capacity and shutdown during an upload. The captured test output is included in \code{evidence/terminal-validation.txt}. Fresh terminal evidence in Section~\ref{sec:ftp-terminal} and the older measured media runs in Section~\ref{sec:ftp-benchmark} are kept as distinct observations.
+
+\subsection{Implementation limits}
+\begin{itemize}[nosep]
+\item \textbf{Plaintext credentials and content.} FTP does not encrypt USER/PASS or file data. The project is intended for trusted lab networks. TLS/FTPS and SSH-based SFTP are not implemented.
+\item \textbf{An explicit subset.} The server uses one configured account and supports IPv4, file structure and stream mode. Anonymous FTP, multiple configured users, resume, rename, quotas and complete RFC coverage are outside scope.
+\item \textbf{No fixed passive range or NAT orchestration.} Data ports are ephemeral. A control connection alone is insufficient if firewalls block negotiated data connections.
+\item \textbf{Clean EOF has a limited meaning.} Without an external expected length/hash, a peer deliberately sending a shorter file with clean EOF can resemble a legitimate smaller upload. The server detects resets/timeouts/shutdown; benchmark round trips additionally verify expected size and SHA-256.
+\item \textbf{Abort behavior.} ABOR clears idle setup. Commands are processed serially in a session; Telnet urgent/out-of-band abort is not implemented. Closing/resetting the data socket interrupts active work.
+\item \textbf{Local trust and publication.} Root confinement rejects supported traversal/symlink attacks, but the server root is managed by a trusted local operator. Atomic replacement is not a full crash-durability or operating-system isolation guarantee. Concurrent successful uploads to the same name use the last completed replacement.
+\end{itemize}
+
+\section{FTP conclusion}\label{sec:ftp-conclusion}
+The terminal implementation demonstrates FTP's defining separation between persistent control and per-operation data connections. It performs authenticated file and directory operations, negotiates active/passive IPv4 endpoints, handles binary and streamed NVT ASCII, and preserves existing files across detected transfer failures. Independent protocol tests and the executed terminal example verify the behavior beyond printed success messages.
+
+The large-media experiment adds measured evidence: 12 original/gzip runs were transferred and verified, and the graphs separate payload savings from preprocessing and upload time. On cached loopback, gzip greatly reduced regular uncompressed media but took longer overall, while MP4 changed very little. The result supports choosing compression from actual file/network measurements rather than assuming it always speeds up FTP.
