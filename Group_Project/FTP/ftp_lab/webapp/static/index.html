@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#f7f8f5" />
+    <title>Relay · Local file transfer</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to workspace</a>
+    <div
+      id="notice"
+      class="notice"
+      role="status"
+      aria-live="polite"
+      hidden
+    ></div>
+    <section id="auth-screen" class="auth-screen" aria-labelledby="auth-title">
+      <div class="auth-story">
+        <a class="brand" href="/" aria-label="Relay home"
+          ><span class="brand-mark" aria-hidden="true">↗</span> relay<span
+            class="brand-dot"
+            >.</span
+          ></a
+        >
+        <div class="auth-story-copy">
+          <span class="eyebrow">A LITTLE LESS DISTANCE</span>
+          <h1>Big files.<br />Simple moves.</h1>
+          <p>
+            A quiet place to move files between your devices. All from your own
+            computer.
+          </p>
+          <div class="orbit-art" aria-hidden="true">
+            <span class="orbit-node">↗</span><span class="orbit-dot"></span
+            ><span class="orbit-label">FROM HERE TO THERE</span>
+          </div>
+        </div>
+        <span class="local-note"
+          ><span class="status-dot"></span> Files stay on the host computer</span
+        >
+      </div>
+      <div class="auth-content">
+        <div class="auth-card">
+          <span class="eyebrow" id="auth-eyebrow">YOUR PERSONAL WORKSPACE</span>
+          <h2 id="auth-title">Getting things ready…</h2>
+          <p id="auth-description">Checking your local workspace.</p>
+          <form id="auth-form" hidden>
+            <label for="auth-username">Username</label
+            ><input
+              id="auth-username"
+              name="username"
+              autocomplete="username"
+              required
+              maxlength="80"
+              placeholder="Your username"
+            />
+            <label for="auth-password">Password</label
+            ><input
+              id="auth-password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+              placeholder="Your password"
+            />
+            <p id="auth-error" class="form-error" role="alert" hidden></p>
+            <button
+              class="button primary auth-submit"
+              type="submit"
+              id="auth-submit"
+            >
+              Sign in <span aria-hidden="true">↗</span>
+            </button>
+            <p class="field-hint">
+              This account unlocks your shared Relay workspace. Your FTP devices have
+              their own sign-in details.
+            </p>
+          </form>
+          <button
+            type="button"
+            id="session-retry"
+            class="button secondary"
+            hidden
+          >
+            Try again
+          </button>
+        </div>
+        <span class="auth-foot">LOCAL BY DESIGN. SIMPLE BY DEFAULT.</span>
+      </div>
+    </section>
+
+    <div id="app-shell" class="app-shell" hidden>
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Relay home"
+          ><span class="brand-mark" aria-hidden="true">↗</span> relay<span
+            class="brand-dot"
+            >.</span
+          ></a
+        ><span class="header-separator"></span
+        ><span class="product-label">LOCAL FILE TRANSFER</span>
+        <div class="topbar-right">
+          <span class="local-pill"
+            ><span class="status-dot"></span> Private workspace</span
+          ><span id="account-name" class="account-name"></span
+          ><button id="logout" class="button text small" type="button">
+            Sign out
+          </button>
+        </div>
+      </header>
+      <main id="main" class="main-content">
+        <div class="page-heading">
+          <div>
+            <div class="eyebrow">
+              YOUR WORKSPACE <span class="eyebrow-slash">/</span> FILE TRANSFER
+            </div>
+            <h1>Your files. <span>In motion.</span></h1>
+            <p>From one device to the next, without the extra steps.</p>
+          </div>
+          <span class="heading-tag"
+            ><span aria-hidden="true">↗</span> A clear path for every file</span
+          >
+        </div>
+        <div class="workspace-layout">
+          <aside class="sidebar" aria-label="Saved devices">
+            <div class="section-label">
+              <h2>Your devices</h2>
+              <span id="device-count" class="count">0</span>
+            </div>
+            <p class="aside-description">Pick a place to connect.</p>
+            <div id="device-list" class="device-list"></div>
+            <button id="add-device" class="button add-device" type="button">
+              <span aria-hidden="true">＋</span> Add a device
+            </button>
+            <div class="sidebar-note">
+              <span class="note-icon" aria-hidden="true">⌁</span>
+              <p>
+                Saved here. Connected when you need it.<span
+                  >Device passwords stay in this app session.</span
+                >
+              </p>
+            </div>
+          </aside>
+          <div class="workspace-main">
+            <nav class="view-tabs" aria-label="Workspace views">
+              <button
+                type="button"
+                class="view-tab active"
+                data-view="transfers"
+                aria-current="page"
+              >
+                Transfers</button
+              ><button type="button" class="view-tab" data-view="history">
+                History
+                <span id="history-count" class="tab-count">0</span></button
+              ><button type="button" class="view-tab" data-view="performance">
+                Performance
+              </button>
+              <div class="connection-indicator">
+                <span class="status-dot muted" id="connection-dot"></span
+                ><span id="connection-label">Choose a device</span>
+              </div>
+            </nav>
+            <section
+              id="view-transfers"
+              class="view-panel"
+              aria-label="Transfers"
+            >
+              <div class="transfer-grid">
+                <section
+                  class="card upload-card"
+                  aria-labelledby="upload-title"
+                >
+                  <div class="card-heading">
+                    <div>
+                      <span class="eyebrow">SEND SOMETHING</span>
+                      <h2 id="upload-title">Make your next move.</h2>
+                    </div>
+                    <span class="card-icon" aria-hidden="true">↗</span>
+                  </div>
+                  <div id="dropzone" class="dropzone">
+                    <div class="file-illustration" aria-hidden="true">
+                      <span>↥</span>
+                    </div>
+                    <h3 id="drop-title">A new home for your files</h3>
+                    <p id="drop-description">
+                      Drop a file here, or choose one below
+                    </p>
+                    <label for="file-input" class="button secondary choose-file"
+                      >Choose a file <span aria-hidden="true">＋</span></label
+                    ><input
+                      id="file-input"
+                      type="file"
+                      class="visually-hidden"
+                    />
+                    <p class="drop-footnote" id="selected-file-meta">
+                      Audio, video, documents — make it yours.
+                    </p>
+                  </div>
+                  <div class="upload-options">
+                    <label class="switch-label" for="compress"
+                      ><span
+                        ><strong>Compress before sending</strong
+                        ><small>Creates a .gz file on your device</small></span
+                      ><input
+                        id="compress"
+                        type="checkbox"
+                        role="switch" /><span
+                        class="switch-track"
+                        aria-hidden="true"
+                      ></span
+                    ></label>
+                  </div>
+                  <p class="upload-destination" id="upload-destination">
+                    Choose a connected device to get started.
+                  </p>
+                  <div class="upload-actions">
+                    <button
+                      id="upload-button"
+                      type="button"
+                      class="button primary"
+                      disabled
+                    >
+                      Send file <span aria-hidden="true">↗</span></button
+                    ><button
+                      id="benchmark-button"
+                      type="button"
+                      class="button text"
+                      disabled
+                    >
+                      Compare compression <span aria-hidden="true">↔</span>
+                    </button>
+                  </div>
+                  <p class="compression-note">
+                    Compression varies by file. MP3 and MP4 files may stay the
+                    same size or grow.
+                  </p>
+                </section>
+                <section class="card files-card" aria-labelledby="files-title">
+                  <div class="card-heading">
+                    <div>
+                      <span class="eyebrow">ON YOUR DEVICE</span>
+                      <h2 id="files-title">Files, right here.</h2>
+                    </div>
+                    <button
+                      class="icon-button"
+                      id="refresh-files"
+                      type="button"
+                      aria-label="Refresh device files"
+                      title="Refresh device files"
+                      disabled
+                    >
+                      ↻
+                    </button>
+                  </div>
+                  <div class="path-toolbar">
+                    <button
+                      id="parent-folder"
+                      class="icon-button small"
+                      type="button"
+                      aria-label="Go to parent folder"
+                      disabled
+                    >
+                      ↑</button
+                    ><span id="current-path" title="/">/</span>
+                  </div>
+                  <div id="remote-files" class="remote-files">
+                    <div class="empty-state">
+                      <span class="empty-icon" aria-hidden="true">▱</span>
+                      <h3>A place for everything.</h3>
+                      <p>Choose a connected device to explore its files.</p>
+                    </div>
+                  </div>
+                  <div class="files-footer">
+                    <span id="files-count">No folder selected</span
+                    ><label class="unpack-label"
+                      ><input id="unpack" type="checkbox" /> Unpack .gz
+                      downloads</label
+                    >
+                  </div>
+                </section>
+              </div>
+              <section
+                class="activity-section"
+                aria-labelledby="activity-title"
+              >
+                <div class="activity-heading">
+                  <h2 id="activity-title">
+                    In motion <span id="active-count" class="count">0</span>
+                  </h2>
+                  <span>Every little detail, at a glance.</span>
+                </div>
+                <div id="active-jobs" class="job-list"></div>
+              </section>
+            </section>
+            <section
+              id="view-history"
+              class="view-panel"
+              aria-labelledby="history-title"
+              hidden
+            >
+              <div class="view-heading">
+                <div>
+                  <span class="eyebrow">EVERY MOVE, REMEMBERED</span>
+                  <h2 id="history-title">Transfer history</h2>
+                  <p>Your completed, cancelled and interrupted transfers.</p>
+                </div>
+                <button
+                  id="refresh-history"
+                  class="button secondary small"
+                  type="button"
+                >
+                  Refresh
+                </button>
+              </div>
+              <div id="history-jobs" class="job-list"></div>
+            </section>
+            <section
+              id="view-performance"
+              class="view-panel"
+              aria-labelledby="performance-title"
+              hidden
+            >
+              <div class="view-heading">
+                <div>
+                  <span class="eyebrow">A LITTLE MORE INSIGHT</span>
+                  <h2 id="performance-title">Does smaller mean faster?</h2>
+                  <p>
+                    Compare the same file with and without gzip compression.
+                  </p>
+                </div>
+              </div>
+              <div class="performance-info">
+                <span aria-hidden="true">↔</span>
+                <p>
+                  Choose a file in Transfers, then select
+                  <strong>Compare compression</strong>. Relay tests both
+                  versions and verifies the downloaded content.
+                </p>
+              </div>
+              <label class="benchmark-picker" for="benchmark-select"
+                >Test result
+                <select id="benchmark-select">
+                  <option value="">No tests yet</option>
+                </select></label
+              >
+              <div id="performance-results"></div>
+              <p class="measurement-note">
+                Speeds measure FTP file bytes, excluding network headers.
+                End-to-end time includes compression. Local demo results reflect
+                this computer, not your network’s capacity.
+              </p>
+            </section>
+            <footer class="workspace-footer">
+              <span
+                ><span class="status-dot"></span> A direct connection. A simpler
+                transfer.</span
+              ><span
+                >MADE TO KEEP THINGS MOVING
+                <span aria-hidden="true">↗</span></span
+              >
+            </footer>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <dialog id="device-dialog" aria-labelledby="device-dialog-title">
+      <form id="device-form">
+        <div class="dialog-heading">
+          <span class="eyebrow">A NEW DESTINATION</span
+          ><button
+            class="icon-button"
+            type="button"
+            data-close-dialog
+            aria-label="Close add device dialog"
+          >
+            ×
+          </button>
+        </div>
+        <h2 id="device-dialog-title">Add a device</h2>
+        <p>Save its details for an easier connection next time.</p>
+        <label for="device-name">Device name</label
+        ><input
+          id="device-name"
+          name="name"
+          placeholder="e.g. Studio computer"
+          required
+          maxlength="100"
+        />
+        <div class="form-row">
+          <div>
+            <label for="device-host">Host or IP address</label
+            ><input
+              id="device-host"
+              name="host"
+              placeholder="192.168.1.10"
+              required
+              maxlength="253"
+              autocapitalize="none"
+              spellcheck="false"
+            />
+          </div>
+          <div class="port-field">
+            <label for="device-port">Port</label
+            ><input
+              id="device-port"
+              name="port"
+              type="number"
+              min="1"
+              max="65535"
+              value="2121"
+              required
+            />
+          </div>
+        </div>
+        <label for="device-username">FTP username</label
+        ><input
+          id="device-username"
+          name="username"
+          required
+          placeholder="Your FTP username"
+          autocomplete="off"
+          maxlength="100"
+        />
+        <p class="field-hint">
+          Your FTP server’s sign-in details are separate from your Relay
+          account. You’ll enter its password when you connect.
+        </p>
+        <p class="form-error" id="device-error" role="alert" hidden></p>
+        <button class="button primary dialog-submit" type="submit">
+          Save device <span aria-hidden="true">＋</span>
+        </button>
+      </form>
+    </dialog>
+    <dialog id="connect-dialog" aria-labelledby="connect-dialog-title">
+      <form id="connect-form">
+        <div class="dialog-heading">
+          <span class="eyebrow">LET’S CONNECT</span
+          ><button
+            class="icon-button"
+            type="button"
+            data-close-dialog
+            aria-label="Close connect device dialog"
+          >
+            ×
+          </button>
+        </div>
+        <h2 id="connect-dialog-title">Connect your device</h2>
+        <p id="connect-description"></p>
+        <label for="connect-password">FTP password</label
+        ><input
+          id="connect-password"
+          name="password"
+          type="password"
+          autocomplete="off"
+          placeholder="Device password"
+        />
+        <p class="field-hint">
+          Your password stays in this app session. It is never saved with this
+          device.
+        </p>
+        <p class="form-error" id="connect-error" role="alert" hidden></p>
+        <button class="button primary dialog-submit" type="submit">
+          Connect <span aria-hidden="true">↗</span>
+        </button>
+      </form>
+    </dialog>
+    <dialog id="confirm-dialog" aria-labelledby="confirm-title">
+      <div class="dialog-heading">
+        <span class="eyebrow">ONE QUICK CHECK</span
+        ><button
+          class="icon-button"
+          type="button"
+          data-close-dialog
+          aria-label="Close confirmation"
+        >
+          ×
+        </button>
+      </div>
+      <h2 id="confirm-title">Remove this device?</h2>
+      <p id="confirm-description"></p>
+      <div class="confirm-actions">
+        <button class="button secondary" type="button" data-close-dialog>
+          Keep it</button
+        ><button id="confirm-action" class="button danger" type="button">
+          Remove device
+        </button>
+      </div>
+    </dialog>
+  </body>
+</html>
