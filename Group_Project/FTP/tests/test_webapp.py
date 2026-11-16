@@ -9,7 +9,9 @@ import unittest
 from contextlib import closing
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
+from ftp_lab.client import FTPClient
 from ftp_lab.webapp.database import Database
 from ftp_lab.webapp.server import AppServer
 from ftp_lab.webapp.service import AppService
@@ -262,6 +264,23 @@ class AppTests(unittest.TestCase):
             meter(8)
             with self.assertRaisesRegex(ValueError, 'size'):
                 meter(1)
+
+    def test_short_download_is_not_published_as_complete(self):
+        self.login()
+        with running_server(timeout=10) as (ftp, root):
+            (root / 'changing.txt').write_bytes(b'short')
+            device = self.device(ftp)
+            # The remote file can shrink between SIZE and RETR, while RETR
+            # still finishes with a normal EOF and a successful FTP reply.
+            with patch.object(FTPClient, 'size', return_value=8):
+                status, body, _ = self.request('POST', '/api/jobs', {'device_id': device['id'],
+                    'kind': 'download', 'name': 'changing.txt', 'size': 8, 'remote_path': '/changing.txt'})
+                self.assertEqual(status, 201, body)
+                job = self.wait_job(body['job'])
+            self.assertEqual(job['status'], 'failed', job)
+            self.assertIn('size', job['error'].lower())
+            self.assertNotEqual(self.request('GET', f'/api/jobs/{job["id"]}/download')[0], 200)
+            self.assertFalse((self.service.spool / job['id']).exists())
 
     def test_invalid_unpacked_basename_is_rejected_before_download(self):
         self.login()

@@ -8,6 +8,9 @@ independent client in tests.
 For a foundations-first explanation of the protocol, code, execution flow,
 tests, and a guided demonstration, read
 [the complete walkthrough](docs/explanation.md).
+For the browser interface, account/device storage, progress, and compression
+comparisons, read the [local app guide](docs/LOCAL_APP.md). Saved large-media
+measurements and graphs are in the [benchmark report](benchmarks/README.md).
 
 This is the group's **FTP component**. It runs independently of
 `Group_Project/ARP` and does not import or modify the ARP implementation.
@@ -18,8 +21,34 @@ below are this project's design, beyond that brief assignment requirement.
 ## Requirements
 
 - Python **3.11+** on Linux/POSIX with `dir_fd`, `O_DIRECTORY`, and `O_NOFOLLOW`.
-- No pip packages or virtual environment required.
+- No pip packages or virtual environment required for the app or FTP tools.
+- Optional: Node.js for frontend helper tests, FFmpeg/ffprobe for generated
+  media, and Matplotlib for exported benchmark PNG/SVG plots.
 - `make` is optional; every entry point also works with `python3`.
+
+## Quick start: browser app
+
+```bash
+cd Group_Project/FTP
+make app
+# Equivalent: python3 -m ftp_lab.webapp --demo
+```
+
+Open **http://127.0.0.1:8080** and create your local workspace account.
+The built-in **This computer** FTP device is ready immediately. Choose a
+file and select **Send file**, or select **Download** beside a remote file.
+**Add a device** saves another FTP server's name, address, port, and username;
+its password is requested on connection and kept only in session memory.
+
+Progress shows the current phase, bytes, speed, and estimated time. Select
+**Compare compression** for verified original/gzip transfers and graphs in
+**Performance**. **History** keeps completed and failed transfers.
+
+Account data, history, and files remain in ignored `app-data/`. Stop with
+Ctrl+C; restarting the same command keeps that workspace. To open the app
+inside VS Code, open `FTP.code-workspace`, start the server, and run the
+**FTP: Open in VS Code browser** launch configuration. See the
+[detailed guide](docs/LOCAL_APP.md) for limits and troubleshooting.
 
 ## Quick start: two terminals
 
@@ -228,13 +257,25 @@ files, active/passive mode, ASCII conversion, UTF-8/spaces/quotes, concurrent
 sessions, authentication, malformed commands, root confinement, reset
 uploads, timeout recovery, and failed-download preservation.
 
+The current suite contains **61 Python tests** and **6 frontend helper tests**
+(the latter run when Node.js is available). Additional coverage includes
+local authentication, persistent devices/history, request protections,
+streamed sources, cancellation, gzip, benchmark verification, oversized
+remote payloads, and stale responses after sign-out. Large-media stress
+measurements are a separate [reproducible report](benchmarks/README.md).
+
 | Path | Responsibility |
 | --- | --- |
 | `ftp_lab/protocol.py` | CRLF framing, replies, streaming ASCII conversion |
 | `ftp_lab/filesystem.py` | Virtual root and atomic uploads |
 | `ftp_lab/server.py` | Commands, session state, concurrency and server CLI |
 | `ftp_lab/client.py` | Socket client, active/passive transfers and terminal UI |
+| `ftp_lab/webapp/` | Local HTTP API, SQLite, background jobs, offline browser UI |
+| `ftp_lab/benchmark.py` | Original/gzip comparisons, verification and report exports |
+| `tools/media_fixtures.py` | Offline playable audio/video fixture generation |
 | `tests/` | Core, interoperability, error and CLI tests |
+| `docs/LOCAL_APP.md` | Browser workflow and detailed app architecture |
+| `benchmarks/` | Saved measurements, plots and reproduction instructions |
 | `docs/IMPLEMENTATION.md` | Scope, design and implementation checklist |
 
 Protocol sources: [RFC 959](https://datatracker.ietf.org/doc/html/rfc959)

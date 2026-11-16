@@ -405,6 +405,8 @@ class AppService:
                         raise ValueError('This file exceeds the 8 GiB download limit')
                     callback = self._meter(owner, job_id, total, 'Receiving file')
                     client.download(job['remote_path'], received, progress=callback)
+                    if received.stat().st_size != total:
+                        raise ValueError('Downloaded file size changed. Refresh the device files and try again.')
                 output = folder / 'output'
                 if job['unpack']:
                     self._update(owner, job_id, phase='Unpacking file')

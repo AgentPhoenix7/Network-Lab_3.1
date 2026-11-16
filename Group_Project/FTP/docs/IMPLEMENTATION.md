@@ -1,5 +1,11 @@
 # FTP implementation plan
 
+This records the original terminal client/server milestone. The subsequent
+user-approved browser app is specified in [LOCAL_APP_PLAN.md](LOCAL_APP_PLAN.md)
+and explained in [LOCAL_APP.md](LOCAL_APP.md); its addition supersedes the
+original exclusion of a web UI below. The original dated observations are
+retained for comparison.
+
 ## Scope and design
 
 Implement FTP independently of ARP in Python 3.11+ on Linux/POSIX, using
@@ -67,6 +73,13 @@ length defect; failing regressions reproduced it, separate command/reply
 limits and a 4096-byte normalized-path bound fixed it, and the reviewer
 independently reran the full suite successfully. Python 3.11 is the source
 compatibility floor; this environment's runtime validation used 3.14.10.
+
+On 2026-11-16, the extended suite passed 61 Python tests and 6 frontend
+tests. Ruff and Pyright checks were clean. Internal-browser verification
+covered sign-in, device saving/connection, 128 MiB audio upload with progress,
+download/save, verified compression graphs, and persistence across sign-out.
+The separate [benchmark report](../benchmarks/README.md) retains 12 verified
+large-media run measurements from 2026-11-15, including their limitations.
 
 ## References
 

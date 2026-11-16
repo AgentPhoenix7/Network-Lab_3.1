@@ -11,6 +11,12 @@ use the [file-by-file reference](#22-file-by-file-reference-and-reading-order).
 For a demonstration, jump to [running it yourself](#21-running-it-yourself).
 The shorter [README](../README.md) remains the quick-start reference.
 
+This walkthrough focuses on the socket protocol and terminal tools. The
+project now also has Relay, a local browser interface with authentication,
+SQLite device/history storage, progress, and compression graphs. Continue
+with [the detailed app walkthrough](LOCAL_APP.md) for those modules and
+[the large-media report](../benchmarks/README.md) for measured results.
+
 ---
 
 ## Table of Contents
@@ -1569,9 +1575,13 @@ the code actually supplies is part of understanding the implementation.
 
 ## 20. How the tests check the implementation
 
-The current test files define **37 test methods**. Some methods exercise
+The current Python test files define **61 test methods**, including the
+browser service and benchmark additions. Node.js also runs **6 frontend
+helper tests** when available. Some methods exercise
 several cases or modes, so that is not a count of individual transfers.
-The tests use `unittest` from the standard library.
+The Python tests use `unittest` from the standard library. The original
+terminal-only milestone had 37 tests; its dated observation remains in
+[IMPLEMENTATION.md](IMPLEMENTATION.md).
 
 ### 20.1 Why “our client works with our server” is insufficient
 
@@ -1602,8 +1612,14 @@ an untrusted PASV IP, or send a failed completion after some data bytes.
 | --- | --- | --- |
 | [test_core.py](../tests/test_core.py) | 11 | Framing, truncated/invalid input, multiline replies, injection, ASCII boundaries, root/filesystem operations, symlinks, rollback, special files and path bounds |
 | [test_server.py](../tests/test_server.py) | 17 | `ftplib` interoperability, login state, both data modes, binary/ASCII content, directory names, errors, timeouts, reset uploads, concurrency, capacity, shutdown and long replies |
-| [test_client.py](../tests/test_client.py) | 7 | Own client in both modes, type preferences, redaction, local preservation, independent peers and batch CLI behavior |
+| [test_client.py](../tests/test_client.py) | 9 | Own client in both modes, type preferences, redaction, local preservation, independent peers, progress/cancellation and batch CLI behavior |
 | [test_cli.py](../tests/test_cli.py) | 2 | Separate server/client subprocesses, script files, SIGTERM cleanup and clean missing-password errors |
+| [test_benchmark.py](../tests/test_benchmark.py) | 12 | Original/gzip verification, samples and exports, cancellation/cleanup, invalid input and hostile oversized retrieval |
+| [test_webapp.py](../tests/test_webapp.py) | 10 | SQLite/auth persistence, request protections, jobs, streaming, gzip, ownership, cancellation, source claims and size/name bounds |
+
+[test_frontend.cjs](../tests/test_frontend.cjs) adds six Node.js tests for
+readable sizes/times, folder paths, graph samples, compression comparisons,
+complete preparation timing, and ignoring a stale response after logout.
 
 The binary server test includes an empty file, all 256 byte values,
 and a larger payload built as `bytes(range(256)) * 8193`. It checks
@@ -1790,7 +1806,8 @@ TMPDIR="$PWD/.scratch/tmp" TMP="$PWD/.scratch/tmp" TEMP="$PWD/.scratch/tmp" \
   python3 -W error::ResourceWarning -m unittest discover -s Group_Project/FTP/tests -v
 ```
 
-The current suite should report `Ran 37 tests` and `OK`. It requires
+The current Python suite reports `Ran 61 tests` and `OK`; `make test` also
+runs six frontend tests if Node.js is installed. It requires
 local socket access; a sandbox rejecting even loopback traffic must
 allow that access for these tests.
 
@@ -1826,21 +1843,40 @@ Group_Project/FTP/
 |-- .gitignore
 |-- Makefile
 |-- README.md
+|-- FTP.code-workspace
+|-- benchmarks/
+|   |-- README.md
+|   `-- results/               <- small measured CSV/JSON and PNG/SVG reports
 |-- docs/
 |   |-- IMPLEMENTATION.md
+|   |-- LOCAL_APP_PLAN.md
+|   |-- LOCAL_APP.md           <- browser app and architecture walkthrough
 |   `-- explanation.md          <- this walkthrough
 |-- ftp_lab/
 |   |-- __init__.py
 |   |-- protocol.py
 |   |-- filesystem.py
 |   |-- server.py
-|   `-- client.py
+|   |-- client.py
+|   |-- benchmark.py
+|   `-- webapp/
+|       |-- __init__.py
+|       |-- __main__.py
+|       |-- database.py
+|       |-- service.py
+|       |-- server.py
+|       `-- static/            <- index.html, styles.css, app.js
+|-- tools/
+|   `-- media_fixtures.py
 `-- tests/
     |-- support.py
     |-- test_core.py
     |-- test_server.py
     |-- test_client.py
-    `-- test_cli.py
+    |-- test_cli.py
+    |-- test_benchmark.py
+    |-- test_webapp.py
+    `-- test_frontend.cjs
 ```
 
 Suggested reading order is `protocol.py` → `filesystem.py` → `server.py`
