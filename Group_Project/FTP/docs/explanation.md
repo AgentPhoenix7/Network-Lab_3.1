@@ -1665,8 +1665,8 @@ the code actually supplies is part of understanding the implementation.
 
 ## 20. How the tests check the implementation
 
-The current Python test files define **69 test methods**, including the
-browser service and benchmark additions. Node.js also runs **6 frontend
+The current Python test files define **70 test methods**, including the
+browser service and benchmark additions. Node.js also runs **8 frontend
 helper tests** when available. Some methods exercise
 several cases or modes, so that is not a count of individual transfers.
 The Python tests use `unittest` from the standard library. The original
@@ -1705,12 +1705,14 @@ an untrusted PASV IP, or send a failed completion after some data bytes.
 | [test_client.py](../tests/test_client.py) | 9 | Own client in both modes, type preferences, redaction, local preservation, independent peers, progress/cancellation and batch CLI behavior |
 | [test_cli.py](../tests/test_cli.py) | 2 | Separate server/client subprocesses, script files, SIGTERM cleanup and clean missing-password errors |
 | [test_benchmark.py](../tests/test_benchmark.py) | 12 | Original/gzip verification, samples and exports, cancellation/cleanup, invalid input and hostile oversized retrieval |
-| [test_webapp.py](../tests/test_webapp.py) | 10 | SQLite/auth persistence, request protections, jobs, streaming, gzip, ownership, cancellation, source claims and size/name bounds |
+| [test_webapp.py](../tests/test_webapp.py) | 11 | SQLite/auth persistence, request protections, jobs, streaming, gzip, ownership, cancellation, source claims and size/name bounds |
 | [test_network_app.py](../tests/test_network_app.py) | 7 | LAN binding, shared files/profiles, independent sessions/passwords, Host/Origin checks, concurrent demo-profile creation, owner bootstrap; real-interface case opt-in |
 
-[test_frontend.cjs](../tests/test_frontend.cjs) adds six Node.js tests for
+[test_frontend.cjs](../tests/test_frontend.cjs) adds eight Node.js tests for
 readable sizes/times, folder paths, graph samples, compression comparisons,
-complete preparation timing, and ignoring a stale response after logout.
+complete preparation timing, ignoring a stale response after logout, and
+the completed-download filename/source presentation without changing the
+names shown for pending, original or upload jobs.
 
 The binary server test includes an empty file, all 256 byte values,
 and a larger payload built as `bytes(range(256)) * 8193`. It checks
@@ -1897,8 +1899,8 @@ TMPDIR="$PWD/Group_Project/FTP/build/tmp" TMP="$PWD/Group_Project/FTP/build/tmp"
   python3 -W error::ResourceWarning -m unittest discover -s Group_Project/FTP/tests -v
 ```
 
-The current Python suite reports `Ran 69 tests` and `OK`; `make test` also
-runs six frontend tests if Node.js is installed. It requires
+The current Python suite reports `Ran 70 tests` and `OK`; `make test` also
+runs eight frontend tests if Node.js is installed. It requires
 local socket access; a sandbox rejecting even loopback traffic must
 allow that access for these tests.
 Set `FTP_TEST_LAN_HOST` to an assigned local LAN IPv4 address to run the
@@ -2118,7 +2120,7 @@ docstring; it is not an alternative server or a hidden FTP implementation.
 | `webapp/database.py` | `Database`, `password_hash`, `token_hash`, `csrf_token`: schema, verifiers, session digests and persistent owner data |
 | `webapp/service.py` | `AppService`, `filename`, `remote_path`: job validation, disk streaming, session passwords, workers, cancellation and attachments |
 | `webapp/server.py` | `AppServer`, `AppHandler`, `main`: bind options, request destination/Origin checks, owner bootstrap, routes and HTTP streaming |
-| `webapp/static/app.js` | Session generation guard, API wrapper, source staging, job polling, dialogs and SVG rendering |
+| `webapp/static/app.js` | Session generation guard, API wrapper, source staging, job polling, `downloadPresentation()` for output/source names, dialogs and SVG rendering |
 | `benchmark.py` | `run_benchmark`, `csv_report`, `export_reports`, `render_graphs`: measured plain/gzip transfers, bounded SHA-256 verification, raw data and plots |
 | `tools/media_fixtures.py` | `generate`, `main`: offline playable WAV/raw AVI/MP4 sources and provenance manifest |
 

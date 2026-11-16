@@ -113,9 +113,18 @@ to download the prepared copy through the browser.
 
 **Unpack .gz downloads** decompresses a gzip file locally before offering
 the saved copy. For example, `lecture.wav.gz` becomes `lecture.wav`.
+Enable it before selecting **Download**; changing the checkbox does not
+modify a file already prepared by an earlier job. Only one gzip layer is
+removed: `archive.tar.gz` becomes `archive.tar`, not a folder of extracted
+files. The completed card shows the output filename, **Unpacked from** the
+source name, its output size, and **Save unpacked file**. Its transfer byte
+counter still measures the compressed FTP payload, not the expanded size.
 Ordinary downloads retain their filename and bytes. A failed FTP retrieval
 does not offer a partial local file. Gzip output is bounded to 8 GiB and
 invalid output basenames are rejected before work starts.
+A damaged header, truncated stream, or invalid compressed block fails with
+a clear gzip error and removes partial local output. Turn unpacking off and
+start a new download if you need to save the original compressed file.
 
 ### 1.4 Cancel, retry, and history
 
@@ -399,6 +408,12 @@ Host/Origin checks, concurrent initial device listing, setup protection,
 and the specific-address bootstrap requirement. The real-interface test
 is opt-in and skips if its environment variable is absent. A physical
 second computer/phone is a separate verification step.
+
+The later gzip-display regression update passed **70 Python and 8 frontend
+tests**. Browser verification confirmed the completed card uses the saved
+output filename and **Save unpacked file**, and the saved bytes match the
+original source. Corrupt gzip inputs produce a terminal error instead of
+leaving a job stuck while unpacking.
 
 | Symptom | Action |
 | --- | --- |

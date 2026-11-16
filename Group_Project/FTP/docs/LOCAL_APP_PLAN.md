@@ -39,6 +39,10 @@ incremental progress polling, and streamed browser downloads. Bound jobs
 and file sizes; never read a full media file into memory. Uploads use the
 existing FTP binary client. Optional gzip produces an explicit .gz remote
 file; optional unpacking is limited by the same output-size bound.
+Completed download cards use the server-provided result filename, with
+source name/output size shown separately for unpacked files. The option
+applies when a new job is created and removes one gzip layer only. Invalid
+gzip headers/trailers/deflate data fail with a readable error and cleanup.
 
 Performance tests compare plain and gzip transfers of the same source,
 verify downloaded SHA-256 content, measure preprocessing and FTP payload
@@ -105,8 +109,8 @@ verification, browser staging and initial source hashing are separate.
 Use failing behavior tests before implementation. Independently review the
 complete feature after integration. Verify actual browser login/device/
 upload/download/benchmark flows and large audio/video tests; do not infer
-runtime success from source inspection. Keep only finalized source, documentation and measurement records in the submission.
-Current verification is 69 Python and 6 frontend tests, including seven
+runtime success from source inspection. Keep investigation data in .scratch.
+Current verification is 70 Python and 8 frontend tests, including seven
 network cases (the real-interface case requires `FTP_TEST_LAN_HOST`). LAN
 browser verification uses a disposable workspace; the host's owner account
 is left for its user. The app/FTP path is plaintext for a trusted lab LAN;

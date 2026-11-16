@@ -5,6 +5,26 @@ const path = require("node:path");
 const source = path.join(__dirname, "../ftp_lab/webapp/static/app.js");
 const ui = fs.existsSync(source) ? require(source) : {};
 
+test('completed unpacked downloads show the saved filename and retain the source name separately', () => {
+  assert.equal(typeof ui.downloadPresentation, 'function');
+  assert.deepEqual(ui.downloadPresentation({kind: 'download', status: 'completed',
+    name: 'lecture.tar.gz', unpack: true, result: {filename: 'lecture.tar', bytes: 1234}}), {
+    name: 'lecture.tar', detail: 'Unpacked from lecture.tar.gz · 1.2 KiB ready to save',
+    saveLabel: 'Save unpacked file ↓',
+  });
+});
+
+test('pending, original, and non-download jobs keep their original filename', () => {
+  assert.equal(typeof ui.downloadPresentation, 'function');
+  for (const job of [
+    {kind: 'download', status: 'running', name: 'clip.wav.gz', unpack: true, result: {}},
+    {kind: 'download', status: 'completed', name: 'clip.wav.gz', unpack: false, result: {filename: 'clip.wav.gz'}},
+    {kind: 'upload', status: 'completed', name: 'clip.wav.gz', unpack: false, result: {}},
+  ]) {
+    assert.deepEqual(ui.downloadPresentation(job), {name: 'clip.wav.gz', detail: '', saveLabel: 'Save file ↓'});
+  }
+});
+
 test("file sizes and remaining times stay readable at boundary values", () => {
   assert.equal(
     typeof ui.formatBytes,

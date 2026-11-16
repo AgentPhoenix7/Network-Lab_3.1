@@ -276,10 +276,11 @@
                   <div class="files-footer">
                     <span id="files-count">No folder selected</span
                     ><label class="unpack-label"
-                      ><input id="unpack" type="checkbox" /> Unpack .gz
+                      ><input id="unpack" type="checkbox" aria-describedby="unpack-hint" /> Unpack .gz
                       downloads</label
                     >
                   </div>
+                  <p id="unpack-hint" class="unpack-hint">Applies to new downloads. Removes one .gz layer; .tar.gz becomes .tar.</p>
                 </section>
               </div>
               <section
