@@ -5,7 +5,7 @@ LAN extension. The detailed browser design is in
 [LOCAL_APP_PLAN.md](LOCAL_APP_PLAN.md), its walkthrough in
 [LOCAL_APP.md](LOCAL_APP.md), and network setup in [LAN_ACCESS.md](LAN_ACCESS.md).
 Dated validation milestones are retained below, separately from the current
-69-test suite.
+70-test suite.
 
 ## Scope and design
 
@@ -112,6 +112,13 @@ The internal browser reached the host LAN URL, enforced the remote setup
 guard, signed in after local bootstrap, and completed a 128 MiB WAV upload.
 That real-interface check is distinct from a physical second-device test;
 Wi-Fi isolation and external firewall reachability remain network-specific.
+
+The gzip-download follow-up corrects completed transfer cards to show the
+saved filename rather than the compressed source name, labels unpacked
+outputs explicitly, and catches invalid gzip deflate data as a failed job.
+Regression tests first reproduced the misleading display and stuck worker;
+the updated suite passes **70 Python and 8 frontend tests**. A browser
+download verified both the real filename and byte-exact unpacked content.
 
 ## References
 

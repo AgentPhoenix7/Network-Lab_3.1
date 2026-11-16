@@ -275,7 +275,7 @@ files, active/passive mode, ASCII conversion, UTF-8/spaces/quotes, concurrent
 sessions, authentication, malformed commands, root confinement, reset
 uploads, timeout recovery, and failed-download preservation.
 
-The current suite contains **69 Python tests** and **6 frontend helper tests**
+The current suite contains **70 Python tests** and **8 frontend helper tests**
 (the latter run when Node.js is available). Additional coverage includes
 local authentication, persistent devices/history, request protections,
 streamed sources, cancellation, gzip, benchmark verification, oversized

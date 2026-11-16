@@ -832,6 +832,12 @@ h2 {
   width: 12px;
   height: 12px;
 }
+.unpack-hint {
+  padding: 0 22px 14px;
+  margin: 0;
+  font-size: 10px;
+  color: #7b8b70;
+}
 .file-row {
   display: flex;
   gap: 10px;

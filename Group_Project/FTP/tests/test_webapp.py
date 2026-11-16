@@ -158,6 +158,8 @@ class AppTests(unittest.TestCase):
                 self.assertEqual(status, 200)
                 self.assertEqual(attachment, payload)
                 self.assertIn('attachment', headers['Content-Disposition'])
+                self.assertEqual(result['result']['filename'], 'sample.wav')
+                self.assertEqual(headers['Content-Disposition'], "attachment; filename*=UTF-8''sample.wav")
             self.assertEqual(self.request('GET', f'/api/devices/{device["id"]}/files?path=/')[0], 200)
             jobs = self.request('GET', '/api/jobs')[1]['jobs']
             self.assertEqual(len(jobs), 4)
@@ -178,6 +180,25 @@ class AppTests(unittest.TestCase):
             self.assertEqual(self.request('GET', '/api/jobs/not-a-job')[0], 404)
             self.assertEqual(self.request('POST', f'/api/jobs/{job["id"]}/cancel', {})[0], 200)
             self.assertEqual(self.wait_job(job)['status'], 'cancelled')
+
+    def test_invalid_gzip_downloads_fail_and_remove_partial_artifacts(self):
+        self.login()
+        valid = gzip.compress(b'original contents')
+        invalid_deflate = bytes.fromhex('1f8b08000000000000ff07') + bytes(8)
+        with running_server(timeout=10) as (ftp, root):
+            device = self.device(ftp)
+            for content in (b'not gzip', valid[:-4], invalid_deflate):
+                with self.subTest(content=content):
+                    (root / 'broken.txt.gz').write_bytes(content)
+                    status, body, _ = self.request('POST', '/api/jobs', {'device_id': device['id'],
+                        'kind': 'download', 'name': 'broken.txt.gz', 'remote_path': '/broken.txt.gz',
+                        'size': len(content), 'unpack': True})
+                    self.assertEqual(status, 201, body)
+                    job = self.wait_job(body['job'])
+                    self.assertEqual(job['status'], 'failed', job)
+                    self.assertIn('gzip', job['error'].lower())
+                    self.assertFalse((self.service.spool / job['id']).exists())
+                    self.assertNotEqual(self.request('GET', f'/api/jobs/{job["id"]}/download')[0], 200)
 
     def test_benchmark_api_verifies_both_modes_and_exports_real_metrics(self):
         self.login()
