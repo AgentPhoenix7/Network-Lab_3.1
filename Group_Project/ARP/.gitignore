@@ -1,0 +1,50 @@
+# docs: only the root README is tracked (plan, contract, agents, progress, teach notes stay on disk, untracked)
+*.md
+!/README.md
+/docs/
+/.claude/
+/CLAUDE.md
+# executables and build output
+/build/
+/channel
+/station
+*.o
+*.a
+*.so
+*.d
+*.out
+*.exe
+*.dSYM/
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+# runtime artefacts
+/runs/
+*.jsonl
+*.pcap
+*.log
+*.pid
+core
+vgcore.*
+# node / playwright (tests only)
+node_modules/
+playwright-report/
+test-results/
+# editors and OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+# scratch
+*.tmp
+*.bak
+# presets are needed to run (the lab-root .gitignore ignores *.json)
+!/scenarios/*.json
