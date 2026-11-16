@@ -3,7 +3,7 @@
 /downloads/
 /app-data/
 
-# Small, requested benchmark reports are deliverables (large media stays in .scratch)
+# Small, requested benchmark reports are deliverables (large media is generated locally)
 !/benchmarks/results/*.png
 !/benchmarks/results/*.json
 
@@ -20,3 +20,8 @@ htmlcov/
 .env.*
 !.env.example
 *.log
+
+# Reproducible local test and benchmark outputs
+/build/
+/benchmarks/generated-media/
+/benchmarks/generated-results/

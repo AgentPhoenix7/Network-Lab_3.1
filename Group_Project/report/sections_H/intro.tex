@@ -1,0 +1,18 @@
+\section{Introduction}\label{sec:intro}
+
+This project builds ARP and proxy ARP and lets you watch them work. We wrote the protocol in C and ran it on a simulated network of hosts, routers, hubs and switches.
+
+\paragraph{The problem.} A program sends data to an IP address. The network card needs a hardware (MAC) address instead. ARP finds the MAC address that goes with an IP address on the same local network (LAN)~\cite{rfc826,forouzan}. Without it, a host cannot send a single frame.
+
+\paragraph{What we built.} Each host and each router is one C program. Each LAN is another C program that acts as a hub or as a learning switch. The programs send real frames to each other, and the frames carry a CRC-32 check. ARP runs inside the host and router programs. It keeps a cache of IP-to-MAC pairs, asks for missing pairs, answers requests, and retries when no answer comes. A router can also answer for hosts behind it. This is proxy ARP~\cite{topic14}.
+
+\paragraph{Report organization.}
+\begin{itemize}[nosep]
+  \item Section~\ref{sec:concepts} explains ARP and proxy ARP, with figures from the class slides.
+  \item Section~\ref{sec:design} gives the system layout and the code reused from earlier labs.
+  \item Section~\ref{sec:core} is the core. For each part of the engine, it gives the idea, then pseudocode, then code.
+  \item Section~\ref{sec:topologies} draws four preset networks.
+  \item Section~\ref{sec:example} lists every event in one proxy ARP ping.
+  \item Section~\ref{sec:interface} describes the web page.
+  \item Sections~\ref{sec:analysis} and~\ref{sec:conclusion} give limits and conclusions.
+\end{itemize}

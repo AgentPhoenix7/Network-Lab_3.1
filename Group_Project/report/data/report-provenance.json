@@ -1,0 +1,63 @@
+{
+  "original_report_archive": "/home/agntdrgn/Downloads/report.zip",
+  "original_report_sha256": "627ecc230681820d2c17d18d2c636be99bc8acebfa9066606b6990f2eb2a82c9",
+  "lecture_pdf": "/home/agntdrgn/Documents/College/CN/Topic-17-ApplicationLayer.pdf",
+  "lecture_sha256": "a63871abb16af44712a29e91a2139b2d15bca33c2c08def7c12f2ef7e3ddeb3a",
+  "lecture_figure_pages": [
+    {
+      "page": 75,
+      "file": "figures/ftp_lecture_figures.pdf",
+      "crop_box_pdf_points": [
+        10,
+        80,
+        700,
+        425
+      ],
+      "figure_page": 1
+    },
+    {
+      "page": 76,
+      "file": "figures/ftp_lecture_figures.pdf",
+      "crop_box_pdf_points": [
+        42,
+        165,
+        681,
+        405
+      ],
+      "figure_page": 2
+    },
+    {
+      "page": 77,
+      "file": "figures/ftp_lecture_figures.pdf",
+      "crop_box_pdf_points": [
+        10,
+        110,
+        710,
+        400
+      ],
+      "figure_page": 3
+    },
+    {
+      "page": 80,
+      "file": "figures/ftp_lecture_figures.pdf",
+      "crop_box_pdf_points": [
+        18,
+        50,
+        703,
+        451
+      ],
+      "figure_page": 4
+    }
+  ],
+  "measurement_observation_date": "2026-11-15",
+  "report_validation_date": "2026-11-16",
+  "ftp_sources": {
+    "code/ftp_lab/__init__.py": "bf321ad410b995015de4bf967f67e2ef1aba6c2ed2cca0d13cd63e04b9d91431",
+    "code/ftp_lab/benchmark.py": "20cb270961cd0b664287a4692224e49e3ab9547be6f06b959cf45626ade09ac2",
+    "code/ftp_lab/client.py": "bb20ff893f06b1ee062d8c7a80dfaf6c74c4668067e4e7f0c6fe8322bda66e83",
+    "code/ftp_lab/filesystem.py": "0ea14ebc3244d1dd7dc2cad19c5a3cf1b6d4a212a09007dbcc5a4d2aa4553c92",
+    "code/ftp_lab/protocol.py": "e78e8cf8568904608f1655ff65e8c9d63a986cfdc323f9ae19419446f691c144",
+    "code/ftp_lab/server.py": "26335ac2a20dc744392a121ad9395adfb1c9fd5a18e7762267e211efa0e85843"
+  },
+  "csv_line_endings": "Report CSV files use LF line endings; all original rows and field values are preserved."
+}

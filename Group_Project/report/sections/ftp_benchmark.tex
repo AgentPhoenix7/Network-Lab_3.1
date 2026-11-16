@@ -1,0 +1,122 @@
+\section{FTP file-transfer benchmarking}\label{sec:ftp-benchmark}
+
+\subsection{Inputs and experiment method}
+The saved performance experiment was run on 15 November 2026 using the terminal benchmark driver and real loopback TCP transfers~\cite{ftpmeasure}. The source files are playable media generated offline with FFmpeg: a stereo 48 kHz, 16-bit PCM WAV signal; a moving 640$\times$360 raw YUV420 video in an AVI container; and an H.264 MP4 counterpart of the video. They contain generated signals/patterns rather than recordings, and are not small files padded with arbitrary bytes.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Actual input sizes. One MiB is $2^{20}=1,048,576$ bytes.}
+\begin{tabularx}{\linewidth}{@{}l r r Y@{}}
+\toprule
+Input & Bytes & MiB & Role \\
+\midrule
+\code{audio.wav} & 134,217,806 & 128.000 & Large uncompressed audio. \\
+\code{video.avi} & 134,454,314 & 128.226 & Large raw moving video. \\
+\code{video.mp4} & 1,831,488 & 1.747 & Already-compressed control; genuinely smaller. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+There are two repetitions for each input. Each comparison tests the original source, then gzip level~6: $3\ \text{files}\times2\ \text{repetitions}\times2\ \text{modes}=12$ measured runs. For every run the engine uploads a unique temporary filename through the implemented client, downloads it again, decompresses when necessary, and compares both the original byte length and SHA-256 digest. All 12 saved runs passed verification. Remote verification payloads and decompressed data are bounded to their known expected lengths.
+
+Gzip is preprocessing performed by the benchmark. It produces an ordinary compressed file that FTP transfers in binary mode; it is not a new FTP wire command or an implementation of MODE~Z. Temporary benchmark remote files are deleted after use, while source files remain unchanged.
+
+\begin{algorithm}[H]\small
+\caption{One original/gzip comparison}
+\begin{algorithmic}[1]
+\Require source file and a factory returning an authenticated FTP client
+\State stream the original source to compute expected size and SHA-256
+\For{mode in [plain, gzip]}
+ \State start per-mode timer; prepare payload (gzip level 6 when selected)
+ \State connect/login; record preparation time
+ \State upload a unique remote filename, sampling payload progress
+ \State record FTP upload time and preparation-plus-upload time
+ \State download the same payload with an expected-length bound
+ \State decompress if selected; verify original length and SHA-256
+ \State record verification timings and remove this run's remote file
+\EndFor
+\State export run rows, progress samples and figures
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Metric definitions}
+Let $S$ be the original source bytes, $P$ the FTP payload bytes, $t_p$ preparation time, and $t_u$ the measured FTP upload-call duration. The report distinguishes two rates:
+\[
+ R_{\mathrm{FTP}}=\frac{P}{2^{20}t_u}\ \mathrm{MiB/s},\qquad
+ R_{\mathrm{effective}}=\frac{S}{2^{20}t_{\mathrm{total}}}\ \mathrm{MiB/s},\qquad
+ \mathrm{saving}=100\left(1-\frac{P}{S}\right)\%.
+\]
+Here $t_{\mathrm{total}}$ runs from per-mode preparation through upload completion. It includes gzip work and connection/login setup before the upload; $t_u$ includes TYPE, data negotiation, payload transfer and the final completion reply inside the client's upload call. Initial source hashing, verification download, verification hashing/decompression, and cleanup are recorded separately rather than hidden inside the upload rate. $t_{\mathrm{total}}$ is approximately $t_p+t_u$, with small intervening measurement overhead.
+
+\begin{table}[htbp]
+\centering\small
+\caption{Exported measurements and what they cover.}
+\begin{tabularx}{\linewidth}{@{}l Y@{}}
+\toprule
+Field & Meaning \\
+\midrule
+\code{compression\_seconds} & Gzip work only; zero for the original file. \\
+\code{preparation\_seconds} & Per-mode preprocessing and FTP connection/login. \\
+\code{transfer\_seconds} & The FTP upload call, through successful completion. \\
+\code{total\_seconds} & Preparation through upload completion. \\
+\code{download\_seconds} & Verification retrieval through FTP. \\
+\code{verification\_seconds} & Streamed size/hash check, including decompression if needed. \\
+\code{round\_trip\_seconds} & Per-mode preparation, upload, retrieval and content verification. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Measured results and graphs}
+Tables~\ref{tab:ftp-compression} and~\ref{tab:ftp-timing} show arithmetic means across the two repetitions. The original rows and sampled curves are retained in \code{data/runs.csv}, \code{data/samples.csv}, and \code{data/results.json}; the media manifest records codecs, sizes, generation commands and hashes.
+Manifest file paths are normalized to the portable example directory. Measured byte counts, hashes, codec information and generation timings are unchanged.
+
+\input{sections/ftp_benchmark_tables}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.90\linewidth]{ftp_benchmark_compression.png}
+\caption{Original versus gzip payload sizes for each saved file/repetition. The generated WAV and raw AVI patterns compress substantially; the MP4 counterpart changes very little. Source: measured experiment rows, 15 November 2026.}
+\label{fig:ftp-compression-graph}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.94\linewidth]{ftp_benchmark_throughput.png}
+\caption{Measured FTP payload throughput and effective original-byte rate. A smaller gzip payload can have a different payload rate and a lower effective rate once compression time is counted. These are cached loopback measurements, not physical-link capacity.}
+\label{fig:ftp-throughput-graph}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.90\linewidth]{ftp_benchmark_durations.png}
+\caption{Preparation, upload, verification download and content-verification durations. Keeping phases separate exposes the gzip preprocessing cost instead of attributing it to the network.}
+\label{fig:ftp-duration-graph}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=\linewidth,height=0.77\textheight,keepaspectratio]{ftp_benchmark_time-series.png}
+\caption{Cumulative FTP upload progress over elapsed upload time. Each original/gzip trace starts at its own time zero; the vertical axis is payload MiB, not MiB/s. The slope reflects progress through the local transfer, and the last sample includes completion-reply latency.}
+\label{fig:ftp-timeseries-graph}
+\end{figure}
+
+The WAV payload fell to approximately 3.751~MiB (97.070\% smaller) and raw AVI to 6.118~MiB (95.228\% smaller). The already-compressed MP4 saved only 0.173\%. In every case gzip took longer from preparation to upload completion: about 0.881~s versus 0.069~s for WAV, 1.147~s versus 0.071~s for AVI, and 0.090~s versus 0.041~s for MP4. Compression saved bytes but did not save total upload-path time on this machine's local path.
+
+\subsection{Interpretation and limitations of the measurements}
+Large-file plain uploads ranged roughly from 1,551 to 2,373~MiB/s. Such high values reflect the operating system's loopback path and warm filesystem caches; they do not establish Ethernet/Wi-Fi capacity or disk durability. There were only two repetitions, plain always preceded gzip, and background load/cache state were not controlled as a formal statistical study. The synthesized signals also contain regular structure, so their compression ratios cannot be generalized to all audio/video.
+
+The benchmark measures individual transfers, not concurrent-user saturation. It does not include a physical second-machine LAN trial, TCP/IP header accounting, or a claim that a file was forced to stable storage. Its useful conclusions are narrower: the implementation streamed real media through FTP, all round trips verified, raw patterned media compressed well, and the measured gzip CPU/setup cost outweighed loopback transfer savings.
+
+\subsection{Reproducing the experiment from the terminal}
+Run from the FTP directory, using fresh generated-media and generated-results directories. FFmpeg and FFprobe are needed only for fixture generation. Matplotlib is needed only for \code{--plots}; CSV/JSON export uses the standard library.
+\begin{lstlisting}[style=ftpterm]
+cd Group_Project/FTP
+python3 tools/media_fixtures.py \
+  --output benchmarks/generated-media --mib 128 --mp4
+python3 -m ftp_lab.benchmark --local \
+  benchmarks/generated-media/audio.wav \
+  benchmarks/generated-media/video.avi \
+  benchmarks/generated-media/video.mp4 \
+  --repeat 2 --output benchmarks/generated-results --plots
+\end{lstlisting}
+For an actual second computer's FTP server, omit \code{--local}, supply \code{--host}, \code{--port}, \code{--user}, and optionally \code{--remote-dir}, and provide its lab password through \code{FTP\_PASSWORD} or a prompt. The target folder must permit upload, retrieval and cleanup. Keep those new observations separate from the saved loopback results.

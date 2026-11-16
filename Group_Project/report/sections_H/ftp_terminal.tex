@@ -1,0 +1,84 @@
+\section{Worked terminal FTP session}\label{sec:ftp-terminal}
+
+\subsection{Reference exchange from the lecture}
+Figure~\ref{fig:ftp-slide-session} is the supplied lecture's directory-listing example. It separates control replies from listing data. It is a reference illustration, not a screenshot of our program. Our client normally negotiates EPSV before trying PASV, so the exact setup reply can differ while the control/data model remains the same.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.84\linewidth,pagebox=cropbox,page=4]{ftp_lecture_figures.pdf}
+\caption{Login, passive listing and QUIT in the supplied slides, PDF page~80~\cite{topic17}. The black listing block is data-connection content; the numbered lines are control replies.}
+\label{fig:ftp-slide-session}
+\end{figure}
+
+\subsection{Run our server and client}
+Run both terminals from \code{Group\_Project/FTP}. The example password below is a lab credential, not a saved personal password.
+
+\begin{lstlisting}[style=ftpterm,caption={Terminal 1: start the FTP server.}]
+FTP_PASSWORD=lab-demo python3 -m ftp_lab.server \
+  --host 127.0.0.1 --port 2121 --root server-data
+\end{lstlisting}
+
+\begin{lstlisting}[style=ftpterm,caption={Terminal 2: prepare a file and start the traced client.}]
+mkdir -p downloads
+printf 'Hello from terminal FTP.\n' > downloads/hello.txt
+python3 -m ftp_lab.client --host 127.0.0.1 --port 2121 --trace
+\end{lstlisting}
+Enter the same password at the client prompt. A trusted-LAN demonstration uses the host's LAN IPv4 address as the server's \code{--host}, and that address as the client's \code{--host} on the other computer. An all-interface server bind is also available with \code{--host 0.0.0.0}. Passive mode needs an incoming negotiated data connection at the FTP server in addition to the control port. No router or firewall rules are changed by these programs.
+
+\begin{lstlisting}[style=ftpterm,caption={Commands entered at the client's ftp prompt.}]
+pwd
+mkdir experiment
+cd experiment
+put downloads/hello.txt "hello world.txt"
+ls
+size "hello world.txt"
+get "hello world.txt" downloads/passive-copy.txt
+active
+get "hello world.txt" downloads/active-copy.txt
+passive
+ascii
+get "hello world.txt" downloads/ascii-copy.txt
+binary
+delete "hello world.txt"
+cdup
+rmdir experiment
+quit
+\end{lstlisting}
+
+Back in the local shell, compare every downloaded copy with the source:
+\begin{lstlisting}[style=ftpterm]
+cmp downloads/hello.txt downloads/passive-copy.txt
+cmp downloads/hello.txt downloads/active-copy.txt
+cmp downloads/hello.txt downloads/ascii-copy.txt
+\end{lstlisting}
+For this LF-terminated text sample, successful commands produce byte-identical copies. Directory creation/removal applies to the server's virtual root; the \code{downloads/} paths refer to the client's own computer.
+
+\subsection{Fresh executed evidence}
+On 16 November 2026 we ran an isolated server on a dynamically assigned loopback port and drove the actual terminal client in batch mode. The binary source was all 256 byte values repeated 16 times (4,096 bytes). A separate 34-byte text source included LF and a literal CR. The script tested upload, listing, SIZE, passive and active binary download, ASCII upload/download, remote cleanup, and QUIT.
+
+\lstinputlisting[style=ftpterm,firstline=15,lastline=43,caption={Actual captured control trace: upload, listing, SIZE and passive download. Ephemeral port values are from this run.}]{evidence/ftp_terminal_demo.txt}
+
+\begin{table}[H]
+\centering\small
+\caption{Observed outcomes from the fresh terminal run, not inferred from a success message.}
+\begin{tabularx}{\linewidth}{@{}l Y@{}}
+\toprule
+Check & Observation \\
+\midrule
+Passive binary copy & Exactly matches the 4,096-byte source. \\
+Active binary copy & Exactly matches the same source. \\
+ASCII round trip & Exactly matches the 34-byte local text representation. \\
+Remote cleanup & Test directory and its files removed; isolated FTP root empty. \\
+Trace handling & PASS value appears only as \code{<redacted>}. \\
+Client exit & Status 0 after the full batch script. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The accompanying \code{evidence/} directory contains the complete records:
+\begin{itemize}[nosep]
+\item \path{evidence/ftp_terminal_commands.txt}: batch command input.
+\item \path{evidence/ftp_terminal_demo.txt}: chronological terminal trace.
+\item \path{evidence/ftp_terminal_verification.json}: sizes, hashes and outcomes.
+\end{itemize}
+This verification is a real local TCP run; it does not claim that a physical second computer or a particular LAN/firewall path was tested.

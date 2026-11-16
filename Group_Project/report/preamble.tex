@@ -1,0 +1,64 @@
+% Shared preamble for the flexible- and fixed-placement report variants.
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=0.85in]{geometry}
+\usepackage{booktabs,array,tabularx,graphicx,enumitem,float,caption,microtype,xcolor,amsmath}
+\usepackage{listings}
+\usepackage{needspace}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,calc,fit,backgrounds,shapes.geometric}
+\usepackage[hidelinks]{hyperref}
+
+\graphicspath{{figures/}}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+
+% C listings, same base style as the lab reports.
+\lstset{
+  language=C,
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\bfseries,
+  commentstyle=\itshape\color{gray},
+  frame=single, framerule=0.3pt,
+  breaklines=true, aboveskip=6pt, belowskip=4pt,
+  numbers=left, numberstyle=\tiny\color{gray}, numbersep=5pt,
+  xleftmargin=1.2em, framexleftmargin=1.2em
+}
+
+% Pseudocode: plain algpseudocode, caption above.
+\algrenewcommand\algorithmicrequire{\textbf{Input:}}
+\algrenewcommand\algorithmicensure{\textbf{Output:}}
+\floatname{algorithm}{Pseudocode}
+
+% Colours for diagrams (print-safe).
+\definecolor{lanbus}{HTML}{E8F0FE}
+\definecolor{lanstar}{HTML}{E6F4EA}
+\definecolor{hostfill}{HTML}{FFFFFF}
+\definecolor{routerfill}{HTML}{FDEBD0}
+\definecolor{arpreq}{HTML}{B26A00}
+\definecolor{arprep}{HTML}{00796B}
+\definecolor{proxyc}{HTML}{6A1B9A}
+\definecolor{ipc}{HTML}{1A5FB4}
+
+% Let floats fill pages instead of leaving gaps.
+\renewcommand{\topfraction}{0.95}
+\renewcommand{\bottomfraction}{0.9}
+\renewcommand{\textfraction}{0.07}
+\renewcommand{\floatpagefraction}{0.75}
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{3}
+\setcounter{totalnumber}{6}
+\setlength{\textfloatsep}{8pt plus 2pt minus 2pt}
+\setlength{\floatsep}{8pt plus 2pt minus 2pt}
+\setlength{\intextsep}{8pt plus 2pt minus 2pt}
+
+% FTP excerpts retain Python syntax without changing the original ARP C style.
+\lstdefinestyle{ftplst}{language=Python,basicstyle=\ttfamily\scriptsize,
+  numbers=left,showstringspaces=false,columns=fullflexible,keepspaces=true,
+  breakatwhitespace=false,captionpos=t}
+\lstdefinestyle{ftpterm}{language={},basicstyle=\ttfamily\footnotesize,
+  numbers=none,showstringspaces=false,columns=fullflexible,keepspaces=true,
+  captionpos=t}

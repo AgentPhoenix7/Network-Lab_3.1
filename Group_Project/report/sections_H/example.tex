@@ -1,0 +1,134 @@
+\section{Worked example: proxy ARP}\label{sec:example}
+This section follows one ping through the \code{proxy\_arp} preset, event by event. Host h1 pings h3 (141.23.56.21) while every ARP cache is empty. The trace comes from a real run of the system, so every frame matches events in the log.
+
+% Styles for this section only (prefix ex).
+\tikzset{
+  exhead/.style={draw=black!70, rounded corners=3pt, fill=white, font=\footnotesize,
+                 minimum width=1.9cm, inner sep=3pt, align=center},
+  exlife/.style={dashed, black!45},
+  exnote/.style={draw=black!40, fill=yellow!14, rounded corners=2pt, font=\scriptsize,
+                 inner sep=2.5pt, align=center},
+  exnum/.style={circle, text=white, font=\scriptsize\bfseries, inner sep=0pt, minimum size=0.46cm}
+}
+% \exarr{colour}{x from}{x to}{y}{frame number}{label}{sub-label}
+\newcommand{\exarr}[7]{%
+  \draw[-{Stealth[length=2.4mm]}, thick, #1] (#2,#4) -- (#3,#4);
+  \node[exnum, fill=#1] at ($(#2,#4)!0.12!(#3,#4)$) {#5};
+  \node[above=1pt, font=\footnotesize, text=#1, inner sep=1pt] at ($(#2,#4)!0.56!(#3,#4)$) {#6};
+  \node[below=3pt, font=\scriptsize, text=black!75, inner sep=1pt, align=center]
+       at ($(#2,#4)!0.5!(#3,#4)$) {#7};}
+
+\subsection{Setup}
+Table~\ref{tab:e-setup} lists the machines. The IP and MAC values come from \code{scenarios/proxy\_arp.json}. In this section, \code{.10} is short for 141.23.56.10, and \code{..:03:01} is short for \code{02:00:00:00:03:01}.
+
+\begin{table}[H]
+\centering
+\caption{Machines in \code{proxy\_arp}. Every ARP cache starts empty, and so does the switch's MAC table.}
+\label{tab:e-setup}
+\footnotesize
+\begin{tabularx}{\linewidth}{@{}l l l l l Y@{}}
+\toprule
+Node & LAN & IP / prefix & MAC & Gateway & Note \\
+\midrule
+h1 & A (bus) & 141.23.56.10/24 & \code{02:00:00:00:01:00} & .1 & sends the ping \\
+h2 & A (bus) & 141.23.56.11/24 & \code{02:00:00:00:02:00} & .1 & bystander on LAN A \\
+r1 if0 & A (bus) & 141.23.56.1/24 & \code{02:00:00:00:03:00} & --- & proxy list .21, .22, .23 \\
+r1 if1 & B (star) & 141.23.56.17/29 & \code{02:00:00:00:03:01} & --- & router side of LAN B \\
+h3 & B (star) & 141.23.56.21/29 & \code{02:00:00:00:04:00} & .17 & ping target \\
+h4 & B (star) & 141.23.56.22/29 & \code{02:00:00:00:05:00} & .17 & bystander on LAN B \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The ARP timers use the project defaults: an entry lives 30 s, and a pending request is repeated every 1 s. All times in this report are simulated time. The trace below uses a line delay of 100~ms, so each reply comes back before the first retry.
+
+\subsection{Sequence diagram}
+Figures~\ref{fig:e-seq} and~\ref{fig:e-seq2} show the 8 frames. Time runs downward. Each numbered arrow is one frame. A yellow note shows what a machine does with it, including cache changes. Machines that only listen are shown with grey notes. The colours are: orange for an ARP request, teal for an ARP reply, purple for the proxy reply, blue for IPv4 and ICMP.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[yscale=0.80]
+\node[exhead, text=black!60, draw=black!50] (h2) at (0,0) {\textbf{h2}\\bystander};
+\node[exhead] (h1) at (6,0) {\textbf{h1}\\.10};
+\node[exhead, fill=routerfill] (r1) at (12,0) {\textbf{r1}\\proxy router};
+\draw[exlife] (h2) -- (0,-10.1);
+\draw[exlife] (h1) -- (6,-10.1);
+\draw[exlife] (r1) -- (12,-10.1);
+% step 1
+\node[exnote, text width=4.4cm] at (6,-1.15) {ping .21: next hop is .21 itself,\\no cache entry: \code{pending},\\\code{queued}, \code{ip send}};
+\exarr{arpreq}{6}{12}{-2.4}{1}{ARP request}{broadcast, tpa .21}
+\node[exnote, text width=3.2cm, text=black!65, fill=black!5] at (0,-2.4) {hears frame 1: not for it,\\no cache entry, no learn};
+% step 2
+\node[exnote, text width=4.3cm] at (12,-3.85) {\code{learn} (if0,.10)=..:01:00\\\code{proxy\_reply}: .21 is in the list\\and leaves by if1};
+\exarr{proxyc}{12}{6}{-5.3}{2}{ARP reply (proxy)}{unicast to ..:01:00, sha ..:03:00}
+\node[exnote, text width=3.2cm, text=black!65, fill=black!5] at (0,-5.3) {frame 2: \code{rx ignored},\\not its MAC};
+% step 3
+\node[exnote, text width=4.4cm] at (6,-6.7) {\code{resolved} (if0,.21)=..:03:00\\the router's MAC; queue flushed};
+\exarr{ipc}{6}{12}{-8.0}{3}{echo request}{TTL 64, to ..:03:00}
+\node[exnote, text width=3.2cm, text=black!65, fill=black!5] at (0,-8.0) {frame 3: \code{rx ignored}};
+\node[exnote, text width=4.3cm] at (12,-9.35) {TTL 64$\to$63, route via if1:\\\code{pending} (if1,.21), \code{queued},\\\code{ip forward} (continues below)};
+\end{tikzpicture}
+\caption{Frames 1 to 3, all on LAN A. The router answers the ARP request itself and h1 learns the router's MAC for .21.}
+\label{fig:e-seq}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[yscale=0.80]
+\node[exhead] (h1) at (0,0) {\textbf{h1}\\.10};
+\node[exhead, fill=routerfill] (r1) at (4.4,0) {\textbf{r1}\\if1 .17};
+\node[exhead] (h3) at (8.8,0) {\textbf{h3}\\.21};
+\node[exhead, text=black!60, draw=black!50] (h4) at (13.2,0) {\textbf{h4}\\bystander};
+\foreach \x in {0,4.4,8.8,13.2} {\draw[exlife] (\x,-0.55) -- (\x,-14.6);}
+% step 4
+\exarr{arpreq}{4.4}{8.8}{-1.5}{4}{ARP request}{broadcast, tpa .21;\\switch learns ..:03:01, floods}
+\node[exnote, text width=3.7cm, text=black!65, fill=black!5] at (13.2,-1.5) {hears frame 4: not for it,\\no learn};
+% step 5
+\node[exnote, text width=3.7cm] at (8.8,-3.1) {\code{learn} (if0,.17)=..:03:01\\\code{reply\_sent} for .21};
+\exarr{arprep}{8.8}{4.4}{-4.6}{5}{ARP reply}{unicast to ..:03:01;\\switch learns ..:04:00}
+\node[exnote, text width=3.7cm] at (4.4,-6.1) {\code{resolved} (if1,.21)=..:04:00\\queue flushed};
+% step 6
+\exarr{ipc}{4.4}{8.8}{-7.5}{6}{echo request}{TTL 63, unicast}
+\node[exnote, text width=3.7cm] at (8.8,-9.0) {\code{ip deliver}, then \code{ip send}\\echo reply; gateway .17 is\\cached, so no ARP};
+% step 7
+\exarr{ipc}{8.8}{4.4}{-10.5}{7}{echo reply}{TTL 64, to ..:03:01}
+\node[exnote, text width=3.7cm] at (4.4,-11.9) {\code{ip forward}, TTL 63\\(if0,.10) cached, no ARP};
+% step 8
+\exarr{ipc}{4.4}{0}{-13.3}{8}{echo reply}{TTL 63, to ..:01:00}
+\node[exnote, text width=3.7cm] at (0,-14.6) {\code{ip deliver} echo\_rep:\\the ping is done};
+\end{tikzpicture}
+\caption{Frames 4 to 8. LAN B is a star, so unicast frames go only to their target. The router asks h3 for its MAC and then carries the ping and its reply.}
+\label{fig:e-seq2}
+\end{figure}
+
+\subsection{Cache state over time}
+Table~\ref{tab:e-cache} shows each cache just after each frame is sent. A cache key is (interface, IP address). Hosts h2 and h4 never learn anything, so their caches stay empty. The switch has its own MAC table. It learns ..:03:01 when frame 4 passes and ..:04:00 when frame 5 passes.
+
+\begin{table}[H]
+\centering
+\caption{ARP cache contents just after each frame is sent. R means RESOLVED and P means PENDING.}
+\label{tab:e-cache}
+\footnotesize
+\begin{tabularx}{\linewidth}{@{}l Y Y Y@{}}
+\toprule
+After frame & h1 & r1 & h3 \\
+\midrule
+start & empty & empty & empty \\
+1 & (if0,.21) P & empty & empty \\
+2 & (if0,.21) P & (if0,.10) = ..:01:00 R & empty \\
+3 & (if0,.21) R = ..:03:00 & (if0,.10) = ..:01:00 R & empty \\
+4 & (if0,.21) R = ..:03:00 & (if0,.10) R; (if1,.21) P & empty \\
+5 & (if0,.21) R = ..:03:00 & (if0,.10) R; (if1,.21) P & (if0,.17) = ..:03:01 R \\
+6 to 8 (end) & (if0,.21) R = ..:03:00 & (if0,.10) = ..:01:00 R; (if1,.21) = ..:04:00 R & (if0,.17) = ..:03:01 R \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{What to notice}
+\begin{enumerate}[leftmargin=1.6em, itemsep=2pt]
+\item \textbf{The proxy reply carries the router's MAC.} In frame 2, the address pair is spa .21 with sha ..:03:00. So h1 maps .21 to the router, not to h3. h1 never learns h3's real MAC. This is the whole idea of proxy ARP (Pseudocode~\ref{alg:proxy}).
+\item \textbf{The router lowers the TTL.} The echo request leaves h1 with TTL 64 and reaches h3 with 63. The echo reply starts at 64 and reaches h1 with 63. Each pass through r1 costs one.
+\item \textbf{A second ping needs no ARP.} All three caches are full after the first ping. We ran the same preset with two pings, \code{runs/2026-11-16T18-14-26.jsonl}. The second echo request produced only the 4 ICMP frames and no ARP frame.
+\item \textbf{A broadcast reaches h2 but does not teach it.} h2 gets frame 1, but it is neither the target nor a proxy, and it has no entry for h1. So it learns nothing. The same holds for h4 on LAN B.
+\item \textbf{LAN A is a bus and LAN B is a star.} On the bus, h2 sees every frame and marks the unicast ones \code{ignored}. On the star, the switch has learned the MACs, so frames 5, 6 and 7 go only to r1 or h3, and h4 sees just the broadcast.
+\end{enumerate}

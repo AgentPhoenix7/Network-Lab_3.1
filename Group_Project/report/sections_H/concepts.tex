@@ -1,0 +1,115 @@
+\section{ARP concepts}\label{sec:concepts}
+This section explains the theory behind the project. It follows RFC~826 \cite{rfc826}, Forouzan \cite{forouzan} and the Topic-14 class slides \cite{topic14}. The figures come from those slides.
+
+\subsection{Why address mapping is needed}
+Every host has two kinds of address. The IP address names the host on the whole internetwork. The physical (MAC) address names its network card on one local network (LAN). A MAC address is six bytes, for example \code{B2:34:55:10:22:10}.
+
+A sender knows the IP address of its target. It builds the IP packet from that. But the LAN hardware delivers frames by MAC address only. The sender must therefore turn the target IP address into a MAC address. This step is called address mapping.
+
+A fixed table would not work, because hosts join, leave and change cards. The Address Resolution Protocol (ARP) solves the problem by asking the network at run time. The project implements it in Section~\ref{sec:core}.
+
+\subsection{ARP request and reply}
+ARP works in two steps, shown in Figure~\ref{fig:c-operation}. Host A sends an \emph{ARP request}. The request asks, ``Who has IP address X?'' A request is a broadcast: the frame goes to every host on the LAN.
+
+Only the host that owns address X answers. It sends an \emph{ARP reply} that carries its MAC address. A reply is a unicast: it goes straight back to the asker. Other hosts ignore the request.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.4\linewidth]{slide_arp_operation.png}
+\caption{ARP operation: the request is broadcast, the reply is unicast. Source: Topic-14 slides \cite{topic14}.}
+\label{fig:c-operation}
+\end{figure}
+
+Asking before every packet would waste time. So each host keeps an \emph{ARP cache}, a table of IP-to-MAC pairs it has learned. The host looks in the cache first. It sends a request only when the pair is missing. Cache entries also expire after some time. The project builds this cache in Section~\ref{sec:core}.
+
+\subsection{The ARP packet}
+Figure~\ref{fig:c-packet} shows the packet layout. The first four fields say what kind of addresses the packet carries. The last four fields hold the addresses. Table~\ref{tab:c-fields} lists every field as used for IP over Ethernet.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.4\linewidth]{slide_arp_packet.png}
+\caption{ARP packet format. Source: Topic-14 slides \cite{topic14}.}
+\label{fig:c-packet}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\caption{ARP packet fields for IP over Ethernet. The total is 28 bytes.}
+\label{tab:c-fields}
+\begin{tabularx}{\linewidth}{@{}l r l Y@{}}
+\toprule
+Field & Bytes & Value & Meaning \\
+\midrule
+Hardware type & 2 & 1 & The link layer is Ethernet. \\
+Protocol type & 2 & \code{0x0800} & The upper layer is IPv4. \\
+Hardware length (HLEN) & 1 & 6 & A MAC address has 6 bytes. \\
+Protocol length (PLEN) & 1 & 4 & An IPv4 address has 4 bytes. \\
+Operation & 2 & 1 or 2 & 1 is a request, 2 is a reply. \\
+Sender hardware address & 6 & MAC & MAC address of the sender. \\
+Sender protocol address & 4 & IP & IP address of the sender. \\
+Target hardware address & 6 & MAC or zeros & Zeros in a request, because it is unknown. \\
+Target protocol address & 4 & IP & The IP address being asked about. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The sender fields let every receiver learn the sender's pair. The target fields name the host being asked. In a reply, the old sender becomes the new target. The project builds and parses this packet in Section~\ref{sec:core}.
+
+\subsection{Encapsulation in an Ethernet frame}
+ARP has no header of its own at the link layer. The 28-byte packet rides inside an Ethernet frame, as Figure~\ref{fig:c-encap} shows. The frame's type field is \code{0x0806}, which tells the receiver the data is ARP.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\linewidth]{slide_arp_encap.png}
+\caption{An ARP packet inside an Ethernet frame. Source: Topic-14 slides \cite{topic14}.}
+\label{fig:c-encap}
+\end{figure}
+
+For a request, the destination MAC is the broadcast address \code{FF:FF:FF:FF:FF:FF}. For a reply, the destination MAC is the asker's own address. The project sends ARP in its own frames, described in Section~\ref{sec:core}.
+
+\subsection{The four cases}
+The target IP address in an ARP request is not always the final destination. It is the \emph{next hop}: the next machine on the same LAN. Figure~\ref{fig:c-cases} shows the four cases.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.48\linewidth]{slide_four_cases.png}
+\caption{The four cases that use ARP. Source: Topic-14 slides \cite{topic14}.}
+\label{fig:c-cases}
+\end{figure}
+
+\begin{enumerate}[nosep]
+\item \emph{Host to host, same network.} The next hop is the destination itself.
+\item \emph{Host to host, other network.} The host asks for its router. The router forwards the packet.
+\item \emph{Router to router.} The router looks up the next router in its routing table and asks for that router.
+\item \emph{Router to host, same network.} The last router asks for the destination host.
+\end{enumerate}
+
+In every case, ARP answers one question: what is the MAC address of the next hop on this LAN? The project's routing and forwarding code uses this idea in Section~\ref{sec:core}.
+
+\subsection{Worked example from the textbook}
+Host A has IP address \code{130.23.43.20} and MAC \code{B2:34:55:10:22:10}. It wants to reach host B at \code{130.23.43.25}, MAC \code{A4:6E:F4:59:83:AB}. Both sit on one Ethernet. Figure~\ref{fig:c-example} shows the two packets.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.56\linewidth]{slide_example_frames.png}
+\caption{ARP request and reply for the textbook example. Source: Topic-14 slides \cite{topic14}.}
+\label{fig:c-example}
+\end{figure}
+
+A sends the request first. Its operation field is 1. The sender fields hold A's own MAC and IP. The target hardware field is \code{00:00:00:00:00:00}, because A does not know it. The target protocol field holds \code{130.23.43.25}.
+
+B sees its own IP address in the target field and replies with operation 2. B swaps the roles. B's MAC and IP go in the sender fields. A's addresses go in the target fields. Each ARP data field is 28 bytes, so the addresses do not line up on 4-byte boundaries. A now stores B's pair in its cache. The project replays a longer run of this kind in Section~\ref{sec:example}.
+
+\subsection{Proxy ARP}
+Sometimes a router answers an ARP request for a host that is not on the asker's LAN. This is \emph{proxy ARP}. The router replies with its own MAC address. The asker then sends the packet to the router, and the router forwards it.
+
+The slides use it when a network is split into subnets and the hosts are not told, as Figure~\ref{fig:c-proxy} shows. The hosts still believe the whole range is one LAN. The router hides the split by answering for the added subnet.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.52\linewidth]{slide_proxy_arp.png}
+\caption{A proxy ARP router answers for hosts on an added subnetwork. Source: Topic-14 slides \cite{topic14}.}
+\label{fig:c-proxy}
+\end{figure}
+
+The project decides when to answer for another host in Section~\ref{sec:core}. The \code{proxy\_arp} preset in Section~\ref{sec:topologies} shows the setup.

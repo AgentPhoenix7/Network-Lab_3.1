@@ -1,0 +1,114 @@
+\begingroup
+\algtext*{EndIf}\algtext*{EndFor}\algtext*{EndFunction}
+\section{Core FTP implementation}\label{sec:ftp-core}
+This section follows the preceding ARP report's pattern: the idea, pseudocode, and a short excerpt from the actual program. Complete source snapshots for the five terminal/benchmark modules are included in \code{code/}. Their hashes and the report's source provenance are recorded in \code{data/report-provenance.json}.
+
+\subsection{Reading one complete control line}
+\code{ControlStream.readline()} searches the buffered stream for LF, requires a preceding CR, checks the bound, decodes one line, and leaves trailing bytes for the next call. EOF is normal only when no partial command remains. Newline/control injection is rejected when sending a line as well.
+
+\begin{algorithm}[H]\small
+\caption{Read one FTP control line}
+\begin{algorithmic}[1]
+\Require TCP socket, retained byte buffer, maximum line length
+\Ensure one validated command/reply line, or an error
+\While{true}
+ \If{buffer contains LF}
+  \State reject if the line is oversized or not CRLF terminated
+  \State remove exactly that line, retaining later bytes
+  \State validate control characters; decode UTF-8; return line
+ \EndIf
+ \State reject if the incomplete buffer already reaches the limit
+ \State read another block from the socket
+ \If{EOF} \State reject a partial line; otherwise report end of stream
+ \EndIf
+ \State append the block to the retained buffer
+\EndWhile
+\end{algorithmic}
+\end{algorithm}
+
+\lstinputlisting[style=ftplst,firstline=27,lastline=50,firstnumber=27,caption={\code{protocol.py}: CRLF detection, bounded buffering and EOF handling.}]{code/ftp_lab/protocol.py}
+
+\subsection{Authentication and command dispatch}
+The server begins unauthenticated. \code{USER} clears earlier authentication and remembers the proposed username. \code{PASS} compares the configured account and password, replying 230 on success or 530 on failure. A fresh USER cannot inherit an earlier successful login. Authenticated commands then dispatch to the filesystem or data-connection routines.
+
+\begin{algorithm}[H]\small
+\caption{Authentication and request routing}
+\begin{algorithmic}[1]
+\Require one parsed command and the current session state
+\If{command is USER}
+ \State clear login and data setup; remember the username; reply 331
+\ElsIf{command is PASS}
+ \State compare the pending username and password with configuration
+ \State set authenticated on success and reply 230; otherwise reply 530
+\ElsIf{command is QUIT or a permitted pre-login command}
+ \State handle the command directly
+\ElsIf{not authenticated}
+ \State reply 530
+\Else
+ \State dispatch the authenticated FTP operation
+\EndIf
+\end{algorithmic}
+\end{algorithm}
+
+\lstinputlisting[style=ftplst,firstline=176,lastline=211,firstnumber=176,caption={\code{server.py}: session commands and login gating.}]{code/ftp_lab/server.py}
+
+\subsection{Negotiating one data connection}
+Passive setup binds a listener to the actual local address of the accepted control socket and an ephemeral port. This is important when the control listener is bound to all interfaces: the data endpoint must be reachable on the interface the client actually used. EPSV announces only the port, while PASV announces address octets and two port bytes. Active setup validates the supplied endpoint before storing it.
+
+\begin{algorithm}[H]\small
+\caption{Prepare and consume a data endpoint}
+\begin{algorithmic}[1]
+\If{passive command}
+ \State discard older setup; bind/listen on the control socket's local IPv4 address
+ \State announce the selected port in EPSV/PASV format
+\Else
+ \State parse the active address and port; require the control peer and an unprivileged port
+ \State discard older setup; store the valid active endpoint
+\EndIf
+\State validate the requested file/listing before starting its transfer
+\State send 150; accept the passive peer or connect to the active peer
+\State perform the stream operation; close the data socket and clear setup
+\State reply 226 only after successful completion
+\end{algorithmic}
+\end{algorithm}
+
+\lstinputlisting[style=ftplst,firstline=258,lastline=282,firstnumber=258,caption={\code{server.py}: passive listener and EPSV/PASV replies.}]{code/ftp_lab/server.py}
+
+The client uses its control peer's address for PASV rather than trusting an arbitrary advertised IP. The server checks incoming passive data peers; an unrelated connection cannot consume another client's prepared transfer. The listener/active endpoint is single-use and cleared even after errors.
+
+\subsection{Staged upload replacement and shutdown}
+The filesystem's upload context writes to a reserved hidden filename. Leaving the context successfully flushes/closes that stream and atomically replaces the destination. Exceptional exit skips publication and unlinks the staging file. \code{FTPSession.transfer()} must therefore reject errors \emph{before} the context commits.
+
+\begin{algorithm}[H]\small
+\caption{Publish an uploaded file safely}
+\begin{algorithmic}[1]
+\Require valid destination under the virtual root
+\State open an exclusive hidden staging file without following symlinks
+\State send 150 and establish the negotiated data connection
+\While{a data block is received} \State write it to the staging stream
+\EndWhile
+\State reject a reset, timeout, or server-closing event
+\State flush and close staging; atomically replace the destination
+\State send 226
+\State on any failure, remove staging and preserve the earlier destination
+\end{algorithmic}
+\end{algorithm}
+
+\lstinputlisting[style=ftplst,firstline=84,lastline=105,firstnumber=84,caption={\code{filesystem.py}: staged upload publication and cleanup.}]{code/ftp_lab/filesystem.py}
+
+Locally shutting down a data socket can make \code{recv()} return clean EOF. The server explicitly checks its closing event before the upload context exits, so a shutdown is not misread as a complete smaller upload. A deterministic test covers that ordering, in addition to a concurrent shutdown test.
+
+\subsection{Client completion checks and local downloads}
+The client selects TYPE, prepares a passive or active endpoint, sends the transfer command, requires a preliminary reply, and invokes a data callback. It then requires the final completion reply. A failure after a preliminary reply closes the control session because an unread completion reply would make later command/reply matching unsafe.
+
+\lstinputlisting[style=ftplst,firstline=242,lastline=266,firstnumber=242,caption={\code{client.py}: receive to staging, validate completion, then replace the local target.}]{code/ftp_lab/client.py}
+
+Progress callbacks receive per-block byte counts. They support measurement and cancellation without changing the FTP file stream. If a callback raises during a transfer, the client requests a data-socket reset before close; otherwise an interrupted upload might look like a legitimate smaller file ending at clean EOF.
+
+\subsection{Bounded concurrency and streaming representations}
+The server uses a semaphore to admit at most the configured number of control sessions and releases a slot when its worker exits. Its socket registry applies timeouts and allows shutdown to interrupt blocked control, passive-listener, and data operations. Sessions are independent threads, while all file content is processed in bounded blocks rather than read completely into memory.
+
+\lstinputlisting[style=ftplst,firstline=77,lastline=97,firstnumber=77,caption={\code{server.py}: admit/reject a control connection and release its capacity slot.}]{code/ftp_lab/server.py}
+
+For ASCII, \code{encode\_ascii()} and \code{decode\_ascii()} are streaming generators. The decoder carries pending-CR state between blocks; binary mode bypasses these conversions. The operating system supplies TCP retransmission and ordering. The project does not add a custom checksum trailer to FTP payloads; SHA-256 is used by the benchmark as an independent round-trip check.
+\endgroup

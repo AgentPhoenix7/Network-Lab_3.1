@@ -62,7 +62,7 @@ shared profiles/files with private session credentials, exact Host/Origin/
 CSRF checks, concurrent initial profile creation, bounded raw sources,
 size-consistent downloads, gzip limits, comparison verification, and
 shutdown EOF preserving a staged upload's original destination.
-Tests put temporary data under the repository's `.scratch/tmp` via TMPDIR.
+Tests put temporary data under the FTP component's `build/tmp` via TMPDIR.
 
 ## Tasks
 

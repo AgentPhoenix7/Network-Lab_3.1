@@ -1,0 +1,11 @@
+\section{Analysis and limitations}\label{sec:analysis}
+
+The engine does what RFC~826 asks, and it handles the preset networks well. These limits are worth knowing.
+
+\begin{itemize}[nosep]
+  \item \textbf{Anyone can change a cache entry.} If a host already knows a sender's IP address, it updates the MAC address from any ARP packet. It does not check that the packet is honest. This follows the RFC, but a rogue machine on the LAN could mislead its neighbours.
+  \item \textbf{Some packets vanish quietly.} Each address waits with at most four packets. A fifth is dropped. A full send queue and an evicted cache entry also lose data without any message.
+  \item \textbf{Retries come at a fixed pace.} A host asks again every second and never gives up by default. It does not slow down between tries.
+  \item \textbf{Entries expire even when in use.} Each entry lasts 30 seconds from the moment it was learned. A busy host then asks again.
+  \item \textbf{The switch never forgets.} It remembers up to 16 addresses and keeps them until the table is full. Then it replaces the oldest.
+\end{itemize}

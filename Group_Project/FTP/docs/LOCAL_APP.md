@@ -429,5 +429,6 @@ leaving a job stuck while unpacking.
 | Download no longer available | Its local output was removed; download it again from the device |
 
 The automated tests use dynamically assigned loopback ports and temporary
-directories under the repository's `.scratch/tmp/`. Generated stress media
-also remains in `.scratch/`; only small benchmark reports are committed.
+directories under the FTP component's `build/tmp/`. Generated stress media
+is placed in `benchmarks/generated-media/`; only small benchmark reports
+are committed.

@@ -1,0 +1,62 @@
+\section{FTP: objectives and protocol concepts}\label{sec:ftp-concepts}
+
+The application-layer component transfers files between a client and a server using real TCP sockets. We implemented both endpoints in Python. The terminal client can log in, list and navigate directories, create and remove directories, upload and download files, and switch between binary/ASCII representations and passive/active data connections. The FTP implementation is independent of the ARP simulator in the preceding sections: its TCP sockets use the operating system's network stack rather than the simulated LAN frames.
+
+\paragraph{Scope of this part.} Sections~\ref{sec:ftp-concepts}--\ref{sec:ftp-conclusion} cover the protocol, terminal programs, core algorithms, an executed terminal session, and measured file-transfer benchmarks. The four core modules are \code{protocol.py}, \code{filesystem.py}, \code{server.py}, and \code{client.py}. The separate \code{benchmark.py} drives repeatable performance experiments using the same client~\cite{ftpsrc}.
+
+\subsection{Why FTP uses two TCP connections}
+FTP separates conversation from content~\cite{rfc959,topic17}. A persistent \emph{control connection} carries commands such as \code{USER}, \code{RETR}, and \code{STOR}, followed by numeric server replies. A separate \emph{data connection} carries a directory listing or file bytes. Our implementation negotiates a fresh data connection for each operation and closes it at the end; the control session remains available for the next command.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.84\linewidth,pagebox=cropbox,page=1,trim=3bp 14.5bp 6bp 6.5bp,clip]{ftp_lecture_figures.pdf}
+\caption{FTP's client/server control and data processes. Extracted from the supplied application-layer slides, PDF page~75~\cite{topic17}. The user interface in this diagram is the terminal client in our implementation.}
+\label{fig:ftp-slide-architecture}
+\end{figure}
+
+The standard control port is TCP~21. We use TCP~2121 by default so the experiment can run without a privileged port. The slide note on PDF page~74 associates data with TCP~20; that is the traditional active-mode server data port, not a universal destination for every FTP data connection. Passive mode uses a negotiated listening port. Our lab server uses ephemeral data ports in both modes instead of binding active data sockets to port~20.
+
+\subsection{Commands, replies, and TCP framing}
+TCP provides an ordered byte stream; a \code{recv()} call does not necessarily return one complete command. One call can contain half a command or several commands. The control parser therefore buffers incoming bytes until it finds a complete CRLF-terminated line. Bytes after that line remain in the buffer for the next call. Figure~\ref{fig:ftp-slide-control} shows the logical control path.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.80\linewidth,pagebox=cropbox,page=2,trim=2.5bp 13.5bp 46bp 43bp,clip]{ftp_lecture_figures.pdf}
+\caption{Commands and replies travel over the control connection. Extracted from PDF page~76~\cite{topic17}. The slides describe the NVT model; this project encodes control lines as UTF-8 while preserving FTP's CRLF framing and numeric replies.}
+\label{fig:ftp-slide-control}
+\end{figure}
+
+\begin{table}[htbp]
+\centering\small
+\caption{Replies used in the terminal implementation.}
+\begin{tabularx}{\linewidth}{@{}l Y l Y@{}}
+\toprule
+Code & Meaning & Code & Meaning \\
+\midrule
+220 & Service ready & 331 & Password required \\
+230 & Login successful & 530 & Not authenticated \\
+150 & Data transfer starting & 226 & Transfer completed \\
+425 & Cannot establish data connection & 426 & Transfer failed after starting \\
+550 & File/path unavailable or forbidden & 221 & Control session closing \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The first digit describes a reply category: preliminary, successful completion, intermediate, transient failure, or permanent failure. A file operation has two important replies: a preliminary \code{150} before the data transfer and a completion \code{226} afterward. Receiving some bytes is not sufficient evidence of success. The client checks the final reply before publishing a downloaded file. Multiline replies are also supported: a line beginning with \code{xyz-} continues until the matching \code{xyz } terminator.
+
+\subsection{Passive and active data setup}
+In \emph{passive mode}, the server listens on a fresh port and the client connects to it. The client first tries \code{EPSV}; it falls back to \code{PASV} for selected unsupported-command replies. An EPSV reply such as \code{229 (|||46107|)} identifies the data port on the control peer. A PASV reply encodes the port as $256p_1+p_2$. For the lecture example in Figure~\ref{fig:ftp-slide-session}, $(238,169)$ means $238\times256+169=61097$.
+
+In \emph{active mode}, the client listens and sends its endpoint with \code{EPRT}, falling back to \code{PORT} when required~\cite{rfc2428}. The server then initiates the data TCP connection after the transfer command. The terminal commands \code{passive} and \code{active} change the client's next data-setup choice; they do not themselves copy a file. To prevent FTP bounce attacks, an active address must equal the control peer's IPv4 address and its port must be at least 1024. Passive data peers are checked against the control peer too.
+
+\subsection{Binary and NVT ASCII representations}
+\code{TYPE I} transfers file bytes unchanged. It is the default client preference and the correct choice for audio, video, archives, and other binary files. \code{TYPE A} uses streaming NVT ASCII conversion. On upload, a local LF becomes CRLF and a literal CR becomes CR~NUL. On receipt, the reverse conversion retains a pending CR across chunk boundaries. This avoids treating a CR at the end of one received block separately from an LF at the beginning of the next.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.90\linewidth,pagebox=cropbox,page=3,trim=4.5bp 81.5bp 36bp 54.5bp,clip]{ftp_lecture_figures.pdf}
+\caption{The data connection carries the selected file representation. Extracted from PDF page~77~\cite{topic17}. Our supported choices are binary or NVT ASCII, file structure (\code{STRU F}), and stream mode (\code{MODE S}).}
+\label{fig:ftp-slide-data}
+\end{figure}
+
+The server starts each session in ASCII representation, while the client defaults to binary and explicitly sends the appropriate \code{TYPE} before a file operation. A listing uses ASCII and \code{SIZE} requires binary type. Neither operation changes the terminal client's stored preference for subsequent transfers.

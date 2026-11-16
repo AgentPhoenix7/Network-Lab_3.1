@@ -1,0 +1,30 @@
+\begin{table}[htbp]
+\centering\small
+\caption{Mean payload sizes and reduction over two repetitions.}
+\label{tab:ftp-compression}
+\begin{tabularx}{\linewidth}{@{}Y r r r@{}}
+\toprule
+Source & Original (MiB) & Gzip (MiB) & Bytes saved \\
+\midrule
+\code{audio.wav} & 128.000 & 3.751 & 97.070\% \\
+\code{video.avi} & 128.226 & 6.118 & 95.228\% \\
+\code{video.mp4} & 1.747 & 1.744 & 0.173\% \\
+\bottomrule
+\end{tabularx}
+\end{table}
+\begin{table}[htbp]
+\centering\small
+\caption{Mean FTP payload rate and preparation-plus-upload time. Rates are arithmetic means of run rates.}
+\label{tab:ftp-timing}
+\begin{tabularx}{\linewidth}{@{}Y r r r r@{}}
+\toprule
+& \multicolumn{2}{c}{FTP payload rate (MiB/s)} & \multicolumn{2}{c}{Preparation + upload (s)} \\
+\cmidrule(lr){2-3}\cmidrule(l){4-5}
+Source & Original & Gzip & Original & Gzip \\
+\midrule
+\code{audio.wav} & 1962.33 & 90.70 & 0.0689 & 0.8808 \\
+\code{video.avi} & 1841.61 & 147.23 & 0.0710 & 1.1468 \\
+\code{video.mp4} & 42.72 & 42.04 & 0.0413 & 0.0900 \\
+\bottomrule
+\end{tabularx}
+\end{table}
