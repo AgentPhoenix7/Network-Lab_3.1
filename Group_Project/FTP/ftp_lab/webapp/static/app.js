@@ -123,7 +123,7 @@
     const {response, data} = await sessionGate.protect((async () => {
       let response;
       try { response = await fetch(path, {...options, headers, credentials: 'same-origin'}); }
-      catch { throw new Error('Relay could not reach the local app. Make sure it is still running, then try again.'); }
+      catch { throw new Error('Relay could not reach the host computer. Check the connection and try again.'); }
       const data = response.status === 204 ? {} : await response.json().catch(() => ({}));
       return {response, data};
     })());
@@ -160,7 +160,7 @@
     $('auth-screen').hidden = false;
     configureAuth(false);
   }
-  function configureAuth(setup) {
+  function configureAuth(setup, setupAllowed = true) {
     $('auth-title').textContent = setup ? 'Make yourself at home.' : 'Welcome back.';
     $('auth-description').textContent = setup ? 'Create your local account. Your files have places to be.' : 'Sign in to pick up where your files left off.';
     $('auth-submit').replaceChildren(document.createTextNode(setup ? 'Create workspace' : 'Sign in'), element('span', '', '↗'));
@@ -170,13 +170,19 @@
     $('auth-form').dataset.setup = setup ? 'true' : 'false';
     $('auth-form').hidden = false;
     $('session-retry').hidden = true;
+    if (setup && !setupAllowed) {
+      $('auth-title').textContent = 'The host goes first.';
+      $('auth-description').textContent = 'Create the workspace account on the host computer at http://127.0.0.1' + (location.port ? ':' + location.port : '') + '. Then come back here to sign in.';
+      $('auth-form').hidden = true;
+      $('session-retry').hidden = false;
+    }
   }
   async function loadSession() {
     $('session-retry').hidden = true;
     try {
       state.session = await api('/api/session');
       if (state.session.user) await enterWorkspace();
-      else configureAuth(state.session.setup_required);
+      else configureAuth(state.session.setup_required, state.session.setup_allowed);
     } catch (error) {
       $('auth-title').textContent = 'A small connection hiccup.';
       $('auth-description').textContent = error.message;
@@ -276,7 +282,7 @@
       button.setAttribute('aria-pressed', String(String(device.id) === String(state.selectedId)));
       const image = element('span', 'device-icon'); image.append(icon('device'));
       const copy = element('span', 'device-copy');
-      copy.append(element('strong', '', device.name), element('small', '', device.local ? 'This computer · local demo' : `${device.host}:${device.port}`));
+      copy.append(element('strong', '', device.name), element('small', '', device.local ? 'Shared folder on the host' : `${device.host}:${device.port}`));
       const dot = element('span', `status-dot${device.ready ? '' : ' muted'}`); dot.setAttribute('aria-hidden', 'true');
       button.setAttribute('aria-label', `${device.name}, ${device.ready ? 'connected' : 'not connected'}`);
       button.append(image, copy, dot);

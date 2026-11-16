@@ -81,6 +81,10 @@ download/save, verified compression graphs, and persistence across sign-out.
 The separate [benchmark report](../benchmarks/README.md) retains 12 verified
 large-media run measurements from 2026-11-15, including their limitations.
 
+The user's subsequent multi-device request extends the browser app to a
+trusted LAN. [LAN_ACCESS.md](LAN_ACCESS.md) records binding, request
+protection, independent browser sessions, and host-only owner setup.
+
 ## References
 
 - https://datatracker.ietf.org/doc/html/rfc959

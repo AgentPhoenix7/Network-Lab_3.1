@@ -34,8 +34,8 @@ make app
 # Equivalent: python3 -m ftp_lab.webapp --demo
 ```
 
-Open **http://127.0.0.1:8080** and create your local workspace account.
-The built-in **This computer** FTP device is ready immediately. Choose a
+On the host computer, open **http://127.0.0.1:8080** and create your workspace account.
+The built-in **Host computer** FTP device is ready immediately. Choose a
 file and select **Send file**, or select **Download** beside a remote file.
 **Add a device** saves another FTP server's name, address, port, and username;
 its password is requested on connection and kept only in session memory.
@@ -49,6 +49,24 @@ Ctrl+C; restarting the same command keeps that workspace. To open the app
 inside VS Code, open `FTP.code-workspace`, start the server, and run the
 **FTP: Open in VS Code browser** launch configuration. See the
 [detailed guide](docs/LOCAL_APP.md) for limits and troubleshooting.
+
+### Open it from phones and other computers
+
+The browser app now listens on all IPv4 interfaces by default. Connect
+devices to the same trusted Wi-Fi/LAN and open **http://HOST_LAN_IP:8080**,
+replacing `HOST_LAN_IP` with the server computer's LAN address. Sign in
+with the workspace account created on the host. Each browser gets its
+own session; profiles, host-folder files, and history are shared.
+
+The first account can only be created through loopback on the host.
+Other devices show a setup instruction until it exists. **Host computer**
+means the computer running Python, including when viewed from a phone.
+For local-only access, run `python3 -m ftp_lab.webapp --demo --host 127.0.0.1`.
+
+This is plaintext HTTP/FTP for a trusted lab LAN. The browser workflow
+needs TCP port 8080 at the host; direct FTP clients additionally need the
+FTP control/data ports. See [LAN access and troubleshooting](docs/LAN_ACCESS.md)
+for setup, host binding, firewall checks, and direct FTP commands.
 
 ## Quick start: two terminals
 
@@ -257,12 +275,14 @@ files, active/passive mode, ASCII conversion, UTF-8/spaces/quotes, concurrent
 sessions, authentication, malformed commands, root confinement, reset
 uploads, timeout recovery, and failed-download preservation.
 
-The current suite contains **61 Python tests** and **6 frontend helper tests**
+The current suite contains **69 Python tests** and **6 frontend helper tests**
 (the latter run when Node.js is available). Additional coverage includes
 local authentication, persistent devices/history, request protections,
 streamed sources, cancellation, gzip, benchmark verification, oversized
 remote payloads, and stale responses after sign-out. Large-media stress
 measurements are a separate [reproducible report](benchmarks/README.md).
+One LAN-interface test is opt-in: set `FTP_TEST_LAN_HOST` to a real local
+LAN IPv4 address when running `make test`. It is otherwise reported skipped.
 
 | Path | Responsibility |
 | --- | --- |

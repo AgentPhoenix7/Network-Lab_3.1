@@ -6,6 +6,7 @@ import threading
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import patch
 
 from ftp_lab.protocol import ControlStream, read_reply
 from support import connect, running_server
@@ -227,6 +228,23 @@ class ServerTests(unittest.TestCase):
 
 
 class CapacityTests(unittest.TestCase):
+    def test_shutdown_eof_does_not_publish_a_staged_upload(self):
+        from ftp_lab.protocol import socket_chunks
+
+        with running_server() as (server, root), connect(server) as ftp:
+            (root / 'waiting').write_bytes(b'original')
+
+            def closing_chunks(sock):
+                yield from socket_chunks(sock)
+                # SHUT_RDWR can make recv return clean EOF during shutdown.
+                # Keep that ordering deterministic instead of timing a thread.
+                server.closing.set()
+
+            with patch('ftp_lab.server.socket_chunks', closing_chunks), self.assertRaisesRegex(ftplib.error_temp, '^426'):
+                ftp.storbinary('STOR waiting', io.BytesIO(b'replacement'))
+            self.assertEqual((root / 'waiting').read_bytes(), b'original')
+            self.assertEqual(list(root.iterdir()), [root / 'waiting'])
+
     def test_capacity_limit_rejects_additional_clients(self):
         with running_server(max_clients=1) as (server, _root), connect(server) as first:
             with self.assertRaisesRegex(ftplib.error_temp, "^421"):

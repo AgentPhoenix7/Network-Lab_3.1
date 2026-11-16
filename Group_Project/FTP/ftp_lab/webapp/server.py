@@ -1,4 +1,4 @@
-"""Loopback-only authenticated HTTP API; static assets are explicitly allowlisted."""
+"""Authenticated LAN HTTP app with destination-bound Host/Origin checks."""
 
 import argparse
 import hmac
@@ -8,6 +8,7 @@ import threading
 import time
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from ipaddress import IPv4Address
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
 
@@ -22,8 +23,7 @@ class AppServer(ThreadingHTTPServer):
     daemon_threads = True
 
     def __init__(self, address, service: AppService):
-        if address[0] != '127.0.0.1':
-            raise ValueError('The browser app must bind to 127.0.0.1')
+        address = (str(IPv4Address(address[0])), address[1])
         self.service = service
         self.attempts: dict[str, list[float]] = {}
         self.auth_lock = threading.Lock()
@@ -125,16 +125,24 @@ class AppHandler(BaseHTTPRequestHandler):
     def dispatch(self):
         host = self.headers.get('Host', '')
         port = self.app.address[1]
-        allowed = {f'127.0.0.1:{port}', f'localhost:{port}'}
-        if host not in allowed or self.client_address[0] != '127.0.0.1':
-            self.reply(403, {'error': 'This app is available on this computer only'})
+        destination = IPv4Address(self.connection.getsockname()[0])
+        allowed = {f'{destination}:{port}'}
+        if port == 80:
+            allowed.add(str(destination))
+        if destination.is_loopback:
+            allowed.add(f'localhost:{port}')
+            if port == 80:
+                allowed.add('localhost')
+        if host not in allowed or len(self.headers.get_all('Host', [])) != 1:
+            self.reply(403, {'error': 'Use the host computer\'s IP address and the app port'})
             return
+        setup_allowed = destination.is_loopback and IPv4Address(self.client_address[0]).is_loopback
         method = self.command
         route = urlsplit(self.path)
         path = route.path
         token, user = self.session()
         if method != 'GET':
-            if self.headers.get('X-FTP-App') != '1' or self.headers.get('Origin') not in {f'http://{h}' for h in allowed}:
+            if self.headers.get('X-FTP-App') != '1' or self.headers.get('Origin') != f'http://{host}':
                 self.reply(403, {'error': 'Invalid request origin'})
                 return
             if user is not None and not hmac.compare_digest(self.headers.get('X-CSRF-Token', ''), csrf_token(token)):
@@ -143,6 +151,7 @@ class AppHandler(BaseHTTPRequestHandler):
         service = self.app.service
         if method == 'GET' and path == '/api/session':
             self.reply(200, {'setup_required': service.db.setup_required(), 'user': user,
+                             'setup_allowed': setup_allowed,
                              'csrf': csrf_token(token) if user else ''})
             return
         if method == 'GET' and path in ('/', '/static/styles.css', '/static/app.js'):
@@ -158,6 +167,10 @@ class AppHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
         if method == 'POST' and path in ('/api/setup', '/api/login'):
+            if path == '/api/setup' and not setup_allowed:
+                self.reply(403, {'error': 'Create the workspace account on the host computer first using '
+                                         f'http://127.0.0.1:{port}'})
+                return
             data = self.payload()
             username, password = data.get('username'), data.get('password')
             if not isinstance(username, str) or not isinstance(password, str) or len(password) > 256:
@@ -247,15 +260,24 @@ class AppHandler(BaseHTTPRequestHandler):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--host', default='0.0.0.0', help='IPv4 bind address (default: all interfaces; use 127.0.0.1 for local only)')
     parser.add_argument('--port', type=int, default=8080)
     parser.add_argument('--data-dir', type=Path, default=Path('app-data'))
     parser.add_argument('--demo', action='store_true', help='Start an automatically connected local FTP device')
     args = parser.parse_args(argv)
     if not 0 <= args.port <= 65535:
         parser.error('Port must be between 0 and 65535')
-    service = AppService(args.data_dir, demo=args.demo)
     try:
-        server = AppServer(('127.0.0.1', args.port), service)
+        host = str(IPv4Address(args.host))
+    except ValueError:
+        parser.error('--host must be an IPv4 bind address')
+    service = AppService(args.data_dir, demo=args.demo)
+    if host != '0.0.0.0' and not IPv4Address(host).is_loopback and service.db.setup_required():
+        service.close()
+        parser.error('Create the owner account first: start with --host 127.0.0.1 using the same '
+                     '--data-dir and --port, complete setup there, then restart with the LAN address')
+    try:
+        server = AppServer((host, args.port), service)
     except OSError:
         service.close()
         raise
@@ -266,7 +288,13 @@ def main(argv=None):
     signal.signal(signal.SIGTERM, interrupt)
     try:
         with server:
-            print(f'Open http://127.0.0.1:{server.address[1]}', flush=True)
+            port = server.address[1]
+            if host == '0.0.0.0':
+                print(f'On this computer: http://127.0.0.1:{port}', flush=True)
+                print(f'Other devices: http://<this computer\'s LAN IPv4 address>:{port}', flush=True)
+                print('Listening on all IPv4 interfaces. Use a trusted LAN; HTTP and FTP are plaintext.', flush=True)
+            else:
+                print(f'Open http://{host}:{port}', flush=True)
             server.serve_forever(poll_interval=0.1)
     except KeyboardInterrupt:
         pass

@@ -362,6 +362,10 @@ class FTPSession(socketserver.BaseRequestHandler):
                         chunks = socket_chunks(data)
                         for chunk in decode_ascii(chunks) if self.representation == 'A' else chunks:
                             file.write(chunk)
+                # Local SHUT_RDWR can look like clean data EOF. Reject it
+                # before ExitStack commits the staged upload replacement.
+                if self.ftp_server.closing.is_set():
+                    raise ConnectionAbortedError('Server closed during transfer')
             self.reply(226, 'Transfer complete')
             LOG.info('%s %s completed', self.client_address[0], verb)
         except OSError as exc:

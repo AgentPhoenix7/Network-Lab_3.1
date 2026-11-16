@@ -116,8 +116,9 @@ class AppService:
 
     def devices(self, owner, token):
         if self.demo_server is not None:
-            device = self.db.local_device(owner, self.demo_server.address)
-            self._remember(token, device['id'], self.demo_password)
+            with self.lock:
+                device = self.db.local_device(owner, self.demo_server.address)
+                self._remember(token, device['id'], self.demo_password)
         result = []
         for device in self.db.devices(owner):
             device.pop('user_id', None)

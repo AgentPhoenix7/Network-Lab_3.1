@@ -19,7 +19,9 @@ cd Group_Project/FTP
 python3 -m ftp_lab.webapp --demo
 ```
 
-`make app` runs the same command. Open `http://127.0.0.1:8080` in a browser.
+`make app` runs the same command. On the host, open `http://127.0.0.1:8080`.
+The app binds to all IPv4 interfaces by default. Other devices on the same
+trusted LAN use `http://HOST_LAN_IP:8080`; see [the LAN guide](LAN_ACCESS.md).
 Python 3.11+ on the Linux/POSIX environment described in the README is enough;
 the app requires no package installation, frontend build, cloud account,
 internet connection, or external JavaScript CDN.
@@ -31,10 +33,13 @@ interface. Keep your password available. Do not remove the database as a
 routine way to resolve a sign-in problem: it holds profiles and history too.
 
 The default `--demo` mode starts the project's FTP server on a dynamically
-assigned loopback port. **This computer** appears as a connected device
+assigned loopback port. **Host computer** appears as a connected device
 after sign-in. Its FTP account uses an internally generated password, so
 you do not need to enter a second password for this device. It serves
 `app-data/shared/`, initially containing `Welcome.txt`.
+This folder belongs to the Python host, even when Relay is opened on a
+phone. The browser-to-host leg uses HTTP; the internal FTP leg can remain
+on loopback while multiple browsers access the shared workspace.
 
 The three views separate common actions from additional detail:
 
@@ -230,9 +235,12 @@ credential even though its database representation is hashed.
 
 ### 3.2 HTTP request protections
 
-The HTTP server binds only to `127.0.0.1`. It accepts the exact local Host
-values `127.0.0.1:<port>` and `localhost:<port>`, and requires a loopback
-client. Mutations require the matching local Origin and `X-FTP-App: 1`.
+The HTTP server defaults to `0.0.0.0` for LAN access. `--host 127.0.0.1`
+restricts it to this computer. The allowed Host authority is the actual
+destination IP/port of the accepted TCP socket, with `localhost` additionally
+accepted on loopback. Arbitrary hostnames, forged addresses, duplicate Host
+headers, and forwarded-header claims do not grant access. Mutations require
+an Origin matching the exact requested authority and `X-FTP-App: 1`.
 Authenticated mutations also require the session's `X-CSRF-Token`.
 Cross-origin pages cannot simply submit forms to control a signed-in app.
 
@@ -242,7 +250,12 @@ The server sends no-store caching, no-referrer, nosniff, and a restrictive
 same-origin Content Security Policy. Authentication attempts are rate
 limited. The frontend inserts untrusted filenames with `textContent`.
 
-This is a local teaching application. The HTTP channel is local plaintext,
+Initial owner setup is allowed only when both the peer and destination
+are loopback addresses. Other devices can sign in after setup; they cannot
+claim a fresh workspace. A fresh CLI launch bound only to a specific LAN
+IP stops with instructions to bootstrap the owner on loopback first.
+
+This is a trusted-LAN teaching application. The HTTP channel is plaintext,
 and external FTP credentials/file contents travel in plaintext FTP.
 Keep FTP servers and lab credentials on a trusted network. Local account
 authentication does not add TLS to FTP or protect against another process
@@ -358,7 +371,7 @@ The full JSON field contract is recorded in
 
 ## 6. Verification and troubleshooting
 
-On 2026-11-16, `make test` passed **61 Python tests and 6 Node.js tests**,
+On 2026-11-16, the LAN extension passed **69 Python tests and 6 Node.js tests**,
 with ResourceWarning treated as an error for Python. Ruff and Pyright
 reported no errors. This includes auth/session persistence, Origin/CSRF,
 raw streaming, job ownership, queued cancellation, duplicate source claims,
@@ -372,6 +385,15 @@ compression comparison with verified graphs, and sign-out/sign-in. The
 saved profile and history remained, while its external FTP password had
 to be entered again. No browser console errors/warnings were observed.
 The user's normal workspace was left at first-run setup.
+
+The subsequent LAN check exercised the real host IPv4 interface by setting
+`FTP_TEST_LAN_HOST` for the test suite. Independent HTTP sessions shared
+profiles and a byte-exact upload/download, retained separate device
+credentials, and signed out independently. Seven network tests cover
+Host/Origin checks, concurrent initial device listing, setup protection,
+and the specific-address bootstrap requirement. The real-interface test
+is opt-in and skips if its environment variable is absent. A physical
+second computer/phone is a separate verification step.
 
 | Symptom | Action |
 | --- | --- |

@@ -142,13 +142,15 @@ class Database:
         existing = next((d for d in self.devices(owner) if d['local']), None)
         if existing:
             with self.connection() as db:
-                db.execute('UPDATE devices SET host=?,port=? WHERE id=? AND user_id=?',
+                db.execute('''UPDATE devices SET host=?,port=?,
+                    name=CASE WHEN name='This computer' THEN 'Host computer' ELSE name END
+                    WHERE id=? AND user_id=?''',
                            (address[0], address[1], existing['id'], owner))
             saved = self.device(owner, existing['id'])
             if saved is None:
                 raise RuntimeError('Local device could not be saved')
             return saved
-        return self.add_device(owner, {'name': 'This computer', 'host': address[0], 'port': address[1],
+        return self.add_device(owner, {'name': 'Host computer', 'host': address[0], 'port': address[1],
                                        'username': 'local', 'local': 1})
 
     def delete_device(self, owner, device_id):

@@ -1575,7 +1575,7 @@ the code actually supplies is part of understanding the implementation.
 
 ## 20. How the tests check the implementation
 
-The current Python test files define **61 test methods**, including the
+The current Python test files define **69 test methods**, including the
 browser service and benchmark additions. Node.js also runs **6 frontend
 helper tests** when available. Some methods exercise
 several cases or modes, so that is not a count of individual transfers.
@@ -1611,11 +1611,12 @@ an untrusted PASV IP, or send a failed completion after some data bytes.
 | File | Methods | What it checks |
 | --- | --- | --- |
 | [test_core.py](../tests/test_core.py) | 11 | Framing, truncated/invalid input, multiline replies, injection, ASCII boundaries, root/filesystem operations, symlinks, rollback, special files and path bounds |
-| [test_server.py](../tests/test_server.py) | 17 | `ftplib` interoperability, login state, both data modes, binary/ASCII content, directory names, errors, timeouts, reset uploads, concurrency, capacity, shutdown and long replies |
+| [test_server.py](../tests/test_server.py) | 18 | `ftplib` interoperability, login state, both data modes, binary/ASCII content, directory names, errors, timeouts, reset uploads, concurrency, capacity, shutdown and long replies |
 | [test_client.py](../tests/test_client.py) | 9 | Own client in both modes, type preferences, redaction, local preservation, independent peers, progress/cancellation and batch CLI behavior |
 | [test_cli.py](../tests/test_cli.py) | 2 | Separate server/client subprocesses, script files, SIGTERM cleanup and clean missing-password errors |
 | [test_benchmark.py](../tests/test_benchmark.py) | 12 | Original/gzip verification, samples and exports, cancellation/cleanup, invalid input and hostile oversized retrieval |
 | [test_webapp.py](../tests/test_webapp.py) | 10 | SQLite/auth persistence, request protections, jobs, streaming, gzip, ownership, cancellation, source claims and size/name bounds |
+| [test_network_app.py](../tests/test_network_app.py) | 7 | LAN binding, shared files/profiles, independent sessions/passwords, Host/Origin checks, concurrent demo-profile creation, owner bootstrap; real-interface case opt-in |
 
 [test_frontend.cjs](../tests/test_frontend.cjs) adds six Node.js tests for
 readable sizes/times, folder paths, graph samples, compression comparisons,
@@ -1806,10 +1807,12 @@ TMPDIR="$PWD/.scratch/tmp" TMP="$PWD/.scratch/tmp" TEMP="$PWD/.scratch/tmp" \
   python3 -W error::ResourceWarning -m unittest discover -s Group_Project/FTP/tests -v
 ```
 
-The current Python suite reports `Ran 61 tests` and `OK`; `make test` also
+The current Python suite reports `Ran 69 tests` and `OK`; `make test` also
 runs six frontend tests if Node.js is installed. It requires
 local socket access; a sandbox rejecting even loopback traffic must
 allow that access for these tests.
+Set `FTP_TEST_LAN_HOST` to an assigned local LAN IPv4 address to run the
+real-interface case too; that case otherwise reports a skip.
 
 ### 21.6 Common startup and usage problems
 
@@ -1851,6 +1854,7 @@ Group_Project/FTP/
 |   |-- IMPLEMENTATION.md
 |   |-- LOCAL_APP_PLAN.md
 |   |-- LOCAL_APP.md           <- browser app and architecture walkthrough
+|   |-- LAN_ACCESS.md          <- multi-device access and validation
 |   `-- explanation.md          <- this walkthrough
 |-- ftp_lab/
 |   |-- __init__.py
@@ -1876,6 +1880,7 @@ Group_Project/FTP/
     |-- test_cli.py
     |-- test_benchmark.py
     |-- test_webapp.py
+    |-- test_network_app.py
     `-- test_frontend.cjs
 ```
 

@@ -1,5 +1,9 @@
 # Local FTP app design and implementation plan
 
+The original loopback-only design below was extended at the user's request
+on 2026-11-16. [LAN_ACCESS.md](LAN_ACCESS.md) specifies the current shared
+network binding, independent browser sessions, and host-only owner bootstrap.
+
 The user approved building a local browser app with saved FTP devices on
 2026-11-15, without further design questions. Retain Python and keep all
 changes inside FTP. Build on feat/ftp; preserve CLI interoperability.
@@ -38,7 +42,7 @@ All API JSON errors: `{error: string}`. Same-origin credentials; mutating
 requests send `X-FTP-App: 1` and authenticated requests additionally send
 `X-CSRF-Token` from `/api/session`. Upload PUT sends the File as raw body.
 
-- GET `/api/session`: `{setup_required, user: {id,username}|null, csrf}`.
+- GET `/api/session`: `{setup_required, setup_allowed, user: {id,username}|null, csrf}`.
 - POST `/api/setup`, `/api/login`: `{username,password}` -> session JSON;
   server sets HttpOnly SameSite=Strict cookie. POST `/api/logout` clears it.
 - GET `/api/devices`: `{devices:[{id,name,host,port,username,local,ready,last_connected}]}`.
