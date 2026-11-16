@@ -40,6 +40,7 @@ Using an independent FTP client and controlled wire peers matters: if our client
 \item \textbf{Local trust and publication.} Root confinement rejects supported traversal/symlink attacks, but the server root is managed by a trusted local operator. Atomic replacement is not a full crash-durability or operating-system isolation guarantee. Concurrent successful uploads to the same name use the last completed replacement.
 \end{itemize}
 
+\Needspace{13\baselineskip}
 \section{FTP conclusion}\label{sec:ftp-conclusion}
 The terminal implementation demonstrates FTP's defining separation between persistent control and per-operation data connections. It performs authenticated file and directory operations, negotiates active/passive IPv4 endpoints, handles binary and streamed NVT ASCII, and preserves existing files across detected transfer failures. Independent protocol tests and the executed terminal example verify the behavior beyond printed success messages.
 

@@ -47,7 +47,7 @@ Figures~\ref{fig:e-seq} and~\ref{fig:e-seq2} show the 8 frames. Time runs downwa
 
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}
+\begin{tikzpicture}[yscale=0.80]
 \node[exhead, text=black!60, draw=black!50] (h2) at (0,0) {\textbf{h2}\\bystander};
 \node[exhead] (h1) at (6,0) {\textbf{h1}\\.10};
 \node[exhead, fill=routerfill] (r1) at (12,0) {\textbf{r1}\\proxy router};
@@ -55,7 +55,7 @@ Figures~\ref{fig:e-seq} and~\ref{fig:e-seq2} show the 8 frames. Time runs downwa
 \draw[exlife] (h1) -- (6,-10.1);
 \draw[exlife] (r1) -- (12,-10.1);
 % step 1
-\node[exnote, text width=4.4cm] at (6,-0.95) {ping .21: next hop is .21 itself,\\no cache entry: \code{pending},\\\code{queued}, \code{ip send}};
+\node[exnote, text width=4.4cm] at (6,-1.15) {ping .21: next hop is .21 itself,\\no cache entry: \code{pending},\\\code{queued}, \code{ip send}};
 \exarr{arpreq}{6}{12}{-2.4}{1}{ARP request}{broadcast, tpa .21}
 \node[exnote, text width=3.2cm, text=black!65, fill=black!5] at (0,-2.4) {hears frame 1: not for it,\\no cache entry, no learn};
 % step 2
@@ -74,7 +74,7 @@ Figures~\ref{fig:e-seq} and~\ref{fig:e-seq2} show the 8 frames. Time runs downwa
 
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}
+\begin{tikzpicture}[yscale=0.80]
 \node[exhead] (h1) at (0,0) {\textbf{h1}\\.10};
 \node[exhead, fill=routerfill] (r1) at (4.4,0) {\textbf{r1}\\if1 .17};
 \node[exhead] (h3) at (8.8,0) {\textbf{h3}\\.21};

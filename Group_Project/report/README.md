@@ -26,6 +26,11 @@ the FTP browser application.
 
 `sections/` and `sections_H/` from the archive are retained. The latter's
 fixed-placement preference also applies to the appended FTP sections.
+Topology, sequence and module diagrams use tighter vertical geometry while
+keeping their label fonts unchanged. Unused white borders are trimmed from
+the lecture diagrams, and figures are sized to reduce page gaps. The compact
+reference list uses readable 9-point text. Both rendered variants are checked
+for legibility.
 The archive's optional browser-capture tools and duplicate intermediate
 screenshots are omitted from this report-only bundle. The original archive
 remains unchanged, and all figures used by the ARP sections are retained.

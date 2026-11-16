@@ -30,7 +30,7 @@ These two presets are the simplest networks. Each has four hosts on one LAN and 
 \centering
 \begin{minipage}[t]{0.485\linewidth}
 \centering
-\begin{tikzpicture}
+\begin{tikzpicture}[yscale=0.80]
 \path[tplan, fill=lanbus] (-4,-2.95) rectangle (4,3.7);
 \node[tptitle] at (-3.85,3.6) {\textbf{LAN A: bus (hub)}\\141.23.56.0/24};
 \draw[tpbus] (-3.7,0)--(3.7,0);
@@ -46,7 +46,7 @@ These two presets are the simplest networks. Each has four hosts on one LAN and 
 \end{minipage}\hfill
 \begin{minipage}[t]{0.485\linewidth}
 \centering
-\begin{tikzpicture}
+\begin{tikzpicture}[yscale=0.80]
 \path[tplan, fill=lanstar] (-4,-2.95) rectangle (4,3.7);
 \node[tptitle] at (-3.85,3.6) {\textbf{LAN A: star (switch)}\\141.23.56.0/24};
 \node[tpswitch] (sw) at (0,0) {switch};
@@ -71,7 +71,7 @@ This preset joins two LANs with one router, \code{r1}. Figure~\ref{fig:t-two} sh
 
 \begin{figure}[htbp]
 \centering
-\begin{tikzpicture}
+\begin{tikzpicture}[yscale=0.80]
 % LAN boxes first, so wires are drawn on top
 \path[tplan, fill=lanstar] (-7.5,-8.45) rectangle (7.5,-4.7);
 % LAN A
@@ -103,7 +103,7 @@ This is the preset used in the worked example of Section~\ref{sec:example}. It l
 
 \begin{figure}[htbp]
 \centering
-\begin{tikzpicture}
+\begin{tikzpicture}[yscale=0.80]
 % LAN boxes first, so wires are drawn on top
 \path[tplan, fill=lanstar] (-7.5,-8.45) rectangle (7.5,-4.7);
 % LAN A

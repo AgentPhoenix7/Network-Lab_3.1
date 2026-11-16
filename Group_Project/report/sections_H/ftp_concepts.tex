@@ -9,7 +9,7 @@ FTP separates conversation from content~\cite{rfc959,topic17}. A persistent \emp
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.94\linewidth,pagebox=cropbox,page=1]{ftp_lecture_figures.pdf}
+\includegraphics[width=0.84\linewidth,pagebox=cropbox,page=1,trim=3bp 14.5bp 6bp 6.5bp,clip]{ftp_lecture_figures.pdf}
 \caption{FTP's client/server control and data processes. Extracted from the supplied application-layer slides, PDF page~75~\cite{topic17}. The user interface in this diagram is the terminal client in our implementation.}
 \label{fig:ftp-slide-architecture}
 \end{figure}
@@ -21,7 +21,7 @@ TCP provides an ordered byte stream; a \code{recv()} call does not necessarily r
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.96\linewidth,pagebox=cropbox,page=2]{ftp_lecture_figures.pdf}
+\includegraphics[width=0.80\linewidth,pagebox=cropbox,page=2,trim=2.5bp 13.5bp 46bp 43bp,clip]{ftp_lecture_figures.pdf}
 \caption{Commands and replies travel over the control connection. Extracted from PDF page~76~\cite{topic17}. The slides describe the NVT model; this project encodes control lines as UTF-8 while preserving FTP's CRLF framing and numeric replies.}
 \label{fig:ftp-slide-control}
 \end{figure}
@@ -54,7 +54,7 @@ In \emph{active mode}, the client listens and sends its endpoint with \code{EPRT
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.98\linewidth,pagebox=cropbox,page=3]{ftp_lecture_figures.pdf}
+\includegraphics[width=0.90\linewidth,pagebox=cropbox,page=3,trim=4.5bp 81.5bp 36bp 54.5bp,clip]{ftp_lecture_figures.pdf}
 \caption{The data connection carries the selected file representation. Extracted from PDF page~77~\cite{topic17}. Our supported choices are binary or NVT ASCII, file structure (\code{STRU F}), and stream mode (\code{MODE S}).}
 \label{fig:ftp-slide-data}
 \end{figure}

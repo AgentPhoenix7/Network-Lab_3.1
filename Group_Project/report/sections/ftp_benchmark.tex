@@ -74,21 +74,21 @@ Manifest file paths are normalized to the portable example directory. Measured b
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\linewidth]{ftp_benchmark_compression.png}
+\includegraphics[width=0.90\linewidth]{ftp_benchmark_compression.png}
 \caption{Original versus gzip payload sizes for each saved file/repetition. The generated WAV and raw AVI patterns compress substantially; the MP4 counterpart changes very little. Source: measured experiment rows, 15 November 2026.}
 \label{fig:ftp-compression-graph}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\linewidth]{ftp_benchmark_throughput.png}
+\includegraphics[width=0.94\linewidth]{ftp_benchmark_throughput.png}
 \caption{Measured FTP payload throughput and effective original-byte rate. A smaller gzip payload can have a different payload rate and a lower effective rate once compression time is counted. These are cached loopback measurements, not physical-link capacity.}
 \label{fig:ftp-throughput-graph}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=\linewidth]{ftp_benchmark_durations.png}
+\includegraphics[width=0.90\linewidth]{ftp_benchmark_durations.png}
 \caption{Preparation, upload, verification download and content-verification durations. Keeping phases separate exposes the gzip preprocessing cost instead of attributing it to the network.}
 \label{fig:ftp-duration-graph}
 \end{figure}
