@@ -9,6 +9,7 @@ import shutil
 import threading
 import time
 import uuid
+import zlib
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
@@ -412,13 +413,17 @@ class AppService:
                 if job['unpack']:
                     self._update(owner, job_id, phase='Unpacking file')
                     written = 0
-                    with gzip.open(received, 'rb') as inp, output.open('wb') as out:
-                        while block := inp.read(CHUNK):
-                            self.check_cancel(job_id)
-                            written += len(block)
-                            if written > MAX_BYTES:
-                                raise ValueError('Unpacked file exceeds the 8 GiB limit')
-                            out.write(block)
+                    try:
+                        with gzip.open(received, 'rb') as inp, output.open('wb') as out:
+                            while block := inp.read(CHUNK):
+                                self.check_cancel(job_id)
+                                written += len(block)
+                                if written > MAX_BYTES:
+                                    raise ValueError('Unpacked file exceeds the 8 GiB limit')
+                                out.write(block)
+                    except (gzip.BadGzipFile, EOFError, zlib.error) as exc:
+                        raise ValueError('Could not unpack this gzip file: it is damaged or incomplete. '
+                                         'Turn off unpacking to download the original file.') from exc
                 else:
                     os.replace(received, output)
                 received.unlink(missing_ok=True)

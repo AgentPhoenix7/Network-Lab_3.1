@@ -42,6 +42,16 @@
     const speed = value => finite(value) ? `${value.toFixed(2)} MiB/s` : '—';
     return [run.mode === 'plain' ? 'Original' : 'Gzip', formatBytes(run.payload_bytes), seconds(run.preparation_seconds), seconds(run.transfer_seconds), seconds(run.total_seconds), speed(run.throughput_mib_s), speed(run.effective_mib_s), run.verified ? 'Yes' : 'No'];
   }
+  function downloadPresentation(job) {
+    const completed = job.kind === 'download' && job.status === 'completed';
+    const name = completed && job.result?.filename ? job.result.filename : job.name;
+    const unpacked = completed && job.unpack;
+    return {
+      name,
+      detail: unpacked ? `Unpacked from ${job.name} · ${formatBytes(job.result?.bytes)} ready to save` : '',
+      saveLabel: unpacked ? 'Save unpacked file ↓' : 'Save file ↓',
+    };
+  }
   function createSessionGate() {
     let version = 0;
     return {
@@ -60,7 +70,7 @@
       },
     };
   }
-  if (typeof module !== 'undefined' && module.exports) module.exports = {formatBytes, formatDuration, joinPath, parentPath, throughputSeries, comparisonMetrics, benchmarkRowValues, createSessionGate};
+  if (typeof module !== 'undefined' && module.exports) module.exports = {formatBytes, formatDuration, joinPath, parentPath, throughputSeries, comparisonMetrics, benchmarkRowValues, downloadPresentation, createSessionGate};
   if (typeof document === 'undefined') return;
 
   const $ = id => document.getElementById(id);
@@ -549,7 +559,8 @@
   function attachment(job, suffix, label) {
     const link = element('a', 'button secondary', label);
     link.href = `/api/jobs/${encodeURIComponent(job.id)}/${suffix}`;
-    link.setAttribute('download', '');
+    link.setAttribute('download', suffix === 'download' ? downloadPresentation(job).name : '');
+    if (suffix === 'download') link.title = `Save ${downloadPresentation(job).name}`;
     link.dataset.focusKey = `${suffix}-${job.id}`;
     return link;
   }
@@ -560,9 +571,11 @@
     const heading = element('div', 'job-top');
     const symbol = element('span', 'job-icon', job.kind === 'download' ? '↓' : job.kind === 'benchmark' ? '↔' : '↑'); symbol.setAttribute('aria-hidden', 'true');
     const title = element('div', 'job-title');
+    const presentation = downloadPresentation(job);
     const date = new Date(job.created);
     const dateLabel = Number.isNaN(date.getTime()) ? '' : date.toLocaleString(undefined, {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'});
-    title.append(element('h3', '', job.name), element('p', '', `${job.kind === 'benchmark' ? 'Compression test' : job.kind === 'download' ? 'Download' : 'Upload'} · ${job.device_name || 'Device'}${history && dateLabel ? ` · ${dateLabel}` : ''}`));
+    title.append(element('h3', '', presentation.name), element('p', '', `${job.kind === 'benchmark' ? 'Compression test' : job.kind === 'download' ? 'Download' : 'Upload'} · ${job.device_name || 'Device'}${history && dateLabel ? ` · ${dateLabel}` : ''}`));
+    if (presentation.detail) title.append(element('p', '', presentation.detail));
     const statusNames = {awaiting_upload: 'Preparing', queued: 'Queued', running: 'In progress', completed: 'Completed', failed: 'Interrupted', cancelled: 'Cancelled'};
     heading.append(symbol, title, element('span', `job-status ${job.status}`, stage ? 'Preparing' : statusNames[job.status] || job.status)); card.append(heading);
     const done = stage ? stage.done : Number(job.done) || 0;
@@ -588,7 +601,7 @@
     if (job.error) card.append(element('p', 'job-error', job.error));
     const buttons = element('div', 'job-buttons');
     if (isActive) buttons.append(actionButton('Cancel', 'button text', () => cancelJob(job), `cancel-${job.id}`));
-    if (job.status === 'completed' && job.kind === 'download') buttons.append(attachment(job, 'download', 'Save file ↓'));
+    if (job.status === 'completed' && job.kind === 'download') buttons.append(attachment(job, 'download', presentation.saveLabel));
     if (job.status === 'completed' && job.kind === 'benchmark') buttons.append(actionButton('View results ↗', 'button secondary', () => { state.benchmarkId = String(job.id); switchView('performance'); renderPerformance(); }, `results-${job.id}`));
     if (job.status === 'failed' || job.status === 'cancelled') buttons.append(actionButton('Retry ↗', 'button secondary', () => retryJob(job), `retry-${job.id}`));
     if (history) buttons.append(actionButton('Remove record', 'button text', () => deleteJob(job), `remove-${job.id}`));
