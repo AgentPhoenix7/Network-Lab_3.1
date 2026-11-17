@@ -120,6 +120,81 @@ cmp downloads/hello.txt downloads/active-copy.txt
 Control traces show commands and numeric replies; `PASS` is redacted.
 Files and example download directories are ignored by Git.
 
+## Connect from another PC through the terminal
+
+Connect both PCs to the same trusted Wi-Fi or LAN. Install Python and copy
+or clone this project on both PCs. The terminal client/server use Python's
+standard library and need no additional packages.
+
+### 1. Start the server on the PC that will share files
+
+From the repository root, run:
+
+```bash
+cd Group_Project/FTP
+FTP_PASSWORD='choose-a-password' python3 -m ftp_lab.server \
+  --host 0.0.0.0 --port 2121 --root server-data --user student
+```
+
+Replace `choose-a-password` with your lab password and keep this terminal
+running. The server stores shared files in `Group_Project/FTP/server-data/`.
+`0.0.0.0` makes it listen on all IPv4 interfaces; stop it with Ctrl+C.
+
+Find the server PC's LAN IP using another terminal on that PC:
+
+```bash
+ip -4 -brief address
+```
+
+Use the IPv4 address beside the connected Wi-Fi or Ethernet interface,
+for example `192.168.1.10`. Do not use `127.0.0.1`, `0.0.0.0`, or an address
+belonging to a disconnected, VPN or container interface. On Windows, use
+`ipconfig` and find the connected adapter's IPv4 address instead.
+
+### 2. Connect from the other PC
+
+From that PC's copy of the repository:
+
+```bash
+cd Group_Project/FTP
+mkdir -p downloads
+printf 'Hello from the client PC!\n' > downloads/hello.txt
+python3 -m ftp_lab.client \
+  --host 192.168.1.10 --port 2121 --user student --trace
+```
+
+Replace `192.168.1.10` with the server PC's actual LAN IP. Enter the same
+password you chose when starting the server. This example uses a Bash
+terminal; the client command can use `py` instead of `python3` on Windows.
+
+### 3. Upload and download files
+
+At the `ftp>` prompt:
+
+```text
+pwd
+ls
+put downloads/hello.txt hello.txt
+get hello.txt downloads/roundtrip.txt
+quit
+```
+
+`put` reads a file on the client PC and writes it under the server's shared
+root. `get` saves a server file on the client PC. Relative local paths are
+resolved from the directory where you launched the client. Binary and
+passive modes are already the defaults.
+
+If the connection fails, check the server is running, the IP is correct,
+and its firewall allows incoming TCP **2121** from the client. If login
+succeeds but `ls` or transfers time out, passive FTP also needs incoming
+connections to the server's dynamically selected data ports. Guest Wi-Fi
+or access-point client isolation can prevent PCs from reaching each other.
+
+These instructions cover a trusted LAN. FTP credentials and files are
+unencrypted. Separate networks require suitable routing or a VPN with
+reachable control/data ports. See [the LAN guide](docs/LAN_ACCESS.md#direct-ftp-access-without-the-browser)
+for the distinction between direct FTP and browser-app access.
+
 ## Terminal commands
 
 Quote paths containing spaces, using shell-style quoting.
@@ -162,11 +237,11 @@ instead. It is never accepted on the command line or stored in source.
 The server creates its root directory if necessary. Stop it with Ctrl+C
 or SIGTERM; active sockets are closed and worker threads are joined.
 
-For two machines on a trusted LAN, bind the server to its LAN IPv4 address
-and pass that address as the client's `--host`. Passive transfers need an
-ephemeral incoming TCP data port on the server; active transfers need an
-ephemeral incoming port on the client. NAT forwarding and fixed passive
-port ranges are outside this implementation's scope.
+For the two-PC setup, see [Connect from another PC through the terminal](#connect-from-another-pc-through-the-terminal).
+You can bind the server to its specific LAN IPv4 address instead of
+`0.0.0.0`. Active transfers need an ephemeral incoming port on the client.
+NAT forwarding and fixed passive port ranges are outside this
+implementation's scope.
 
 ## How FTP is implemented
 
