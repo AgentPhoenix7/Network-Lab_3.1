@@ -25,14 +25,23 @@ TERMINAL = {'completed', 'failed', 'cancelled'}
 
 
 class Cancelled(Exception):
-    pass
+    """Exception raised when an in-progress transfer is cancelled by the user."""
 
 
 class NotFound(Exception):
-    pass
+    """Exception raised when a requested resource does not exist."""
 
 
-def filename(value):
+def filename(value: Any) -> str:
+    """Validate a safe filename without path separators or control characters.
+
+    What it does:
+        Ensures a filename string contains no path traversal sequences or invalid characters.
+
+    How it does:
+        Checks that value is a non-empty string, not '.' or '..', contains no '/' or '\\',
+        is at most 255 bytes long, and contains no ASCII control characters.
+    """
     if not isinstance(value, str) or not value or value in ('.', '..') or '/' in value or '\\' in value:
         raise ValueError('Choose a valid filename without directory components')
     if len(value.encode()) > 255 or any(ord(c) < 32 or ord(c) == 127 for c in value):
@@ -40,7 +49,16 @@ def filename(value):
     return value
 
 
-def remote_path(value):
+def remote_path(value: Any) -> str:
+    """Validate an absolute remote virtual path.
+
+    What it does:
+        Checks that a remote FTP path is absolute and bounded in length.
+
+    How it does:
+        Verifies that value is a string starting with '/', has byte length <= 4096,
+        and contains no ASCII control characters.
+    """
     if not isinstance(value, str) or not value.startswith('/') or len(value.encode()) > 4096:
         raise ValueError('Choose an absolute remote folder or file path')
     if any(ord(c) < 32 or ord(c) == 127 for c in value):
@@ -49,7 +67,21 @@ def remote_path(value):
 
 
 class AppService:
-    def __init__(self, data_dir: Path, *, demo=False):
+    """Backend service managing background transfer queues, active FTP sessions, and device targets."""
+
+    def __init__(self, data_dir: Path, *, demo: bool = False):
+        """Initialize the application service and background thread pool.
+
+        What it does:
+            Prepares data storage directories, SQLite database, transfer spool directory,
+            in-memory credential cache, thread pool executor, and optional demo FTP server.
+
+        How it does:
+            1. Creates data_dir and spool folders with 0700 permissions.
+            2. Instantiates Database and recovers unfinished jobs (marking them failed on restart).
+            3. Initializes synchronization locks, state tracking dictionaries, and a 2-worker ThreadPoolExecutor.
+            4. If demo is True, launches an isolated loopback FTPServer in a background thread.
+        """
         self.data_dir = data_dir.resolve()
         self.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.db = Database(self.data_dir / 'app.db')
@@ -82,6 +114,19 @@ class AppService:
             self.demo_thread.start()
 
     def close(self):
+        """Shut down the service, cancelling active transfers and closing servers.
+
+        What it does:
+            Cancels in-flight worker tasks, clears credential memory, stops the thread pool,
+            and terminates the demo FTP server.
+
+        How it does:
+            1. Sets self.closed = True and triggers all job cancellation events.
+            2. Clears in-memory credentials.
+            3. Shuts down ThreadPoolExecutor with cancel_futures=True.
+            4. Updates unfinished jobs to cancelled and removes their spool folders.
+            5. Shuts down and joins the demo FTP server if running.
+        """
         self.closed = True
         with self.lock:
             for event in self.events.values():
@@ -99,7 +144,16 @@ class AppService:
         if self.demo_thread is not None:
             self.demo_thread.join(5)
 
-    def logout(self, token):
+    def logout(self, token: str):
+        """Purge cached FTP device credentials and cancel user jobs on logout.
+
+        What it does:
+            Clears in-memory plaintext FTP passwords and triggers cancellation for the logging-out user.
+
+        How it does:
+            Hashes token with token_hash(), removes matching credential entries from self.credentials,
+            and signals cancellation events for all transfers initiated by that session.
+        """
         digest = token_hash(token)
         with self.lock:
             self.credentials = {key: value for key, value in self.credentials.items() if key[0] != digest}
@@ -107,7 +161,16 @@ class AppService:
                 if session == digest:
                     self.events[job_id].set()
 
-    def _device(self, owner, device_id) -> dict[str, Any]:
+    def _device(self, owner: int, device_id: int) -> dict[str, Any]:
+        """Fetch a validated device record owned by the specified user.
+
+        What it does:
+            Queries a device by ID, asserting ownership and valid ID type.
+
+        How it does:
+            Validates device_id integer type, calls self.db.device(owner, device_id),
+            and raises NotFound if missing.
+        """
         if isinstance(device_id, bool) or not isinstance(device_id, int):
             raise TypeError('Choose a saved device')
         device = self.db.device(owner, device_id)
@@ -115,7 +178,17 @@ class AppService:
             raise NotFound('Device not found')
         return device
 
-    def devices(self, owner, token):
+    def devices(self, owner: int, token: str) -> list[dict[str, Any]]:
+        """List configured FTP devices for a user, indicating credential readiness.
+
+        What it does:
+            Returns device records with sanitized fields and active session connection status.
+
+        How it does:
+            If demo_server is running, ensures a 'Host computer' device is registered.
+            Iterates through self.db.devices(), checks whether passwords are in memory via
+            self._password(), and returns formatted device records.
+        """
         if self.demo_server is not None:
             with self.lock:
                 device = self.db.local_device(owner, self.demo_server.address)
@@ -128,7 +201,16 @@ class AppService:
             result.append(device)
         return result
 
-    def add_device(self, owner, data):
+    def add_device(self, owner: int, data: dict[str, Any]) -> dict[str, Any]:
+        """Validate and add a new remote FTP server device.
+
+        What it does:
+            Validates host, port, username, and device name before persisting.
+
+        How it does:
+            Validates character lengths and formats, ensures host has no URL prefixes,
+            validates port integer range (1-65535), and calls self.db.add_device().
+        """
         for key in ('name', 'host', 'username'):
             value = data.get(key)
             if not isinstance(value, str) or not value.strip() or len(value) > 253 or any(ord(c) < 32 for c in value):
@@ -145,18 +227,44 @@ class AppService:
         device.update(ready=False, local=False)
         return device
 
-    def _remember(self, token, device_id, password):
+    def _remember(self, token: str, device_id: int, password: str):
+        """Cache an FTP password in volatile memory associated with a session digest.
+
+        What it does:
+            Stores an FTP credential in memory with an 8-hour expiration.
+
+        How it does:
+            Acquires self.lock and saves (password, expiration_time) into self.credentials.
+        """
         with self.lock:
             self.credentials[(token_hash(token), device_id)] = (password, time.time() + 8 * 3600)
 
-    def _password(self, token, device_id):
+    def _password(self, token: str, device_id: int) -> str | None:
+        """Retrieve a cached FTP password if not expired.
+
+        What it does:
+            Looks up volatile FTP credentials for a session token and device.
+
+        How it does:
+            Prunes expired credentials from self.credentials under lock and returns
+            the stored password or None.
+        """
         with self.lock:
             self.credentials = {key: value for key, value in self.credentials.items() if value[1] > time.time()}
             entry = self.credentials.get((token_hash(token), device_id))
             return entry[0] if entry else None
 
     @contextmanager
-    def client(self, owner, token, device_id, *, password=None):
+    def client(self, owner: int, token: str, device_id: int, *, password: str | None = None):
+        """Context manager creating an authenticated FTPClient instance for a device.
+
+        What it does:
+            Instantiates and logs in an FTPClient using stored or provided credentials.
+
+        How it does:
+            Retrieves device configuration and password, instantiates FTPClient(timeout=15),
+            logs in with client.login(), yields client, and closes upon context exit.
+        """
         device = self._device(owner, device_id)
         password = password if password is not None else self._password(token, device_id)
         if password is None:
@@ -165,7 +273,16 @@ class AppService:
             client.login(device['username'], password)
             yield client
 
-    def connect_device(self, owner, token, device_id, password):
+    def connect_device(self, owner: int, token: str, device_id: int, password: str) -> dict[str, Any]:
+        """Test FTP credentials and cache them upon successful handshake.
+
+        What it does:
+            Validates an FTP device password via live connection test and saves it in memory.
+
+        How it does:
+            Connects using self.client(), tests connectivity with client.pwd(), caches the password
+            via self._remember(), updates device timestamp, and returns updated device status.
+        """
         device = self._device(owner, device_id)
         if device['local'] and self.demo_server is not None:
             password = self.demo_password
@@ -177,7 +294,16 @@ class AppService:
         self.db.touch_device(owner, device_id)
         return next(d for d in self.devices(owner, token) if d['id'] == device_id)
 
-    def delete_device(self, owner, device_id):
+    def delete_device(self, owner: int, device_id: int):
+        """Delete an FTP device, ensuring no active transfers are attached.
+
+        What it does:
+            Deletes a device configuration after ensuring it has no active jobs and is not local.
+
+        How it does:
+            Verifies the device is not marked local and has no pending transfers in self.jobs().
+            Deletes from database and removes cached credentials from memory.
+        """
         device = self._device(owner, device_id)
         if device['local']:
             raise ValueError('The built-in local device is managed by the app')
@@ -187,7 +313,17 @@ class AppService:
         with self.lock:
             self.credentials = {key: value for key, value in self.credentials.items() if key[1] != device_id}
 
-    def files(self, owner, token, device_id, path):
+    def files(self, owner: int, token: str, device_id: int, path: str) -> dict[str, Any]:
+        """List files and subdirectories on a remote FTP device.
+
+        What it does:
+            Browses the specified remote FTP folder and returns entries with types and sizes.
+
+        How it does:
+            Connects with self.client(), executes CWD to path, verifies resolved PWD, fetches
+            names via client.list(names_only=True), attempts CWD on each to detect directories,
+            queries client.size() for files, and returns sorted directory listing.
+        """
         path = remote_path(path)
         with self.client(owner, token, device_id) as client:
             client.command('CWD', path)
@@ -208,7 +344,16 @@ class AppService:
                     client.command('CWD', actual)
             return {'path': actual, 'entries': sorted(entries, key=lambda e: (not e['directory'], e['name'].lower()))}
 
-    def jobs(self, owner):
+    def jobs(self, owner: int) -> list[dict[str, Any]]:
+        """Retrieve all transfer jobs for a user, overlaying active in-memory progress.
+
+        What it does:
+            Returns job records updated with real-time transfer stats.
+
+        How it does:
+            Fetches jobs from database and, under self.lock, overlays in-memory live progress
+            dictionaries from self.live.
+        """
         result = self.db.jobs(owner)
         with self.lock:
             for index, job in enumerate(result):
@@ -217,7 +362,16 @@ class AppService:
                     result[index] = copy.deepcopy(current)
         return result
 
-    def job(self, owner, job_id) -> dict[str, Any]:
+    def job(self, owner: int, job_id: str) -> dict[str, Any]:
+        """Retrieve a specific job by ID, including live transfer metrics.
+
+        What it does:
+            Looks up a single transfer job record.
+
+        How it does:
+            Validates 32-character hex ID, queries database, overlays live progress under lock,
+            and returns a deep copy.
+        """
         if not isinstance(job_id, str) or len(job_id) != 32 or any(c not in '0123456789abcdef' for c in job_id):
             raise NotFound('Transfer not found')
         stored = self.db.job(owner, job_id)
@@ -229,7 +383,19 @@ class AppService:
                 return copy.deepcopy(current)
             return stored
 
-    def create_job(self, owner, token, data):
+    def create_job(self, owner: int, token: str, data: dict[str, Any]) -> dict[str, Any]:
+        """Initialize a new upload, download, or benchmark transfer job.
+
+        What it does:
+            Validates transfer parameters, creates a staging spool, and enqueues or awaits file upload.
+
+        How it does:
+            1. Validates device connection, transfer type ('upload', 'download', 'benchmark'),
+               filename, remote path, and ensures no more than 8 concurrent jobs exist.
+            2. Allocates a 32-char hex job_id, creates a spool directory, and saves job metadata.
+            3. For downloads: enqueues immediately via self._queue().
+            4. For uploads/benchmarks: sets status to 'awaiting_upload' awaiting HTTP file payload.
+        """
         if self.closed:
             raise ValueError('The app is shutting down')
         device_id = data.get('device_id')
@@ -254,10 +420,10 @@ class AppService:
             raise ValueError('Compressed filename is too long')
         job_id = uuid.uuid4().hex
         job = {'id': job_id, 'device_id': device_id, 'device_name': device['name'], 'kind': kind, 'name': name,
-                   'size': size, 'remote_path': path, 'compress': bool(data.get('compress')), 'unpack': bool(data.get('unpack')),
-                   'status': 'queued' if kind == 'download' else 'awaiting_upload', 'phase': 'Waiting for file',
-                   'done': 0, 'total': size, 'percent': 0, 'speed_bps': 0, 'eta_seconds': None, 'elapsed_seconds': 0,
-                   'created': now(), 'error': '', 'result': {}, 'samples': []}
+               'size': size, 'remote_path': path, 'compress': bool(data.get('compress')), 'unpack': bool(data.get('unpack')),
+               'status': 'queued' if kind == 'download' else 'awaiting_upload', 'phase': 'Waiting for file',
+               'done': 0, 'total': size, 'percent': 0, 'speed_bps': 0, 'eta_seconds': None, 'elapsed_seconds': 0,
+               'created': now(), 'error': '', 'result': {}, 'samples': []}
         with self.lock:
             if self.closed or sum(j['status'] not in TERMINAL for j in self.jobs(owner)) >= 8:
                 raise ValueError('There are already 8 pending transfers, or the app is closing')
@@ -270,17 +436,45 @@ class AppService:
                 self._queue(owner, token, job_id)
         return self.job(owner, job_id)
 
-    def _update(self, owner, job_id, *, persist=True, **values):
+    def _update(self, owner: int, job_id: str, *, persist: bool = True, **values):
+        """Update job fields in memory and optionally persist to SQLite.
+
+        What it does:
+            Modifies job status, progress, or error values thread-safely.
+
+        How it does:
+            Under self.lock, updates self.live[job_id], and if persist is True,
+            saves the updated job dictionary to SQLite via self.db.save_job().
+        """
         with self.lock:
             self.live[job_id].update(values)
             if persist:
                 self.db.save_job(owner, self.live[job_id])
 
-    def check_cancel(self, job_id):
+    def check_cancel(self, job_id: str):
+        """Verify whether a job has been cancelled.
+
+        What it does:
+            Raises Cancelled exception if the job has been cancelled or service is closing.
+
+        How it does:
+            Checks self.closed or self.events[job_id].is_set(), raising Cancelled if True.
+        """
         if self.closed or self.events[job_id].is_set():
             raise Cancelled('Transfer cancelled')
 
-    def receive_source(self, owner, token, job_id, stream, length):
+    def receive_source(self, owner: int, token: str, job_id: str, stream, length: int) -> dict[str, Any]:
+        """Stream uploaded client file bytes into the job spool directory.
+
+        What it does:
+            Reads incoming HTTP file payload into spool/job_id/source and enqueues the worker task.
+
+        How it does:
+            1. Verifies job is in 'awaiting_upload' status and length matches declared size.
+            2. Streams chunks from stream into spool file, periodically updating progress.
+            3. Enqueues the worker task via self._queue().
+            4. On failure or cancellation, marks job failed/cancelled and cleans up spool.
+        """
         with self.lock:
             job = self.job(owner, job_id)
             if job['status'] != 'awaiting_upload' or job['kind'] == 'download':
@@ -311,13 +505,30 @@ class AppService:
             raise
         return self.job(owner, job_id)
 
-    def _queue(self, owner, token, job_id):
+    def _queue(self, owner: int, token: str, job_id: str):
+        """Submit a job to the background ThreadPoolExecutor.
+
+        What it does:
+            Changes job status to 'queued' and dispatches self._work to the worker pool.
+
+        How it does:
+            Sets status='queued' and stores future from self.pool.submit(self._work, ...).
+        """
         with self.lock:
             self.check_cancel(job_id)
             self._update(owner, job_id, status='queued', phase='Queued', done=0, percent=0)
             self.futures[job_id] = self.pool.submit(self._work, owner, token, job_id)
 
-    def _meter(self, owner, job_id, total, phase='Transferring', mode='plain'):
+    def _meter(self, owner: int, job_id: str, total: int, phase: str = 'Transferring', mode: str = 'plain'):
+        """Construct a progress callback measuring instantaneous and average transfer speeds.
+
+        What it does:
+            Returns a progress callback function for FTP transfer operations.
+
+        How it does:
+            Tracks transferred bytes against total, calculates transfer speed (speed_bps) and ETA,
+            records speed samples every 0.2s, and updates job state in memory and database.
+        """
         started = time.monotonic()
         previous, previous_time, saved = 0, started, started
         done = 0
@@ -347,7 +558,18 @@ class AppService:
                      samples=[{'elapsed': 0, 'bytes': 0, 'speed_bps': 0, 'mode': mode}])
         return advance
 
-    def _work(self, owner, token, job_id):
+    def _work(self, owner: int, token: str, job_id: str):
+        """Worker thread executing background upload, download, or benchmark tasks.
+
+        What it does:
+            Coordinates the FTP connection and execution for a queued transfer job.
+
+        How it does:
+            - Benchmark: invokes run_benchmark() measuring plain vs gzip speeds.
+            - Upload: optionally compresses file with gzip, measures transfer, and executes client.upload().
+            - Download: executes client.download(), optionally decompresses gzip with bound checks.
+            - Updates final status to 'completed' or 'failed'/'cancelled', and cleans spool files.
+        """
         folder = self.spool / job_id
         job = self.job(owner, job_id)
         started = time.monotonic()
@@ -442,7 +664,17 @@ class AppService:
             if job['kind'] != 'download' or not success:
                 shutil.rmtree(folder, ignore_errors=True)
 
-    def cancel_job(self, owner, job_id):
+    def cancel_job(self, owner: int, job_id: str) -> dict[str, Any]:
+        """Cancel an in-flight or queued transfer job.
+
+        What it does:
+            Signals cancellation for a job and cleans up resources.
+
+        How it does:
+            Sets the job's cancellation event. If the job was queued in ThreadPoolExecutor
+            and successfully cancelled before execution, marks it 'cancelled' immediately;
+            otherwise sets phase to 'Cancelling' while worker halts.
+        """
         with self.lock:
             job = self.job(owner, job_id)
             if job['status'] in TERMINAL:
@@ -458,7 +690,16 @@ class AppService:
                 self._update(owner, job_id, phase='Cancelling')
         return self.job(owner, job_id)
 
-    def delete_job(self, owner, job_id):
+    def delete_job(self, owner: int, job_id: str):
+        """Remove a completed or cancelled transfer job from history.
+
+        What it does:
+            Deletes job records and removes any remaining spool files on disk.
+
+        How it does:
+            Verifies status is terminal ('completed', 'failed', 'cancelled'), deletes from database,
+            pops live tracking references, and deletes the job's spool folder.
+        """
         job = self.job(owner, job_id)
         if job['status'] not in TERMINAL:
             raise ValueError('Cancel this transfer before removing it')
@@ -470,7 +711,16 @@ class AppService:
             self.futures.pop(job_id, None)
         shutil.rmtree(self.spool / job_id, ignore_errors=True)
 
-    def attachment(self, owner, job_id):
+    def attachment(self, owner: int, job_id: str) -> tuple[Path, str]:
+        """Locate the downloaded file artifact on disk for browser download.
+
+        What it does:
+            Returns the path and suggested filename for downloading a completed file transfer.
+
+        How it does:
+            Validates job is a completed download, checks existence of spool/job_id/output,
+            and returns (file_path, filename).
+        """
         job = self.job(owner, job_id)
         if job['kind'] != 'download' or job['status'] != 'completed':
             raise ValueError('This download is not ready')
@@ -479,7 +729,16 @@ class AppService:
             raise NotFound('The local download is no longer available')
         return path, filename(job['result']['filename'])
 
-    def report(self, owner, job_id):
+    def report(self, owner: int, job_id: str) -> str:
+        """Generate CSV report text for a completed benchmark job.
+
+        What it does:
+            Returns formatted CSV metrics for a completed comparison task.
+
+        How it does:
+            Verifies job is a completed benchmark, imports csv_report from benchmark module,
+            and formats the job's result dictionary.
+        """
         from ..benchmark import csv_report
         job = self.job(owner, job_id)
         if job['kind'] != 'benchmark' or job['status'] != 'completed':

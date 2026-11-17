@@ -35,11 +35,29 @@ CSV_FIELDS = (
 
 
 def _check(cancel):
+    """Check for benchmark cancellation.
+
+    What it does:
+        Executes the cancellation callback if one was provided.
+
+    How it does:
+        If cancel is not None, invokes cancel() to allow the caller to raise a cancellation exception.
+    """
     if cancel is not None:
         cancel()
 
 
 def _digest(stream, cancel=None, max_bytes=None):
+    """Compute the SHA-256 hash and byte length of a binary stream.
+
+    What it does:
+        Calculates the SHA-256 checksum and verifies stream byte bounds.
+
+    How it does:
+        Reads the stream in 1 MiB chunks (CHUNK_SIZE). Periodically verifies cancellation.
+        Accumulates total size, raises ValueError if max_bytes is exceeded, updates
+        hashlib.sha256(), and returns (hexdigest, size).
+    """
     digest = hashlib.sha256()
     size = 0
     while True:
@@ -56,11 +74,23 @@ def _digest(stream, cancel=None, max_bytes=None):
 def run_benchmark(source, client_factory, work_dir, remote_dir='/', progress=None, cancel=None):
     """Upload and download both modes, SHA-256 verify, and clean owned artifacts.
 
-    ``client_factory`` creates a logged-in context-managed FTPClient. ``cancel``
-    raises the caller's cancellation exception. ``progress`` receives
-    (mode, cumulative payload bytes, total payload bytes, elapsed upload seconds).
-    Verification is bounded to the original source length, including gzip output.
-    A failed transfer uses a fresh connection to remove its unique remote file.
+    What it does:
+        Runs side-by-side plain and gzip FTP benchmarks for a file, recording throughput,
+        durations, time-series progress, and validating cryptographic hash round-trip integrity.
+
+    How it does:
+        1. Validates that source is an existing regular file and remote_dir is clean.
+        2. Computes the baseline SHA-256 digest and size of the original source file.
+        3. For both modes ('plain' and 'gzip'):
+           - Gzip mode compresses the source to a staging file with compresslevel=6 and mtime=0.
+           - Connects to the server via client_factory().
+           - Uploads the payload to a unique remote filename (.ftp-benchmark-<uuid>...), sampling
+             instantaneous speed and notifying progress callback.
+           - Downloads the payload back to local staging, enforcing expected byte bounds.
+           - Verifies SHA-256 digest against original source (decompressing if gzip).
+           - Records detailed metrics in a result dictionary.
+        4. Cleans up the remote benchmark file using FTP DELE command and removes local staging files.
+        5. Returns the structured result dictionary.
     """
     source, work_dir = Path(source), Path(work_dir)
     if not source.is_file():
@@ -186,7 +216,15 @@ def run_benchmark(source, client_factory, work_dir, remote_dir='/', progress=Non
 
 
 def csv_report(result):
-    """Return interoperable CSV, retaining explicit units in column names."""
+    """Return interoperable CSV formatted metrics.
+
+    What it does:
+        Formats benchmark run results into a CSV string adhering to CSV_FIELDS.
+
+    How it does:
+        Initializes an in-memory io.StringIO buffer with csv.DictWriter, writes header,
+        and writes rows for each benchmark run.
+    """
     output = io.StringIO(newline='')
     writer = csv.DictWriter(output, CSV_FIELDS, extrasaction='ignore', lineterminator='\n')
     writer.writeheader()
@@ -196,11 +234,31 @@ def csv_report(result):
 
 
 def write_csv(result, path):
+    """Write benchmark metrics to a CSV file.
+
+    What it does:
+        Saves CSV report output to a destination file on disk.
+
+    How it does:
+        Generates CSV text via csv_report(result) and writes it to path using Path.write_text().
+    """
     Path(path).write_text(csv_report(result), encoding='utf-8')
 
 
 def export_reports(results, output, *, plots=False):
-    """Export all runs and sampled upload time series; optionally render graphs."""
+    """Export benchmark runs, sampled progress time-series, and optional plots.
+
+    What it does:
+        Saves benchmark run metrics to runs.csv, time-series data to samples.csv,
+        raw results to results.json, and optionally generates visualization plots.
+
+    How it does:
+        1. Ensures the output directory exists.
+        2. Exports aggregate runs to runs.csv via write_csv().
+        3. Formats and writes fine-grained upload time-series records to samples.csv.
+        4. Serializes all results into formatted results.json.
+        5. If plots is True, calls render_graphs(results, output).
+    """
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     flat = {'runs': [{**run, 'source_name': result['source_name'], 'repeat': result.get('repeat', 1)}
@@ -220,7 +278,21 @@ def export_reports(results, output, *, plots=False):
 
 
 def render_graphs(results, output):
-    """Save standalone PNG and SVG figures; Matplotlib is optional for the app."""
+    """Save standalone PNG and SVG figures summarizing benchmark performance.
+
+    What it does:
+        Renders Matplotlib charts for throughput, payload compression, phase durations,
+        and cumulative upload time-series.
+
+    How it does:
+        1. Imports Matplotlib's Figure and FigureCanvasAgg.
+        2. Renders four distinct figures:
+           - throughput: Bar chart comparing application payload throughput and effective throughput.
+           - compression: Bar chart illustrating raw vs. gzip compressed payload sizes.
+           - durations: Stacked bar chart showing preparation, upload, download, and verification times.
+           - time-series: Line graph plotting cumulative upload progress over elapsed seconds.
+        3. Saves each figure to output directory in both .png and .svg formats.
+    """
     from matplotlib.backends.backend_agg import FigureCanvasAgg
     from matplotlib.figure import Figure
 
@@ -231,6 +303,7 @@ def render_graphs(results, output):
             for result in results for run in result['runs']]
 
     def save(figure, name):
+        """Save a Matplotlib figure as high-resolution PNG and vector SVG."""
         FigureCanvasAgg(figure)
         figure.savefig(output / (name + '.png'), dpi=160, bbox_inches='tight')
         figure.savefig(output / (name + '.svg'), bbox_inches='tight')
@@ -287,6 +360,15 @@ def render_graphs(results, output):
 
 @contextmanager
 def _local_server(folder):
+    """Start an ephemeral loopback FTPServer in a background thread.
+
+    What it does:
+        Context manager that launches a test FTP server on loopback port 0 and yields its bound address.
+
+    How it does:
+        Creates a temporary server root, initializes FTPServer on ('127.0.0.1', 0), runs it in
+        a daemon thread, yields server.address, and calls shutdown()/server_close() upon exit.
+    """
     from .server import FTPServer
 
     root = folder / 'server'
@@ -303,6 +385,19 @@ def _local_server(folder):
 
 
 def main(argv=None):
+    """Run the benchmark CLI entry point.
+
+    What it does:
+        Parses CLI parameters, prepares a local or remote FTP connection, executes repeatable
+        plain vs. gzip benchmarks, and exports reports and charts.
+
+    How it does:
+        1. Parses command arguments: files, --local, --host, --port, --user, --repeat, --output, --plots.
+        2. Validates source files and reads/prompts for the password.
+        3. Sets up an isolated loopback server (if --local) or targets the specified host:port.
+        4. Runs run_benchmark() for each file across the specified repeat iterations.
+        5. Exports reports and optionally renders charts via render_graphs().
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('files', type=Path, nargs='+', help='Existing source files; never modified')
     parser.add_argument('--local', action='store_true', help='Start an isolated loopback FTP server')
