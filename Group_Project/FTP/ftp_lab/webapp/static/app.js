@@ -236,7 +236,7 @@
       verb: 'RETR', name: 'Retrieve (Download)', category: 'file', rfc: 'RFC 959 § 4.1.3',
       syntax: 'RETR <SP> <pathname> <CRLF>', channel: 'data-download', hasArg: true, defaultArg: 'dataset.csv',
       description: 'Transfers a file from server to client over the ephemeral data connection.',
-      replies: ['150 Opening data connection', '226 Transfer complete', '425 No data endpoint', '550 File not found'],
+      replies: ['150 Opening data connection', '226 Transfer complete', '425 No data endpoint', '426 Connection closed; aborted', '451 Local error in processing', '550 File not found'],
       run(arg) {
         const file = arg || 'dataset.csv';
         return [
@@ -251,7 +251,7 @@
       verb: 'STOR', name: 'Store (Upload)', category: 'file', rfc: 'RFC 959 § 4.1.3',
       syntax: 'STOR <SP> <pathname> <CRLF>', channel: 'data-upload', hasArg: true, defaultArg: 'report.pdf',
       description: 'Transfers a file from client to server. Atomically staged so interruptions leave original files intact.',
-      replies: ['150 Opening data connection', '226 Transfer complete', '425 No data endpoint', '550 Access forbidden'],
+      replies: ['150 Opening data connection', '226 Transfer complete', '425 No data endpoint', '452 Insufficient storage space', '552 Exceeded storage allocation', '553 File name not allowed', '550 Access forbidden'],
       run(arg) {
         const file = arg || 'report.pdf';
         return [
@@ -421,12 +421,15 @@
       verb: 'STAT', name: 'Status', category: 'misc', rfc: 'RFC 959 § 4.1.3',
       syntax: 'STAT [<SP> <pathname>] <CRLF>', channel: 'control', hasArg: true, defaultArg: '',
       description: 'Returns server status or file details directly over control connection without opening a data connection.',
-      replies: ['211-FTP server status', '213-Status of file', '550 File unavailable'],
+      replies: ['211-FTP server status', '212-Directory status', '213-File status', '450 File busy', '550 File unavailable'],
       run(arg) {
         if (arg) {
+          const isDir = arg.endsWith('/') || arg === '.' || arg === 'archives' || arg === 'documents';
+          const code = isDir ? 212 : 213;
+          const kind = isDir ? 'directory' : 'file';
           return [
             { sender: 'client', text: `STAT ${arg}`, channel: 'control' },
-            { sender: 'server', text: `213-Status of ${arg}:\r\n -rw-r--r-- 1 ftp ftp 40960 Jan 01 00:00 ${arg}\r\n213 End of status`, channel: 'control', code: 213 }
+            { sender: 'server', text: `${code}-Status of ${kind} ${arg}:\r\n -rw-r--r-- 1 ftp ftp 40960 Jan 01 00:00 ${arg}\r\n${code} End of status`, channel: 'control', code }
           ];
         }
         return [

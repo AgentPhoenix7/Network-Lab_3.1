@@ -245,6 +245,55 @@ class ServerTests(unittest.TestCase):
         ftp.login("student", "lab-test")
         self.assertEqual(ftp.pwd(), "/")
 
+    def test_additional_rfc959_response_codes(self):
+        ftp = self.ftp()
+        (self.root / "sample.txt").write_bytes(b"content")
+        (self.root / "subfolder").mkdir(exist_ok=True)
+
+        # 212: STAT on directory
+        dir_stat = ftp.sendcmd("STAT subfolder")
+        self.assertTrue(dir_stat.startswith("212"), f"Expected 212 for directory status, got: {dir_stat}")
+
+        # 213: STAT on regular file
+        file_stat = ftp.sendcmd("STAT sample.txt")
+        self.assertTrue(file_stat.startswith("213"), f"Expected 213 for file status, got: {file_stat}")
+
+        # 553: RNTO with invalid destination name
+        ftp.sendcmd("RNFR sample.txt")
+        with self.assertRaisesRegex(ftplib.error_perm, "^553"):
+            ftp.sendcmd("RNTO .ftp-upload-target")
+
+        # 553: STOR with invalid/reserved file name
+        with self.assertRaisesRegex(ftplib.error_perm, "^553"):
+            ftp.sendcmd("STOR .ftp-upload-forbidden")
+
+        # Simulated errno mappings
+        import errno
+        from ftp_lab.server import FTPSession
+
+        # 450: File busy (EBUSY)
+        with patch.object(FTPSession, 'authenticated_command', side_effect=OSError(errno.EBUSY, "Device or resource busy")):
+            with self.assertRaisesRegex(ftplib.error_temp, "^450"):
+                ftp.sendcmd("DELE sample.txt")
+
+        # 452: Insufficient storage space (ENOSPC)
+        with patch.object(FTPSession, 'authenticated_command', side_effect=OSError(errno.ENOSPC, "No space left on device")):
+            with self.assertRaisesRegex(ftplib.error_temp, "^452"):
+                ftp.sendcmd("STOR sample.txt")
+
+        # 552: Exceeded storage allocation (EDQUOT)
+        edquot = getattr(errno, 'EDQUOT', 122)
+        with patch.object(FTPSession, 'authenticated_command', side_effect=OSError(edquot, "Disk quota exceeded")):
+            with self.assertRaisesRegex(ftplib.error_perm, "^552"):
+                ftp.sendcmd("STOR sample.txt")
+
+        # 451: Local error during transfer (non-network OSError during streaming)
+        with patch("ftp_lab.server.socket_chunks", side_effect=OSError(errno.EIO, "I/O error")):
+            data = ftp.transfercmd("STOR iotest.dat")
+            with self.assertRaisesRegex(ftplib.error_temp, "^451"):
+                ftp.voidresp()
+            data.close()
+
     def test_timeout_waiting_for_passive_data_connection_and_recovery(self):
         ftp = self.ftp()
         ftp.sendcmd("PASV")

@@ -699,17 +699,23 @@ text after the code and separator on the final line.
 
 | Code | Meaning here |
 | --- | --- |
+| `212` | Directory status returned for `STAT <directory>` (distinguished from file status `213`) |
 | `421` | Session timeout, capacity rejection, or shutdown rejection |
 | `425` | Missing/unusable data setup or failure to establish the data connection |
-| `426` | Transfer failed after its preliminary reply |
+| `426` | Transfer failed after its preliminary reply (connection broken or aborted) |
+| `450` | File unavailable or locked due to transient busy state (e.g. `EBUSY`, `EAGAIN`) |
+| `451` | Local filesystem or I/O error during data stream processing |
+| `452` | Insufficient storage space on host system (`ENOSPC`) |
 | `500` | Invalid command syntax or malformed/oversized control framing |
 | `501` | Invalid command arguments or forbidden data endpoint |
 | `502` | Command not implemented |
-| `503` | `PASS` arrived before `USER` |
+| `503` | `PASS` arrived before `USER`, or `RNTO` arrived before `RNFR` |
 | `504` | Unsupported transfer parameter, such as an unsupported TYPE |
 | `522` | An unsupported network family was requested by an extended data command |
 | `530` | Login required or credentials rejected |
 | `550` | File/directory unavailable or forbidden; also SIZE requested outside binary type |
+| `552` | Exceeded storage allocation or user disk quota (`EDQUOT`) |
+| `553` | File name not allowed (invalid destination name, reserved name, or syntax error) |
 
 These meanings follow the supported command paths in
 [server.py](../ftp_lab/server.py). General FTP reply categories are

@@ -130,8 +130,12 @@ declarative RFC 959 responses for `ALLO` (202), `ACCT` (202), `SITE` (202),
 defined in RFC 959. It also expands parameter negotiation for `TYPE` (ASCII
 `A`, EBCDIC `E`, Binary/Image `I`, `L 8`), `STRU` (File `F`, Record `R`, Page
 `P`), `MODE` (Stream `S`, Block `B`, Compressed `C`), and textbook-style
-single-port `PORT` syntax alongside standard 6-tuple notation. The updated test
-suite passes **75 Python tests (1 skipped) and 8 frontend tests**.
+single-port `PORT` syntax alongside standard 6-tuple notation. Furthermore,
+it expands RFC 959 reply code coverage by implementing directory status `212`
+(distinguished from file status `213`), filename syntax/destination rejection
+`553`, local processing transfer error `451`, insufficient storage `452`,
+transient file busy `450`, and quota exhaustion `552`. The updated test
+suite passes **76 Python tests (1 skipped) and 10 frontend tests**.
 
 ## References
 

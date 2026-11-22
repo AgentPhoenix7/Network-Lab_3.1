@@ -1,6 +1,7 @@
 """Concurrent IPv4 FTP server implemented with standard-library TCP sockets."""
 
 import argparse
+import errno
 import hmac
 import ipaddress
 import logging
@@ -386,17 +387,40 @@ class FTPSession(socketserver.BaseRequestHandler):
                 if not self.authenticated:
                     raise CommandError(530, 'Please login with USER and PASS')
                 entries = self.fs.entries(arg)
-                self.stream.send_line(f'213-Status of {arg}:')
+                parts = self.fs.normalize(arg)
+                is_file = False
+                if parts:
+                    try:
+                        with self.fs.directory(parts[:-1]) as fd:
+                            st = os.stat(parts[-1], dir_fd=fd, follow_symlinks=False)
+                            is_file = stat.S_ISREG(st.st_mode)
+                    except OSError:
+                        pass
+                code = 213 if is_file else 212
+                kind = 'file' if is_file else 'directory'
+                self.stream.send_line(f'{code}-Status of {kind} {arg}:')
                 for name, info in entries:
                     self.stream.send_line(f' {stat.filemode(info.st_mode)} 1 ftp ftp {info.st_size:12d} Jan 01 00:00 {name}')
-                self.reply(213, 'End of status')
+                self.reply(code, 'End of status')
         elif not self.authenticated:
             raise CommandError(530, 'Please login with USER and PASS')
         else:
             try:
                 self.authenticated_command(verb, arg)
-            except (OSError, ValueError) as exc:
-                LOG.debug('Filesystem/argument error: %s', type(exc).__name__)
+            except CommandError:
+                raise
+            except ValueError as exc:
+                LOG.debug('Argument/name validation error: %s', exc)
+                raise CommandError(553, f'File name not allowed: {exc}') from exc
+            except OSError as exc:
+                err = getattr(exc, 'errno', None)
+                LOG.debug('Filesystem error: %s (errno=%s)', type(exc).__name__, err)
+                if err in (errno.EBUSY, getattr(errno, 'ETXTBSY', 26), errno.EAGAIN):
+                    raise CommandError(450, f'File unavailable (busy): {exc}') from exc
+                elif err == errno.ENOSPC:
+                    raise CommandError(452, 'Insufficient storage space in system') from exc
+                elif getattr(errno, 'EDQUOT', None) and err == errno.EDQUOT:
+                    raise CommandError(552, 'Exceeded storage allocation') from exc
                 raise CommandError(550, 'File or directory unavailable or forbidden') from exc
         return True
 
@@ -671,7 +695,15 @@ class FTPSession(socketserver.BaseRequestHandler):
             LOG.info('%s %s completed', self.client_address[0], verb)
         except OSError as exc:
             if started:
-                raise CommandError(426, 'Transfer failed; data connection closed') from exc
+                err = getattr(exc, 'errno', None)
+                if err == errno.ENOSPC:
+                    raise CommandError(452, 'Insufficient storage space in system') from exc
+                elif getattr(errno, 'EDQUOT', None) and err == errno.EDQUOT:
+                    raise CommandError(552, 'Exceeded storage allocation') from exc
+                elif isinstance(exc, (BrokenPipeError, ConnectionResetError, ConnectionAbortedError)):
+                    raise CommandError(426, 'Transfer failed; data connection closed') from exc
+                else:
+                    raise CommandError(451, 'Requested action aborted: local error in processing') from exc
             raise
         finally:
             self.reset_data()
