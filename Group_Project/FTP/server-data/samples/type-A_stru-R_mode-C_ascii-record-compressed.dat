@@ -1,0 +1,6 @@
+?rec_id,module,protocol,rfc,status,description
+101,control,FTP,R?FC 959,PASS,Command-Reply Control Stream
+102,transfer,Passive,R?FC 959,PASS,Passive Data Socket Listening
+103,transfer,Active,R?FC 959,PASS,Active Data Endpoint Initiation
+104,extension,EPSV/?EPRT,RFC 2428,PASS,IPv4 Extended Passive/Active
+105,integrity,S6HA-256,FIPS 180-4,PASS,End-to-End Cryptographic Match

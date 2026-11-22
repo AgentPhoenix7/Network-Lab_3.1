@@ -64,7 +64,7 @@ class FTPClient:
         if not 1 <= port <= 65535:
             raise ValueError('Port must be between 1 and 65535')
         self.timeout, self.passive, self.trace = timeout, passive, trace
-        self.binary = True
+        self._representation = 'I'
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             self.sock.settimeout(timeout)
@@ -396,7 +396,7 @@ class FTPClient:
             4. Executes self.transfer('STOR', remote, send).
         """
         with Path(local).open('rb') as source:
-            self.expect(self.command('TYPE', 'I' if self.binary else 'A'), (200,))
+            self.expect(self.command('TYPE', self.representation), (200,))
 
             def send(data):
                 chunks = iter(lambda: source.read(BLOCK_SIZE), b'')
@@ -428,7 +428,7 @@ class FTPClient:
         try:
             with tempfile.NamedTemporaryFile(prefix='.ftp-download-', dir=target.parent, delete=False) as out:
                 staging = Path(out.name)
-                self.expect(self.command('TYPE', 'I' if self.binary else 'A'), (200,))
+                self.expect(self.command('TYPE', self.representation), (200,))
 
                 def receive(data):
                     def incoming():
@@ -497,11 +497,30 @@ class FTPClient:
         finally:
             self.close()
 
+    @property
+    def binary(self) -> bool:
+        """Whether the client is in binary/image mode (True) or ASCII text mode (False)."""
+        return getattr(self, '_representation', 'I') != 'A'
+
+    @binary.setter
+    def binary(self, val: bool):
+        self._representation = 'I' if val else 'A'
+
+    @property
+    def representation(self) -> str:
+        """The FTP transfer representation type ('A', 'I', or 'E')."""
+        return getattr(self, '_representation', 'I')
+
+    @representation.setter
+    def representation(self, val: str):
+        self._representation = str(val).upper()
+
 
 HELP = '''Commands (quote paths containing spaces):
   pwd | ls [remote] | nlst [remote] | cd remote | cdup
   mkdir remote | rmdir remote | delete remote | rename old new | size remote
   get remote [local] | put local [remote] | append local [remote]
+  type [A|I|E] | stru [F|R|P] | mode [S|B|C] | quote verb [arg]
   stat [remote] | rein | ascii | binary | passive | active | noop | help | quit'''
 
 
@@ -570,8 +589,29 @@ def execute(client: FTPClient, line: str) -> bool:
             print(line)
     elif command == 'rein' and not args:
         print(client.rein().message)
+    elif command == 'type' and len(args) == 1:
+        reply = client.command('TYPE', args[0])
+        print(reply.message)
+        arg_up = args[0].upper()
+        if arg_up in ('A', 'A N'):
+            client.binary, client.representation = False, 'A'
+        elif arg_up in ('I', 'L 8'):
+            client.binary, client.representation = True, 'I'
+        elif arg_up in ('E', 'EBCDIC'):
+            client.binary, client.representation = True, 'E'
+    elif command == 'stru' and len(args) == 1:
+        print(client.command('STRU', args[0]).message)
+    elif command == 'mode' and len(args) == 1:
+        print(client.command('MODE', args[0]).message)
+    elif command in ('quote', 'raw') and args:
+        verb = args[0].upper()
+        arg_str = ' '.join(args[1:]) if len(args) > 1 else ''
+        reply = client.command(verb, arg_str)
+        for line in reply.lines:
+            print(line)
     elif command in ('ascii', 'binary') and not args:
         client.binary = command == 'binary'
+        client.representation = 'I' if client.binary else 'A'
         print(f'Transfer type: {command}')
     elif command in ('passive', 'active') and not args:
         client.passive = command == 'passive'

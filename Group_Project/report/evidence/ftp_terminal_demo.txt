@@ -15,7 +15,7 @@ Directory changed
 C> TYPE I
 S> 200 Transfer type set
 C> EPSV
-S> 229 Entering Extended Passive Mode (|||47691|)
+S> 229 Entering Extended Passive Mode (|||47321|)
 C> STOR sample.bin
 S> 150 Opening data connection
 S> 226 Transfer complete
@@ -23,7 +23,7 @@ Uploaded source.bin to sample.bin
 C> TYPE A
 S> 200 Transfer type set
 C> EPSV
-S> 229 Entering Extended Passive Mode (|||52853|)
+S> 229 Entering Extended Passive Mode (|||35847|)
 C> LIST
 S> 150 Opening data connection
 S> 226 Transfer complete
@@ -48,7 +48,7 @@ Rename successful
 C> TYPE I
 S> 200 Transfer type set
 C> EPSV
-S> 229 Entering Extended Passive Mode (|||54433|)
+S> 229 Entering Extended Passive Mode (|||40749|)
 C> RETR renamed.bin
 S> 150 Opening data connection
 S> 226 Transfer complete
@@ -56,7 +56,7 @@ Downloaded renamed.bin to passive-copy.bin
 Data mode: active
 C> TYPE I
 S> 200 Transfer type set
-C> EPRT |1|127.0.0.1|50025|
+C> EPRT |1|127.0.0.1|45821|
 S> 200 Active data endpoint set
 C> RETR renamed.bin
 S> 150 Opening data connection
@@ -67,7 +67,7 @@ Transfer type: ascii
 C> TYPE A
 S> 200 Transfer type set
 C> EPSV
-S> 229 Entering Extended Passive Mode (|||36649|)
+S> 229 Entering Extended Passive Mode (|||43209|)
 C> STOR text.txt
 S> 150 Opening data connection
 S> 226 Transfer complete
@@ -75,7 +75,7 @@ Uploaded source.txt to text.txt
 C> TYPE A
 S> 200 Transfer type set
 C> EPSV
-S> 229 Entering Extended Passive Mode (|||57239|)
+S> 229 Entering Extended Passive Mode (|||60463|)
 C> RETR text.txt
 S> 150 Opening data connection
 S> 226 Transfer complete

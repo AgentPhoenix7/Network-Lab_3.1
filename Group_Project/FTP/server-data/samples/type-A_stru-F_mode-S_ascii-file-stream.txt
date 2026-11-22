@@ -1,0 +1,8 @@
+RFC 959 File Transfer Protocol (FTP) - ASCII Stream Demonstration
+----------------------------------------------------------------
+TYPE: A (ASCII non-print representation with CRLF line terminators)
+STRU: F (Continuous file structure with no internal record delimiters)
+MODE: S (Stream mode terminated by closing the TCP data connection)
+
+Network-Lab 3.1 Group Project Demonstration File.
+Testing character conversion and transparent streaming over loopback TCP.

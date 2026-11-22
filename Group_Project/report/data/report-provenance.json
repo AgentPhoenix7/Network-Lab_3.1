@@ -54,7 +54,7 @@
   "ftp_sources": {
     "code/ftp_lab/__init__.py": "bf321ad410b995015de4bf967f67e2ef1aba6c2ed2cca0d13cd63e04b9d91431",
     "code/ftp_lab/benchmark.py": "6d45590b204a848bf4da2cf0d858d377f53fc9ce7e9e11f6ebf4fb8a787b1b6c",
-    "code/ftp_lab/client.py": "02bd68f88d32c947762b592c00cd86dc24d6304b928b42c1c0632dbdee8fb248",
+    "code/ftp_lab/client.py": "bf2f00d44f15fee84818719a0af5394415c74617f1fcb3a053a05adf50cb9110",
     "code/ftp_lab/filesystem.py": "79549dfa6d4e8345a05f068020711b058b2da1a7f1c92c014a8276beab1c4f71",
     "code/ftp_lab/protocol.py": "c377c4c0266554a630a4954839fdabff598dc138385e640a469ca5fc267b457a",
     "code/ftp_lab/server.py": "25ba9febb116999f7898fbdc31656790111ceb0698c964feb2f6464ae60cd03c"
