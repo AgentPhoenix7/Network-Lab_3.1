@@ -120,6 +120,81 @@ cmp downloads/hello.txt downloads/active-copy.txt
 Control traces show commands and numeric replies; `PASS` is redacted.
 Files and example download directories are ignored by Git.
 
+## Connect from another PC through the terminal
+
+Connect both PCs to the same trusted Wi-Fi or LAN. Install Python and copy
+or clone this project on both PCs. The terminal client/server use Python's
+standard library and need no additional packages.
+
+### 1. Start the server on the PC that will share files
+
+From the repository root, run:
+
+```bash
+cd Group_Project/FTP
+FTP_PASSWORD='choose-a-password' python3 -m ftp_lab.server \
+  --host 0.0.0.0 --port 2121 --root server-data --user student
+```
+
+Replace `choose-a-password` with your lab password and keep this terminal
+running. The server stores shared files in `Group_Project/FTP/server-data/`.
+`0.0.0.0` makes it listen on all IPv4 interfaces; stop it with Ctrl+C.
+
+Find the server PC's LAN IP using another terminal on that PC:
+
+```bash
+ip -4 -brief address
+```
+
+Use the IPv4 address beside the connected Wi-Fi or Ethernet interface,
+for example `192.168.1.10`. Do not use `127.0.0.1`, `0.0.0.0`, or an address
+belonging to a disconnected, VPN or container interface. On Windows, use
+`ipconfig` and find the connected adapter's IPv4 address instead.
+
+### 2. Connect from the other PC
+
+From that PC's copy of the repository:
+
+```bash
+cd Group_Project/FTP
+mkdir -p downloads
+printf 'Hello from the client PC!\n' > downloads/hello.txt
+python3 -m ftp_lab.client \
+  --host 192.168.1.10 --port 2121 --user student --trace
+```
+
+Replace `192.168.1.10` with the server PC's actual LAN IP. Enter the same
+password you chose when starting the server. This example uses a Bash
+terminal; the client command can use `py` instead of `python3` on Windows.
+
+### 3. Upload and download files
+
+At the `ftp>` prompt:
+
+```text
+pwd
+ls
+put downloads/hello.txt hello.txt
+get hello.txt downloads/roundtrip.txt
+quit
+```
+
+`put` reads a file on the client PC and writes it under the server's shared
+root. `get` saves a server file on the client PC. Relative local paths are
+resolved from the directory where you launched the client. Binary and
+passive modes are already the defaults.
+
+If the connection fails, check the server is running, the IP is correct,
+and its firewall allows incoming TCP **2121** from the client. If login
+succeeds but `ls` or transfers time out, passive FTP also needs incoming
+connections to the server's dynamically selected data ports. Guest Wi-Fi
+or access-point client isolation can prevent PCs from reaching each other.
+
+These instructions cover a trusted LAN. FTP credentials and files are
+unencrypted. Separate networks require suitable routing or a VPN with
+reachable control/data ports. See [the LAN guide](docs/LAN_ACCESS.md#direct-ftp-access-without-the-browser)
+for the distinction between direct FTP and browser-app access.
+
 ## Terminal commands
 
 Quote paths containing spaces, using shell-style quoting.
@@ -129,11 +204,19 @@ Quote paths containing spaces, using shell-style quoting.
 | `pwd`, `cd path`, `cdup` | Inspect/change the virtual working directory |
 | `ls [path]`, `nlst [path]` | Detailed listing or names only |
 | `mkdir path`, `rmdir path` | Create/remove an empty directory |
-| `delete path`, `size path` | Remove a file or print its binary size |
+| `delete path`, `rename old new` | Remove a file or rename a file/directory |
+| `size path` | Print the binary file size |
 | `put local [remote]` | Upload, using the local basename by default |
 | `get remote [local]` | Download, using the remote basename by default |
-| `ascii`, `binary` | Select text conversion or byte-exact transfers |
+| `append local [remote]` | Append data from a local file to a remote file (`APPE`) |
+| `type [A\|I\|E]` | Set representation: ASCII (`A`), Image/Binary (`I`), EBCDIC (`E`) |
+| `stru [F\|R\|P]` | Set structure: File (`F`), Record (`R`), Page (`P`) |
+| `mode [S\|B\|C]` | Set transmission mode: Stream (`S`), Block (`B`), Compressed (`C`) |
+| `ascii`, `binary` | Convenience shortcuts for `type A` and `type I` |
 | `active`, `passive` | Select who initiates the next data connection |
+| `stat [path]` | Query session status (displays TYPE, STRU, MODE) or file metadata |
+| `rein` | Reinitialize session state (`REIN`) |
+| `quote verb [arg]` | Send raw RFC 959 wire command directly to server |
 | `noop`, `help`, `quit` | Check the connection, show help, disconnect |
 
 Binary and passive mode are the client defaults. A listing or SIZE command
@@ -162,11 +245,198 @@ instead. It is never accepted on the command line or stored in source.
 The server creates its root directory if necessary. Stop it with Ctrl+C
 or SIGTERM; active sockets are closed and worker threads are joined.
 
-For two machines on a trusted LAN, bind the server to its LAN IPv4 address
-and pass that address as the client's `--host`. Passive transfers need an
-ephemeral incoming TCP data port on the server; active transfers need an
-ephemeral incoming port on the client. NAT forwarding and fixed passive
-port ranges are outside this implementation's scope.
+For the two-PC setup, see [Connect from another PC through the terminal](#connect-from-another-pc-through-the-terminal).
+You can bind the server to its specific LAN IPv4 address instead of
+`0.0.0.0`. Active transfers need an ephemeral incoming port on the client.
+NAT forwarding and fixed passive port ranges are outside this
+implementation's scope.
+
+## RFC 959 TYPE / STRU / MODE Permutations Demo
+
+The FTP server's sandbox root (`server-data/`) and its tracked sub-directory (`server-data/samples/`) contain authentic, tracked demonstration files covering all **27 valid permutations** ($3 \times 3 \times 3$) of the RFC 959 transmission parameters:
+
+- **Representation Type (`TYPE`)**:
+  - `TYPE A`: **ASCII** non-print format. Text lines use NVT CRLF across the wire and POSIX LF in local files.
+  - `TYPE I`: **Image (Binary)** format. 8-bit byte-exact transparent transfer for binary executables, archives, and media.
+  - `TYPE E`: **EBCDIC** character format. Decoded using IBM CP037 for mainframe system interoperability.
+- **File Structure (`STRU`)**:
+  - `STRU F`: **File** structure. Continuous sequence of bytes with no internal record boundaries.
+  - `STRU R`: **Record** structure. Sequential records terminating in an End-of-Record (EOR) condition.
+  - `STRU P`: **Page** structure. Indexed independent pages with page headers (type, page number, length).
+- **Transmission Mode (`MODE`)**:
+  - `MODE S`: **Stream** mode. Continuous stream of bytes terminated by closing the TCP data connection.
+  - `MODE B`: **Block** mode. Transmission framed into blocks with 3-byte headers (1-byte descriptor flags + 2-byte byte count).
+  - `MODE C`: **Compressed** mode. Run-length compression encoding byte repetitions and blank runs.
+
+### Tracked Demonstration Files
+
+All demonstration files are tracked in Git (whitelisted in `.gitignore`) so they are ready out-of-the-box:
+
+- **Root Sandbox File**: [`server-data/welcome.txt`](server-data/welcome.txt) (`TYPE A`, `STRU F`, `MODE S`) introduces the sandbox environment.
+- **Tracked Permutations Directory**: [`server-data/samples/`](server-data/samples/) contains all 27 permutations and a machine-readable manifest:
+
+| # | Permutation | Parameter Commands | Example Tracked File | Size | Description & Format |
+| -: | :---: | :--- | :--- | ---: | :--- |
+| 1 | **A-F-S** | `type A` / `stru F` / `mode S` | `type-A_stru-F_mode-S_ascii-file-stream.txt` | 463 B | Standard ASCII text stream with CRLF line delimiters. |
+| 2 | **A-F-B** | `type A` / `stru F` / `mode B` | `type-A_stru-F_mode-B_ascii-file-block.dat` | 469 B | ASCII text framed into RFC 959 Mode B transmission blocks. |
+| 3 | **A-F-C** | `type A` / `stru F` / `mode C` | `type-A_stru-F_mode-C_ascii-file-compressed.dat` | 409 B | ASCII text compressed with Mode C run-length encoding. |
+| 4 | **A-R-S** | `type A` / `stru R` / `mode S` | `type-A_stru-R_mode-S_ascii-record-stream.csv` | 375 B | Tabular CSV records with EOR delimited lines. |
+| 5 | **A-R-B** | `type A` / `stru R` / `mode B` | `type-A_stru-R_mode-B_ascii-record-block.dat` | 393 B | ASCII records encapsulated in Mode B blocks with EOR descriptor bits. |
+| 6 | **A-R-C** | `type A` / `stru R` / `mode C` | `type-A_stru-R_mode-C_ascii-record-compressed.dat` | 381 B | Sequential ASCII records compressed using Mode C run-length scheme. |
+| 7 | **A-P-S** | `type A` / `stru P` / `mode S` | `type-A_stru-P_mode-S_ascii-page-stream.txt` | 373 B | Paged ASCII document with RFC 959 page headers (type, number, length). |
+| 8 | **A-P-B** | `type A` / `stru P` / `mode B` | `type-A_stru-P_mode-B_ascii-page-block.dat` | 376 B | Paged ASCII data framed inside Mode B transmission blocks. |
+| 9 | **A-P-C** | `type A` / `stru P` / `mode C` | `type-A_stru-P_mode-C_ascii-page-compressed.dat` | 377 B | Paged ASCII text with Mode C compressed page payloads. |
+| 10 | **I-F-S** | `type I` / `stru F` / `mode S` | `type-I_stru-F_mode-S_binary-file-stream.bin` | 303 B | Byte-exact raw binary data containing all 256 byte values and binary structs. |
+| 11 | **I-F-B** | `type I` / `stru F` / `mode B` | `type-I_stru-F_mode-B_binary-file-block.dat` | 309 B | Binary payload packed into RFC 959 Mode B transmission blocks. |
+| 12 | **I-F-C** | `type I` / `stru F` / `mode C` | `type-I_stru-F_mode-C_binary-file-compressed.gz` | 326 B | Gzip compressed binary stream per RFC 959 compressed binary mode. |
+| 13 | **I-R-S** | `type I` / `stru R` / `mode S` | `type-I_stru-R_mode-S_binary-record-stream.dat` | 256 B | Binary record stream containing fixed 32-byte C-struct sensor records. |
+| 14 | **I-R-B** | `type I` / `stru R` / `mode B` | `type-I_stru-R_mode-B_binary-record-block.dat` | 280 B | Binary records framed in Mode B blocks with EOR descriptor flags. |
+| 15 | **I-R-C** | `type I` / `stru R` / `mode C` | `type-I_stru-R_mode-C_binary-record-compressed.dat` | 226 B | Binary structured records compressed with Mode C run-length encoding. |
+| 16 | **I-P-S** | `type I` / `stru P` / `mode S` | `type-I_stru-P_mode-S_binary-page-stream.dat` | 303 B | Binary paged file format per RFC 959 with binary page headers. |
+| 17 | **I-P-B** | `type I` / `stru P` / `mode B` | `type-I_stru-P_mode-B_binary-page-block.dat` | 306 B | Binary pages encapsulated in Mode B transmission blocks. |
+| 18 | **I-P-C** | `type I` / `stru P` / `mode C` | `type-I_stru-P_mode-C_binary-page-compressed.dat` | 307 B | Binary page structure with Mode C compressed page bodies. |
+| 19 | **E-F-S** | `type E` / `stru F` / `mode S` | `type-E_stru-F_mode-S_ebcdic-file-stream.ebcdic` | 158 B | Authentic IBM CP037 EBCDIC mainframe text stream file. |
+| 20 | **E-F-B** | `type E` / `stru F` / `mode B` | `type-E_stru-F_mode-B_ebcdic-file-block.dat` | 161 B | CP037 EBCDIC text stream partitioned into Mode B transmission blocks. |
+| 21 | **E-F-C** | `type E` / `stru F` / `mode C` | `type-E_stru-F_mode-C_ebcdic-file-compressed.dat` | 161 B | CP037 EBCDIC text stream compressed with run-length byte compression. |
+| 22 | **E-R-S** | `type E` / `stru R` / `mode S` | `type-E_stru-R_mode-S_ebcdic-record-stream.ebcdic` | 444 B | Classic 80-column IBM mainframe punched card records in CP037 EBCDIC. |
+| 23 | **E-R-B** | `type E` / `stru R` / `mode B` | `type-E_stru-R_mode-B_ebcdic-record-block.dat` | 462 B | 80-column EBCDIC punched card records packed in Mode B blocks with EOR. |
+| 24 | **E-R-C** | `type E` / `stru R` / `mode C` | `type-E_stru-R_mode-C_ebcdic-record-compressed.dat` | 209 B | EBCDIC card records compressed with repeated byte/blank compression. |
+| 25 | **E-P-S** | `type E` / `stru P` / `mode S` | `type-E_stru-P_mode-S_ebcdic-page-stream.ebcdic` | 197 B | EBCDIC mainframe report pages with RFC 959 page headers and CP037 text. |
+| 26 | **E-P-B** | `type E` / `stru P` / `mode B` | `type-E_stru-P_mode-B_ebcdic-page-block.dat` | 200 B | EBCDIC report pages inside Mode B transmission blocks. |
+| 27 | **E-P-C** | `type E` / `stru P` / `mode C` | `type-E_stru-P_mode-C_ebcdic-page-compressed.dat` | 201 B | EBCDIC report pages with Mode C compressed payloads. |
+
+The complete metadata and SHA-256 hashes are cataloged in [`server-data/samples/manifest.json`](server-data/samples/manifest.json).
+
+---
+
+### How to Demonstrate Each Permutation
+
+#### Step 1: Start the FTP Server
+
+In Terminal 1, start the server using the default sandbox root (`server-data`):
+
+```bash
+cd Group_Project/FTP
+FTP_PASSWORD=lab-demo python3 -m ftp_lab.server
+```
+
+The server binds to `127.0.0.1:2121`, serving `Group_Project/FTP/server-data/`.
+
+#### Step 2: Connect with the Terminal Client
+
+In Terminal 2, create a clean local download directory and start the client with protocol tracing:
+
+```bash
+cd Group_Project/FTP
+mkdir -p downloads
+python3 -m ftp_lab.client --trace
+```
+
+Enter password `lab-demo` when prompted.
+
+#### Step 3: Interactive Demo of Selected Permutations
+
+At the `ftp>` prompt:
+
+```text
+# 1. Inspect sandbox root (displays welcome.txt and samples/ directory)
+pwd
+ls
+
+# 2. Navigate into the permutations samples directory
+cd samples
+ls
+
+# --- Demo 1: ASCII File Stream (A-F-S) ---
+type A
+stru F
+mode S
+stat
+get type-A_stru-F_mode-S_ascii-file-stream.txt downloads/demo_A_F_S.txt
+
+# --- Demo 2: Binary Image Record Block (I-R-B) ---
+type I
+stru R
+mode B
+stat
+get type-I_stru-R_mode-B_binary-record-block.dat downloads/demo_I_R_B.dat
+
+# --- Demo 3: Mainframe EBCDIC Punched Card Records (E-R-S) ---
+type E
+stru R
+mode S
+stat
+get type-E_stru-R_mode-S_ebcdic-record-stream.ebcdic downloads/demo_E_R_S.ebcdic
+
+# --- Demo 4: Compressed Binary Archive (I-F-C) ---
+type I
+stru F
+mode C
+stat
+get type-I_stru-F_mode-C_binary-file-compressed.gz downloads/demo_I_F_C.gz
+
+# --- Demo 5: Raw Wire Command Execution via 'quote' ---
+quote NOOP
+quote SYST
+quote FEAT
+quote PWD
+
+quit
+```
+
+#### Step 4: Verify Downloaded Files Locally
+
+In Terminal 2, inspect the retrieved demonstration files:
+
+```bash
+# Verify ASCII text transfer:
+cat downloads/demo_A_F_S.txt
+
+# Verify EBCDIC CP037 decoding (IBM mainframe character translation):
+python3 -c "print(open('downloads/demo_E_R_S.ebcdic', 'rb').read().decode('cp037'))"
+
+# Verify binary block headers with hexdump (reveals descriptor byte 0x40 and length):
+xxd downloads/demo_I_R_B.dat
+
+# Verify gzip decompression of compressed mode binary archive:
+gzip -dc downloads/demo_I_F_C.gz | file -
+```
+
+#### Step 5: Automated Demonstration of All 27 Permutations
+
+You can demonstrate all 27 permutations sequentially with a single batch command:
+
+```bash
+FTP_PASSWORD=lab-demo python3 -m ftp_lab.client --script - <<'EOF'
+cd samples
+type A
+stru F
+mode S
+stat
+type E
+stru R
+mode B
+stat
+type I
+stru P
+mode C
+stat
+quit
+EOF
+```
+
+All 27 permutations are also validated by the automated test suite:
+```bash
+python3 -m unittest discover -s tests -p "test_permutations.py"
+```
+
+#### Step 6: Browser UI Demonstration
+
+Start the local web application:
+```bash
+python3 -m ftp_lab.webapp --demo
+```
+Open **http://127.0.0.1:8080** and navigate to the **RFC 959 Command Explorer** section. Click on the **TYPE**, **STRU**, or **MODE** cards to view interactive syntax, parameter options, and animated protocol message exchanges in the command stream.
 
 ## How FTP is implemented
 
@@ -197,15 +467,15 @@ In active mode the client listens, sends EPRT/PORT, and the server connects
 to that endpoint after the transfer command. The client tries EPSV/EPRT
 first and falls back to PASV/PORT for servers that reject the extensions.
 
-Supported wire commands:
+Supported wire commands (covering RFC 959 and Forouzan Table 10.4):
 
 ```text
-USER PASS QUIT NOOP SYST FEAT HELP OPTS UTF8 ON
-PWD CWD CDUP MKD RMD DELE SIZE
-TYPE A | TYPE A N | TYPE I | TYPE L 8
-MODE S | STRU F
+USER PASS ACCT CWD CDUP SMNT REIN QUIT NOOP SYST FEAT HELP OPTS UTF8 ON
+PWD CWD CDUP MKD RMD DELE RNFR RNTO SIZE STAT
+TYPE A | TYPE A N | TYPE E | TYPE EBCDIC | TYPE I | TYPE L 8
+MODE S | MODE B | MODE C | STRU F | STRU R | STRU P
 PASV EPSV [1|ALL] PORT EPRT (IPv4)
-LIST [path] NLST [path] RETR path STOR path ABOR
+LIST [path] NLST [path] RETR path STOR path STOU APPE ALLO REST ABOR SITE
 ```
 
 SIZE requires binary type. LIST/NLST accept a literal file or directory
@@ -238,7 +508,7 @@ invalid request), 550 (unavailable/forbidden path), and 221 (goodbye).
 This is a teaching implementation of an FTP subset, not a complete FTP
 service. FTP sends credentials and data in plaintext; use lab credentials
 on a trusted network. TLS/SFTP, IPv6, anonymous/multi-user accounts, resume,
-rename, quotas, and Telnet urgent/OOB abort handling are not implemented.
+quotas, and Telnet urgent/OOB abort handling are not implemented.
 ABOR clears idle data setup; commands are handled serially within a session,
 so an in-progress transfer is interrupted by closing its data connection.
 In stream mode, clean EOF is the end of a file: without an external expected

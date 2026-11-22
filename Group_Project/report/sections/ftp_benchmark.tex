@@ -74,29 +74,29 @@ Manifest file paths are normalized to the portable example directory. Measured b
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.90\linewidth]{ftp_benchmark_compression.png}
-\caption{Original versus gzip payload sizes for each saved file/repetition. The generated WAV and raw AVI patterns compress substantially; the MP4 counterpart changes very little. Source: measured experiment rows, 15 November 2026.}
+\includegraphics[width=0.92\linewidth]{ftp_benchmark_compression.png}
+\caption{Original versus gzip payload sizes across benchmark files and repetitions. The dual-panel grouped bar chart cleanly separates large uncompressed media (WAV/AVI, 0--150~MiB) from the compressed control (MP4, 0--2.5~MiB), annotating exact sizes and percentage reductions (-97.1\%, -95.2\%, -0.2\%). Source: measured experiment rows, 15 November 2026.}
 \label{fig:ftp-compression-graph}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.94\linewidth]{ftp_benchmark_throughput.png}
-\caption{Measured FTP payload throughput and effective original-byte rate. A smaller gzip payload can have a different payload rate and a lower effective rate once compression time is counted. These are cached loopback measurements, not physical-link capacity.}
+\caption{Measured FTP payload wire throughput versus effective end-to-end rate. Grouped bars compare Plain Effective Rate, Gzip Wire Rate ($P/t_u$), and Gzip Effective Rate ($S/t_{\mathrm{total}}$). Factoring in CPU compression overhead causes effective rate to drop by over 90\% on loopback.}
 \label{fig:ftp-throughput-graph}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.90\linewidth]{ftp_benchmark_durations.png}
-\caption{Preparation, upload, verification download and content-verification durations. Keeping phases separate exposes the gzip preprocessing cost instead of attributing it to the network.}
+\includegraphics[width=0.92\linewidth]{ftp_benchmark_durations.png}
+\caption{Phase duration breakdown (Preparation, Upload, Verification Download, and Hash/Decompress verification) comparing Plain and Gzip modes side-by-side. The stacked bars demonstrate that CPU gzip preparation dominates total transfer duration on fast local connections.}
 \label{fig:ftp-duration-graph}
 \end{figure}
 
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=\linewidth,height=0.77\textheight,keepaspectratio]{ftp_benchmark_time-series.png}
-\caption{Cumulative FTP upload progress over elapsed upload time. Each original/gzip trace starts at its own time zero; the vertical axis is payload MiB, not MiB/s. The slope reflects progress through the local transfer, and the last sample includes completion-reply latency.}
+\caption{Cumulative FTP upload progress over elapsed upload time across individual subplots for each media type. Dedicated vertical scales allow direct inspection of both 128~MiB transfers and 1.75~MiB transfers alongside final completion latency markers.}
 \label{fig:ftp-timeseries-graph}
 \end{figure}
 

@@ -1,0 +1,272 @@
+[
+  {
+    "type": "A",
+    "stru": "F",
+    "mode": "S",
+    "filename": "type-A_stru-F_mode-S_ascii-file-stream.txt",
+    "relative_path": "samples/type-A_stru-F_mode-S_ascii-file-stream.txt",
+    "size_bytes": 463,
+    "sha256": "d64522befadf4f3c3df88f3a30743238678bb4cf14d1a2e718ac4d168b37f261",
+    "description": "Standard ASCII text stream with continuous file structure and CRLF delimiters."
+  },
+  {
+    "type": "A",
+    "stru": "F",
+    "mode": "B",
+    "filename": "type-A_stru-F_mode-B_ascii-file-block.dat",
+    "relative_path": "samples/type-A_stru-F_mode-B_ascii-file-block.dat",
+    "size_bytes": 469,
+    "sha256": "c3ffedd6d6ed343a1cd2000f18c923d6ed505d126733cde7ee3165a329365659",
+    "description": "ASCII text framed into RFC 959 Mode B transmission blocks with byte-count headers."
+  },
+  {
+    "type": "A",
+    "stru": "F",
+    "mode": "C",
+    "filename": "type-A_stru-F_mode-C_ascii-file-compressed.dat",
+    "relative_path": "samples/type-A_stru-F_mode-C_ascii-file-compressed.dat",
+    "size_bytes": 409,
+    "sha256": "b306dd7564bba15f0f48808c91d66dee49307cfbc2d252535b43f5432995767f",
+    "description": "ASCII text compressed using RFC 959 Section 3.4.3 run-length compression byte counts."
+  },
+  {
+    "type": "A",
+    "stru": "R",
+    "mode": "S",
+    "filename": "type-A_stru-R_mode-S_ascii-record-stream.csv",
+    "relative_path": "samples/type-A_stru-R_mode-S_ascii-record-stream.csv",
+    "size_bytes": 375,
+    "sha256": "8f50a6ea31193ed30ac8f97f27fd2c5941a3630c7770a373413f6705c8870857",
+    "description": "ASCII record stream (CSV rows) where each line represents an RFC 959 sequential record."
+  },
+  {
+    "type": "A",
+    "stru": "R",
+    "mode": "B",
+    "filename": "type-A_stru-R_mode-B_ascii-record-block.dat",
+    "relative_path": "samples/type-A_stru-R_mode-B_ascii-record-block.dat",
+    "size_bytes": 393,
+    "sha256": "916bb41c023fd68b09ae62f764e85f7e3bf758b22cd6f8eefdd2d3e5dfb64d12",
+    "description": "ASCII records packed into Mode B blocks with EOR descriptor bit set per record."
+  },
+  {
+    "type": "A",
+    "stru": "R",
+    "mode": "C",
+    "filename": "type-A_stru-R_mode-C_ascii-record-compressed.dat",
+    "relative_path": "samples/type-A_stru-R_mode-C_ascii-record-compressed.dat",
+    "size_bytes": 381,
+    "sha256": "ecdf045f99f16eb131d98c26c802dfacd109b0f6ecfced98c8acd015fe639f76",
+    "description": "Sequential ASCII records encoded with Mode C run-length space/byte compression."
+  },
+  {
+    "type": "A",
+    "stru": "P",
+    "mode": "S",
+    "filename": "type-A_stru-P_mode-S_ascii-page-stream.txt",
+    "relative_path": "samples/type-A_stru-P_mode-S_ascii-page-stream.txt",
+    "size_bytes": 373,
+    "sha256": "1142e86336e5b95a65d72a8e90a5edd982caf44d821cce466fe0e4c91d60cf0e",
+    "description": "Indexed ASCII page structure with RFC 959 page headers (page type, number, length)."
+  },
+  {
+    "type": "A",
+    "stru": "P",
+    "mode": "B",
+    "filename": "type-A_stru-P_mode-B_ascii-page-block.dat",
+    "relative_path": "samples/type-A_stru-P_mode-B_ascii-page-block.dat",
+    "size_bytes": 376,
+    "sha256": "94c8afa5bcc4f736207e1a6f297d95d587a0f691e68c02d468b4cdcad4879410",
+    "description": "Paged ASCII data encapsulated inside RFC 959 Mode B transmission blocks."
+  },
+  {
+    "type": "A",
+    "stru": "P",
+    "mode": "C",
+    "filename": "type-A_stru-P_mode-C_ascii-page-compressed.dat",
+    "relative_path": "samples/type-A_stru-P_mode-C_ascii-page-compressed.dat",
+    "size_bytes": 377,
+    "sha256": "e8a4e924a104e62cf6ef2da14106699efff13e5e9f0fc5058bf5defe2cc42c0a",
+    "description": "Paged ASCII data with Mode C compressed page payloads."
+  },
+  {
+    "type": "I",
+    "stru": "F",
+    "mode": "S",
+    "filename": "type-I_stru-F_mode-S_binary-file-stream.bin",
+    "relative_path": "samples/type-I_stru-F_mode-S_binary-file-stream.bin",
+    "size_bytes": 303,
+    "sha256": "64258cf83bab8de45dbc98e9a50c4eebd72cb81ec3ff5a5e1957c44b4da9a7c0",
+    "description": "Byte-exact raw binary data containing all 256 byte values and binary structs."
+  },
+  {
+    "type": "I",
+    "stru": "F",
+    "mode": "B",
+    "filename": "type-I_stru-F_mode-B_binary-file-block.dat",
+    "relative_path": "samples/type-I_stru-F_mode-B_binary-file-block.dat",
+    "size_bytes": 309,
+    "sha256": "909b0c7a850b7719c5e643d7dcfd75b198fbcf56fcb9648bfac4d454184457c1",
+    "description": "Binary payload framed into RFC 959 Mode B transmission blocks with block headers."
+  },
+  {
+    "type": "I",
+    "stru": "F",
+    "mode": "C",
+    "filename": "type-I_stru-F_mode-C_binary-file-compressed.gz",
+    "relative_path": "samples/type-I_stru-F_mode-C_binary-file-compressed.gz",
+    "size_bytes": 326,
+    "sha256": "2784554cbcba2f53b3aa65e2a79d781b2bbdb6e17c809394256d88d85cf3e4ea",
+    "description": "Genuine gzip compressed binary stream conforming to RFC 959 compressed binary mode."
+  },
+  {
+    "type": "I",
+    "stru": "R",
+    "mode": "S",
+    "filename": "type-I_stru-R_mode-S_binary-record-stream.dat",
+    "relative_path": "samples/type-I_stru-R_mode-S_binary-record-stream.dat",
+    "size_bytes": 256,
+    "sha256": "16220aa7700468a63768532381a69043cb4184f576edde9e371b8c1a0cda64b4",
+    "description": "Binary record stream containing fixed 32-byte C-struct sensor records."
+  },
+  {
+    "type": "I",
+    "stru": "R",
+    "mode": "B",
+    "filename": "type-I_stru-R_mode-B_binary-record-block.dat",
+    "relative_path": "samples/type-I_stru-R_mode-B_binary-record-block.dat",
+    "size_bytes": 280,
+    "sha256": "42a1d1b3ab3b874cc9716bc92c70da0c53bb661cfaee30ea62c9db56ec6a3373",
+    "description": "Fixed-width binary records packed inside Mode B blocks with EOR descriptor flags."
+  },
+  {
+    "type": "I",
+    "stru": "R",
+    "mode": "C",
+    "filename": "type-I_stru-R_mode-C_binary-record-compressed.dat",
+    "relative_path": "samples/type-I_stru-R_mode-C_binary-record-compressed.dat",
+    "size_bytes": 226,
+    "sha256": "07b81d84bc9067252b47d1fe1b153233bcb466a17d9aa5f6b638ba10b4344588",
+    "description": "Binary structured records compressed with Mode C run-length encoding."
+  },
+  {
+    "type": "I",
+    "stru": "P",
+    "mode": "S",
+    "filename": "type-I_stru-P_mode-S_binary-page-stream.dat",
+    "relative_path": "samples/type-I_stru-P_mode-S_binary-page-stream.dat",
+    "size_bytes": 303,
+    "sha256": "8b6c9d1fcbf6d572299faa36a632bc585659c779418d6362058e075dcf975436",
+    "description": "Indexed binary page structure per RFC 959 Section 3.1.2.3 with binary page headers."
+  },
+  {
+    "type": "I",
+    "stru": "P",
+    "mode": "B",
+    "filename": "type-I_stru-P_mode-B_binary-page-block.dat",
+    "relative_path": "samples/type-I_stru-P_mode-B_binary-page-block.dat",
+    "size_bytes": 306,
+    "sha256": "ac60801cb2ca2257d72cea7e11fd07fa3299c72b3a2f9102fc15b56d67697fb3",
+    "description": "Binary pages encapsulated inside RFC 959 Mode B transmission blocks."
+  },
+  {
+    "type": "I",
+    "stru": "P",
+    "mode": "C",
+    "filename": "type-I_stru-P_mode-C_binary-page-compressed.dat",
+    "relative_path": "samples/type-I_stru-P_mode-C_binary-page-compressed.dat",
+    "size_bytes": 307,
+    "sha256": "4798e3bfb53413ecce8590a45624c4d7c9740956baa26fd312966d14d897e9c4",
+    "description": "Binary page structure with Mode C compressed page payloads."
+  },
+  {
+    "type": "E",
+    "stru": "F",
+    "mode": "S",
+    "filename": "type-E_stru-F_mode-S_ebcdic-file-stream.ebcdic",
+    "relative_path": "samples/type-E_stru-F_mode-S_ebcdic-file-stream.ebcdic",
+    "size_bytes": 158,
+    "sha256": "70c1ee569ae503e6733e73ef4de5af2c39646ae765ccd22a331b9d0c29ddc01f",
+    "description": "Authentic IBM CP037 EBCDIC mainframe text stream file."
+  },
+  {
+    "type": "E",
+    "stru": "F",
+    "mode": "B",
+    "filename": "type-E_stru-F_mode-B_ebcdic-file-block.dat",
+    "relative_path": "samples/type-E_stru-F_mode-B_ebcdic-file-block.dat",
+    "size_bytes": 161,
+    "sha256": "d467d54d9886c49c145f696f8ef8419abd13c2c2f64f6097feec5f91d4a996d1",
+    "description": "CP037 EBCDIC text stream partitioned into RFC 959 Mode B transmission blocks."
+  },
+  {
+    "type": "E",
+    "stru": "F",
+    "mode": "C",
+    "filename": "type-E_stru-F_mode-C_ebcdic-file-compressed.dat",
+    "relative_path": "samples/type-E_stru-F_mode-C_ebcdic-file-compressed.dat",
+    "size_bytes": 161,
+    "sha256": "1771fa86ac324a0864daf2081c3d5f0de7f8a4e5ff87735fb589f7f7713101cc",
+    "description": "EBCDIC text stream compressed with run-length byte compression."
+  },
+  {
+    "type": "E",
+    "stru": "R",
+    "mode": "S",
+    "filename": "type-E_stru-R_mode-S_ebcdic-record-stream.ebcdic",
+    "relative_path": "samples/type-E_stru-R_mode-S_ebcdic-record-stream.ebcdic",
+    "size_bytes": 444,
+    "sha256": "98042743a270ec870affa85bc88320735c4dedba118fbe493806711539dbc50e",
+    "description": "Classic 80-column IBM mainframe punched-card records in CP037 EBCDIC."
+  },
+  {
+    "type": "E",
+    "stru": "R",
+    "mode": "B",
+    "filename": "type-E_stru-R_mode-B_ebcdic-record-block.dat",
+    "relative_path": "samples/type-E_stru-R_mode-B_ebcdic-record-block.dat",
+    "size_bytes": 462,
+    "sha256": "f0739399849aed27e7ffe43c2e41e8d12a2e5471bf46c76a9c145b72c7376e44",
+    "description": "80-column EBCDIC punched card records inside Mode B blocks with EOR descriptors."
+  },
+  {
+    "type": "E",
+    "stru": "R",
+    "mode": "C",
+    "filename": "type-E_stru-R_mode-C_ebcdic-record-compressed.dat",
+    "relative_path": "samples/type-E_stru-R_mode-C_ebcdic-record-compressed.dat",
+    "size_bytes": 209,
+    "sha256": "1e5fd98f90bd7f259fd70bc59111fde77642b6d9034204dd27a8c739eb679348",
+    "description": "EBCDIC card records compressed with repeated byte/blank compression."
+  },
+  {
+    "type": "E",
+    "stru": "P",
+    "mode": "S",
+    "filename": "type-E_stru-P_mode-S_ebcdic-page-stream.ebcdic",
+    "relative_path": "samples/type-E_stru-P_mode-S_ebcdic-page-stream.ebcdic",
+    "size_bytes": 197,
+    "sha256": "c2c9857e33b52a0cf36ee956ca39b9206638e1c6ab0c65f1eff0594854233b89",
+    "description": "EBCDIC mainframe report pages with RFC 959 page headers and CP037 body text."
+  },
+  {
+    "type": "E",
+    "stru": "P",
+    "mode": "B",
+    "filename": "type-E_stru-P_mode-B_ebcdic-page-block.dat",
+    "relative_path": "samples/type-E_stru-P_mode-B_ebcdic-page-block.dat",
+    "size_bytes": 200,
+    "sha256": "bcb5c94e00f6606dc8f0667532b5774ba610200feb1caf0a2b25c71b3c7ad58e",
+    "description": "EBCDIC report pages inside RFC 959 Mode B transmission blocks."
+  },
+  {
+    "type": "E",
+    "stru": "P",
+    "mode": "C",
+    "filename": "type-E_stru-P_mode-C_ebcdic-page-compressed.dat",
+    "relative_path": "samples/type-E_stru-P_mode-C_ebcdic-page-compressed.dat",
+    "size_bytes": 201,
+    "sha256": "f2f96015601c6335a97c1a1f6217d995cabc3503c5d46925ffc796f48aa0895f",
+    "description": "EBCDIC report pages with Mode C compressed payloads."
+  }
+]

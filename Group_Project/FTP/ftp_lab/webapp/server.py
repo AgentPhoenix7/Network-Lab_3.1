@@ -20,9 +20,20 @@ STATIC = Path(__file__).parent / 'static'
 
 
 class AppServer(ThreadingHTTPServer):
+    """Multi-threaded HTTP server providing web UI and JSON APIs for FTP operations."""
+
     daemon_threads = True
 
     def __init__(self, address, service: AppService):
+        """Initialize the web application HTTP server.
+
+        What it does:
+            Prepares the HTTP server listening on the specified IPv4 endpoint and binds the AppService.
+
+        How it does:
+            Validates and normalizes address, initializes rate-limiting state (attempts dictionary)
+            and authentication lock, and invokes ThreadingHTTPServer.__init__.
+        """
         address = (str(IPv4Address(address[0])), address[1])
         self.service = service
         self.attempts: dict[str, list[float]] = {}
@@ -31,14 +42,32 @@ class AppServer(ThreadingHTTPServer):
 
     @property
     def address(self) -> tuple[str, int]:
+        """Return the bound host and port.
+
+        What it does:
+            Provides the HTTP server's bound host IP string and port number.
+
+        How it does:
+            Extracts host and port from self.server_address.
+        """
         host, port = self.server_address[:2]
         return str(host), port
 
 
 class AppHandler(BaseHTTPRequestHandler):
+    """HTTP request handler implementing security headers, CSRF checks, and API routing."""
+
     server_version = 'LocalFTP/1.0'
 
     def setup(self):
+        """Prepare handler references and set connection timeout.
+
+        What it does:
+            Stores a typed reference to the AppServer and sets socket timeout.
+
+        How it does:
+            Verifies self.server is an AppServer, sets self.app, and sets connection timeout to 30s.
+        """
         super().setup()
         if not isinstance(self.server, AppServer):
             raise TypeError('App HTTP handler requires AppServer')
@@ -46,17 +75,42 @@ class AppHandler(BaseHTTPRequestHandler):
         self.connection.settimeout(30)
 
     def log_message(self, format, *args):
-        # Do not log request bodies, cookies, passwords, or filenames in query strings.
+        """Suppress default HTTP request logging to prevent credential exposure.
+
+        What it does:
+            Silences HTTP access logging.
+
+        How it does:
+            Returns immediately without writing logs, keeping filenames, tokens, and cookies private.
+        """
         return
 
     def end_headers(self):
+        """Inject strict security headers into every HTTP response.
+
+        What it does:
+            Adds defensive browser headers (CSP, nosniff, no-store, no-referrer) to responses.
+
+        How it does:
+            Emits Content-Security-Policy, X-Content-Type-Options, Cache-Control, and Referrer-Policy
+            headers before invoking BaseHTTPRequestHandler.end_headers().
+        """
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('Cache-Control', 'no-store')
         self.send_header('Referrer-Policy', 'no-referrer')
         self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'")
         super().end_headers()
 
-    def reply(self, status, value, *, cookie=None):
+    def reply(self, status: int, value: dict[str, Any], *, cookie: str | None = None):
+        """Send a JSON HTTP response.
+
+        What it does:
+            Encodes and transmits a JSON object with appropriate HTTP status and headers.
+
+        How it does:
+            Serializes value with json.dumps(allow_nan=False), sends headers (Content-Type, Content-Length,
+            optional Set-Cookie), finishes headers, and writes encoded body to self.wfile.
+        """
         body = json.dumps(value, allow_nan=False).encode()
         self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -66,7 +120,16 @@ class AppHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def session(self):
+    def session(self) -> tuple[str, dict[str, Any] | None]:
+        """Extract and validate session cookie from request headers.
+
+        What it does:
+            Reads the 'ftp_session' cookie and queries the database for active session data.
+
+        How it does:
+            Parses Cookie header using SimpleCookie, extracts token, and calls
+            self.app.service.db.session(token). Returns (token, user_or_none).
+        """
         cookies = SimpleCookie()
         try:
             cookies.load(self.headers.get('Cookie', ''))
@@ -76,7 +139,16 @@ class AppHandler(BaseHTTPRequestHandler):
         token = entry.value if entry is not None else ''
         return token, self.app.service.db.session(token)
 
-    def payload(self):
+    def payload(self) -> dict[str, Any]:
+        """Parse incoming JSON request body.
+
+        What it does:
+            Validates Content-Type and size, reading and decoding the JSON request body.
+
+        How it does:
+            Ensures Content-Type is 'application/json', reads up to 16 KiB based on Content-Length,
+            parses JSON via json.loads(), and verifies it is a dictionary.
+        """
         if self.headers.get_content_type() != 'application/json':
             raise ValueError('Expected a JSON request')
         length = self.content_length()
@@ -87,7 +159,16 @@ class AppHandler(BaseHTTPRequestHandler):
             raise TypeError('Expected an object')
         return data
 
-    def content_length(self):
+    def content_length(self) -> int:
+        """Parse and validate the Content-Length header.
+
+        What it does:
+            Extracts the integer request body length.
+
+        How it does:
+            Rejects chunked Transfer-Encoding, reads Content-Length string, validates digits,
+            and returns integer value.
+        """
         if self.headers.get('Transfer-Encoding'):
             raise ValueError('Chunked request bodies are not supported')
         value = self.headers.get('Content-Length', '0')
@@ -96,18 +177,59 @@ class AppHandler(BaseHTTPRequestHandler):
         return int(value)
 
     def do_GET(self):
+        """Handle incoming HTTP GET requests.
+
+        What it does:
+            Dispatches GET requests to the centralized application routing handler.
+
+        How it does:
+            Invokes self.route() to authenticate, parse query parameters, and serve static assets or API endpoints.
+        """
         self.route()
 
     def do_POST(self):
+        """Handle incoming HTTP POST requests.
+
+        What it does:
+            Dispatches POST requests to the centralized application routing handler.
+
+        How it does:
+            Invokes self.route() to validate CSRF tokens, parse payloads, and execute state-mutating actions.
+        """
         self.route()
 
     def do_PUT(self):
+        """Handle incoming HTTP PUT requests.
+
+        What it does:
+            Dispatches PUT requests to the centralized application routing handler.
+
+        How it does:
+            Invokes self.route() to validate CSRF tokens, verify payload streams, and update resources.
+        """
         self.route()
 
     def do_DELETE(self):
+        """Handle incoming HTTP DELETE requests.
+
+        What it does:
+            Dispatches DELETE requests to the centralized application routing handler.
+
+        How it does:
+            Invokes self.route() to authenticate requests, validate CSRF protection, and delete resources.
+        """
         self.route()
 
     def route(self):
+        """Execute request routing with structured error handling.
+
+        What it does:
+            Executes self.dispatch() and translates exceptions into standard HTTP error responses.
+
+        How it does:
+            Catches NotFound (404), Cancelled (409), ValueError/KeyError/FTPError (400),
+            and network timeout/disconnect errors (502).
+        """
         try:
             self.dispatch()
         except NotFound as exc:
@@ -123,6 +245,20 @@ class AppHandler(BaseHTTPRequestHandler):
                 pass
 
     def dispatch(self):
+        """Validate request headers and dispatch to specific API endpoint handlers.
+
+        What it does:
+            Validates Host, Origin, and CSRF headers, routing requests to authentication,
+            device management, file browsing, and transfer job endpoints.
+
+        How it does:
+            1. Validates Host header against destination socket IP and port to prevent DNS rebinding.
+            2. For mutating methods (POST/PUT/DELETE): validates X-FTP-App header, Origin header,
+               and X-CSRF-Token matching csrf_token(token).
+            3. Routes GET /api/session and static files (index.html, styles.css, app.js).
+            4. Routes POST /api/setup and /api/login, enforcing 10 attempts/min rate limit.
+            5. Dispatches authenticated device and job endpoints to AppService methods.
+        """
         host = self.headers.get('Host', '')
         port = self.app.address[1]
         destination = IPv4Address(self.connection.getsockname()[0])
@@ -259,6 +395,16 @@ class AppHandler(BaseHTTPRequestHandler):
 
 
 def main(argv=None):
+    """Run the web application server CLI.
+
+    What it does:
+        Configures data storage, initializes AppService, binds HTTP server, and serves clients.
+
+    How it does:
+        1. Parses options: --host, --port, --data-dir, --demo.
+        2. Ensures bootstrap setup constraints (LAN requires loopback bootstrap first).
+        3. Instantiates AppServer and runs server.serve_forever() until interrupted.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--host', default='0.0.0.0', help='IPv4 bind address (default: all interfaces; use 127.0.0.1 for local only)')
     parser.add_argument('--port', type=int, default=8080)
@@ -283,6 +429,14 @@ def main(argv=None):
         raise
 
     def interrupt(signum, frame):
+        """Translate SIGTERM signal to KeyboardInterrupt for graceful shutdown.
+
+        What it does:
+            Translates OS termination signals into a standard Python KeyboardInterrupt exception.
+
+        How it does:
+            Raises KeyboardInterrupt to exit the main serving loop and trigger resource cleanup.
+        """
         raise KeyboardInterrupt
 
     signal.signal(signal.SIGTERM, interrupt)

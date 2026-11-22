@@ -1,0 +1,22 @@
+========================================================================
+Welcome to the RFC 959 FTP Lab Sandbox Environment
+========================================================================
+
+This FTP server root directory contains interactive and automated test data.
+A complete suite of 27 tracked demonstration files covering EVERY permutation
+of RFC 959 parameter specifications is located in the '/samples' sub-directory:
+
+  - Representation Types (TYPE): ASCII (A), Image/Binary (I), EBCDIC (E)
+  - Data Structures    (STRU): File (F), Record (R), Page (P)
+  - Transmission Modes (MODE): Stream (S), Block (B), Compressed (C)
+
+To explore the permutations, use the client commands:
+  ftp> cd samples
+  ftp> ls
+  ftp> type A
+  ftp> stru F
+  ftp> mode S
+  ftp> stat
+  ftp> get type-A_stru-F_mode-S_ascii-file-stream.txt
+
+Consult /samples/README.md or Group_Project/FTP/README.md for full guidance.

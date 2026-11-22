@@ -54,19 +54,21 @@ cmp downloads/hello.txt downloads/ascii-copy.txt
 For this LF-terminated text sample, successful commands produce byte-identical copies. Directory creation/removal applies to the server's virtual root; the \code{downloads/} paths refer to the client's own computer.
 
 \subsection{Fresh executed evidence}
-On 16 November 2026 we ran an isolated server on a dynamically assigned loopback port and drove the actual terminal client in batch mode. The binary source was all 256 byte values repeated 16 times (4,096 bytes). A separate 34-byte text source included LF and a literal CR. The script tested upload, listing, SIZE, passive and active binary download, ASCII upload/download, remote cleanup, and QUIT.
+On 22 November 2026 we ran an isolated server on a dynamically assigned loopback port and drove the actual terminal client in batch mode. The binary source was all 256 byte values repeated 16 times (4,096 bytes). A separate 34-byte text source included LF and a literal CR. The batch script tested directory creation, upload, listing, SIZE, file STAT (reply 213), two-phase atomic rename (RNFR/RNTO with replies 350 and 250), passive and active binary download of the renamed file, ASCII upload/download, remote cleanup, and QUIT.
 
-\lstinputlisting[style=ftpterm,firstline=15,lastline=43,caption={Actual captured control trace: upload, listing, SIZE and passive download. Ephemeral port values are from this run.}]{evidence/ftp_terminal_demo.txt}
+\lstinputlisting[style=ftpterm,firstline=15,lastline=55,caption={Actual captured control trace: upload, listing, SIZE, STAT, RNFR/RNTO rename, and passive download. Ephemeral port values are from this run.}]{evidence/ftp_terminal_demo.txt}
 
 \begin{table}[htbp]
 \centering\small
 \caption{Observed outcomes from the fresh terminal run, not inferred from a success message.}
+\label{tab:terminal-outcomes}
 \begin{tabularx}{\linewidth}{@{}l Y@{}}
 \toprule
 Check & Observation \\
 \midrule
-Passive binary copy & Exactly matches the 4,096-byte source. \\
-Active binary copy & Exactly matches the same source. \\
+Two-phase rename & Atomically renamed \code{sample.bin} to \code{renamed.bin} via \code{RNFR}/\code{RNTO}. \\
+Passive binary copy & Exactly matches the 4,096-byte source after atomic rename. \\
+Active binary copy & Exactly matches the same source after atomic rename. \\
 ASCII round trip & Exactly matches the 34-byte local text representation. \\
 Remote cleanup & Test directory and its files removed; isolated FTP root empty. \\
 Trace handling & PASS value appears only as \code{<redacted>}. \\

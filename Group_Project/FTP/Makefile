@@ -2,7 +2,7 @@ PYTHON ?= python3
 BUILD_DIR ?= $(abspath build)
 TEST_ENV := TMPDIR="$(BUILD_DIR)/tmp" TMP="$(BUILD_DIR)/tmp" TEMP="$(BUILD_DIR)/tmp" PYTHONDONTWRITEBYTECODE=1
 
-.PHONY: test server client app
+.PHONY: test server client app clean-db
 
 test:
 	@mkdir -p "$(BUILD_DIR)/tmp"
@@ -17,3 +17,6 @@ client:
 
 app:
 	$(PYTHON) -m ftp_lab.webapp --demo
+
+clean-db:
+	$(PYTHON) tools/clean_db.py --force --all

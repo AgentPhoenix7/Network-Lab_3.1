@@ -66,20 +66,26 @@ An upload is written into a hidden staging file in the destination directory. A 
 \begin{table}[H]
 \centering\small
 \caption{Terminal commands and the protocol operations behind them.}
+\label{tab:terminal-commands}
 \begin{tabularx}{\linewidth}{@{}l l Y@{}}
 \toprule
 Terminal command & Wire operation & Effect \\
 \midrule
-\code{pwd}, \code{cd}, \code{cdup} & PWD/CWD/CDUP & Navigate the virtual root. \\
-\code{ls}, \code{nlst} & LIST/NLST & Detailed listing or names. \\
-\code{mkdir}, \code{rmdir} & MKD/RMD & Create/remove an empty directory. \\
-\code{put}, \code{get} & STOR/RETR & Upload/download one file. \\
-\code{size}, \code{delete} & SIZE/DELE & Binary length or regular-file removal. \\
+\code{pwd}, \code{cd}, \code{cdup} & PWD / CWD / CDUP & Navigate the virtual root. \\
+\code{ls}, \code{nlst} & LIST / NLST & Detailed directory listing or names list. \\
+\code{mkdir}, \code{rmdir} & MKD / RMD & Create or remove directory under virtual root. \\
+\code{put}, \code{get} & STOR / RETR & Upload or download one file via atomic staging. \\
+\code{append} & APPE & Append data to destination file (or create new). \\
+\code{rename}, \code{rn} & RNFR $\to$ RNTO & Two-phase atomic rename of file or directory. \\
+\code{size} & SIZE & Report exact file size in bytes. \\
+\code{stat} & STAT & Query server, directory (212), or file (213) status. \\
+\code{rein} & REIN & Reinitialize session, flushing user login state. \\
+\code{delete} & DELE & Regular-file removal. \\
 \code{ascii}, \code{binary} & TYPE before transfer & Change local representation preference. \\
 \code{active}, \code{passive} & EPRT/PORT or EPSV/PASV & Choose next data-setup direction. \\
-\code{noop}, \code{quit} & NOOP/QUIT & Check or close the control session. \\
+\code{noop}, \code{quit} & NOOP / QUIT & Check or close the control session. \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-Quoted names are parsed with shell-style quoting in the terminal. Batch input is accepted from \code{--script file} or \code{--script -}. Batch execution stops at the first error with exit status~1; interactive mode reports recoverable command errors and continues. Passwords come from \code{FTP\_PASSWORD} or an interactive prompt and are redacted in control traces.
+Quoted names are parsed with shell-style quoting in the terminal. Batch input is accepted from \code{--script file} or \code{--script -}. Batch execution stops at the first error with exit status~1; interactive mode reports recoverable command errors and continues. Passwords come from \code{FTP\_PASSWORD} or an interactive prompt and are redacted in control traces. The server implements all 33 commands defined in RFC~959 across access control (\code{USER}, \code{PASS}, \code{ACCT}, \code{CWD}, \code{CDUP}, \code{SMNT}, \code{REIN}, \code{QUIT}), transfer parameters (\code{PORT}, \code{PASV}, \code{TYPE}, \code{STRU}, \code{MODE}), and FTP service commands (\code{RETR}, \code{STOR}, \code{STOU}, \code{APPE}, \code{ALLO}, \code{REST}, \code{RNFR}, \code{RNTO}, \code{ABOR}, \code{DELE}, \code{RMD}, \code{MKD}, \code{PWD}, \code{LIST}, \code{NLST}, \code{SITE}, \code{SYST}, \code{STAT}, \code{HELP}, \code{NOOP}), plus 5 modern extensions (\code{EPRT}, \code{EPSV}, \code{SIZE}, \code{FEAT}, \code{OPTS}).

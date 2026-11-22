@@ -1,5 +1,8 @@
-# Runtime files used by the examples
-/server-data/
+# Runtime files used by the examples (keep tracked demo sample files)
+/server-data/*
+!/server-data/samples/
+!/server-data/samples/**
+!/server-data/welcome.txt
 /downloads/
 /app-data/
 

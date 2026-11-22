@@ -223,11 +223,12 @@ described by the FTP standards:
 
 | Area | What is implemented |
 | --- | --- |
-| Login | One configured username/password, `USER` followed by `PASS` |
-| File transfer | Upload and download, binary and NVT ASCII types |
+| Login | Configured username/password, `USER` followed by `PASS`, reinitialization (`REIN`), and account handling (`ACCT`) |
+| File transfer | Upload (`STOR`), store unique (`STOU`), append (`APPE`), download (`RETR`), allocation acknowledgement (`ALLO`), binary and NVT ASCII types |
 | Data setup | IPv4 PASV/EPSV and PORT/EPRT |
-| Directories | Working directory, navigation, creation, empty-directory removal |
-| File operations | Listings, binary size, regular-file deletion |
+| Directories | Working directory, navigation (`CWD`, `CDUP`), creation (`MKD`), empty-directory removal (`RMD`) |
+| File operations | Listings (`LIST`, `NLST`), status over control connection (`STAT`), binary size (`SIZE`), regular-file deletion (`DELE`), and renaming (`RNFR`/`RNTO`) |
+| RFC 959 Commands | Complete coverage of all 33 RFC 959 commands (including `ABOR`, `NOOP`, `SYST`, `HELP`, `SITE`, `SMNT`, `REST`) |
 | Concurrent use | Independent sessions, bounded by a client limit |
 | File publication | Staging files followed by atomic replacement |
 | Errors | Numeric FTP errors, connection timeouts, cleanup |
@@ -698,17 +699,23 @@ text after the code and separator on the final line.
 
 | Code | Meaning here |
 | --- | --- |
+| `212` | Directory status returned for `STAT <directory>` (distinguished from file status `213`) |
 | `421` | Session timeout, capacity rejection, or shutdown rejection |
 | `425` | Missing/unusable data setup or failure to establish the data connection |
-| `426` | Transfer failed after its preliminary reply |
+| `426` | Transfer failed after its preliminary reply (connection broken or aborted) |
+| `450` | File unavailable or locked due to transient busy state (e.g. `EBUSY`, `EAGAIN`) |
+| `451` | Local filesystem or I/O error during data stream processing |
+| `452` | Insufficient storage space on host system (`ENOSPC`) |
 | `500` | Invalid command syntax or malformed/oversized control framing |
 | `501` | Invalid command arguments or forbidden data endpoint |
 | `502` | Command not implemented |
-| `503` | `PASS` arrived before `USER` |
+| `503` | `PASS` arrived before `USER`, or `RNTO` arrived before `RNFR` |
 | `504` | Unsupported transfer parameter, such as an unsupported TYPE |
 | `522` | An unsupported network family was requested by an extended data command |
 | `530` | Login required or credentials rejected |
 | `550` | File/directory unavailable or forbidden; also SIZE requested outside binary type |
+| `552` | Exceeded storage allocation or user disk quota (`EDQUOT`) |
+| `553` | File name not allowed (invalid destination name, reserved name, or syntax error) |
 
 These meanings follow the supported command paths in
 [server.py](../ftp_lab/server.py). General FTP reply categories are
@@ -1163,9 +1170,11 @@ The photo is still downloaded in binary mode. In the opposite direction,
 choosing `ascii`, calling `size`, and then downloading a text file restores
 TYPE A for that download.
 
-The server additionally accepts `TYPE A N` and `TYPE L 8` as supported
-forms, plus `MODE S` and `STRU F`. Other requested types/modes/structures
-receive `504`; the implementation does not pretend to support them.
+The server accepts the standard Table 10.4 configurations: `TYPE A` (ASCII),
+`TYPE E` / `TYPE EBCDIC` (EBCDIC), and `TYPE I` / `TYPE L 8` (Image/binary).
+For structure and mode, it accepts `STRU F` (file), `STRU R` (record), and
+`STRU P` (page), plus `MODE S` (stream), `MODE B` (block), and `MODE C`
+(compressed). Unsupported parameter values receive `504` or `501`.
 
 ---
 
@@ -1446,7 +1455,7 @@ handles login and allowed pre-login commands, and checks authentication.
 | Command group | Implementation route |
 | --- | --- |
 | TYPE/MODE/STRU | Validate supported transfer parameters |
-| PWD/CWD/CDUP/MKD/RMD/DELE/SIZE | Call `Sandbox` methods and reply |
+| PWD/CWD/CDUP/MKD/RMD/DELE/RNFR/RNTO/SIZE | Call `Sandbox` methods and reply |
 | PASV/EPSV/PORT/EPRT | `configure_data()` |
 | LIST/NLST/RETR/STOR | `transfer()` |
 | ABOR | Clear idle data setup, reply 226 |
@@ -1546,6 +1555,7 @@ user commands onto the protocol:
 | --- | --- |
 | `cd path`, `cdup` | CWD, CDUP |
 | `mkdir path`, `rmdir path`, `delete path` | MKD, RMD, DELE |
+| `rename old new` | RNFR, RNTO |
 | `ls`, `nlst` | TYPE A, data negotiation, LIST or NLST |
 | `get`, `put` | File-transfer method, including TYPE and data setup |
 | `size` | TYPE I, then SIZE |

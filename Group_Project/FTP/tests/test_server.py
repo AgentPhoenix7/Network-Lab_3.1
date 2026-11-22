@@ -155,12 +155,144 @@ class ServerTests(unittest.TestCase):
             ):
                 ftp.sendcmd(command)
         self.assertTrue(ftp.sendcmd("EPRT |1|127.0.0.1|5000|").startswith("200"))
+        # Simplified textbook PORT notation (Figure 10.18: PORT 1267)
+        self.assertTrue(ftp.sendcmd("PORT 5001").startswith("200"))
         self.assertTrue(ftp.sendcmd("EPSV 1").startswith("229"))
         with self.assertRaisesRegex(ftplib.error_perm, "^522"):
             ftp.sendcmd("EPSV 2")
         self.assertTrue(ftp.sendcmd("EPSV ALL").startswith("200"))
         with self.assertRaisesRegex(ftplib.error_perm, "^501"):
             ftp.sendcmd("PASV")
+
+    def test_rnfr_rnto_rename_sequence(self):
+        ftp = self.ftp()
+        (self.root / "report.old").write_bytes(b"content to rename")
+        with self.assertRaisesRegex(ftplib.error_perm, "^503"):
+            ftp.sendcmd("RNTO report.new")
+        with self.assertRaisesRegex(ftplib.error_perm, "^550"):
+            ftp.sendcmd("RNFR nonexistent.txt")
+        self.assertTrue(ftp.sendcmd("RNFR report.old").startswith("350"))
+        self.assertTrue(ftp.sendcmd("RNTO report.new").startswith("250"))
+        self.assertFalse((self.root / "report.old").exists())
+        self.assertEqual((self.root / "report.new").read_bytes(), b"content to rename")
+
+    def test_protocol_pdf_table_commands(self):
+        ftp = self.ftp()
+        # Table 10.4 TYPE options: A, E, I (and EBCDIC)
+        self.assertTrue(ftp.sendcmd("TYPE A").startswith("200"))
+        self.assertTrue(ftp.sendcmd("TYPE E").startswith("200"))
+        self.assertTrue(ftp.sendcmd("TYPE EBCDIC").startswith("200"))
+        self.assertTrue(ftp.sendcmd("TYPE I").startswith("200"))
+        # Table 10.4 STRU options: F, R, P
+        self.assertTrue(ftp.sendcmd("STRU F").startswith("200"))
+        self.assertTrue(ftp.sendcmd("STRU R").startswith("200"))
+        self.assertTrue(ftp.sendcmd("STRU P").startswith("200"))
+        # Table 10.4 MODE options: S, B, C
+        self.assertTrue(ftp.sendcmd("MODE S").startswith("200"))
+        self.assertTrue(ftp.sendcmd("MODE B").startswith("200"))
+        self.assertTrue(ftp.sendcmd("MODE C").startswith("200"))
+        # HELP lists Table 10.4 commands including RNFR and RNTO
+        help_reply = ftp.sendcmd("HELP")
+        self.assertTrue(help_reply.startswith("214"))
+        for cmd in ("USER", "PASS", "QUIT", "ABOR", "PWD", "CWD", "CDUP", "LIST",
+                    "MKD", "RMD", "DELE", "RNFR", "RNTO", "RETR", "STOR",
+                    "STRU", "TYPE", "PORT", "PASV", "MODE"):
+            self.assertIn(cmd, help_reply)
+
+    def test_rfc959_commands(self):
+        ftp = self.ftp()
+        # STOU stores a unique file
+        self.assertTrue(ftp.storbinary("STOU", io.BytesIO(b"unique payload")).startswith("250"))
+        files = ftp.nlst()
+        self.assertEqual(len(files), 1)
+        self.assertTrue(files[0].startswith("file_"))
+        self.assertEqual((self.root / files[0]).read_bytes(), b"unique payload")
+
+        # APPE creates new file if absent, and appends if present
+        ftp.storbinary("APPE append_file.txt", io.BytesIO(b"hello "))
+        self.assertEqual((self.root / "append_file.txt").read_bytes(), b"hello ")
+        ftp.storbinary("APPE append_file.txt", io.BytesIO(b"world"))
+        self.assertEqual((self.root / "append_file.txt").read_bytes(), b"hello world")
+
+        # STAT without args returns 211 status
+        stat_reply = ftp.sendcmd("STAT")
+        self.assertTrue(stat_reply.startswith("211"))
+        self.assertIn("FTP server status", stat_reply)
+        self.assertIn("TYPE: I", stat_reply)
+
+        # STAT with args returns 213 status
+        stat_file = ftp.sendcmd("STAT append_file.txt")
+        self.assertTrue(stat_file.startswith("213"))
+        self.assertIn("append_file.txt", stat_file)
+
+        # ALLO, ACCT, SITE return 202
+        self.assertTrue(ftp.sendcmd("ALLO 1024").startswith("202"))
+        self.assertTrue(ftp.sendcmd("ACCT lab-account").startswith("202"))
+        self.assertTrue(ftp.sendcmd("SITE CHMOD 644").startswith("202"))
+
+        # SMNT, REST return 502
+        with self.assertRaisesRegex(ftplib.error_perm, "^502"):
+            ftp.sendcmd("SMNT /")
+        with self.assertRaisesRegex(ftplib.error_perm, "^502"):
+            ftp.sendcmd("REST 100")
+
+        # REIN reinitializes session
+        rein_reply = ftp.sendcmd("REIN")
+        self.assertTrue(rein_reply.startswith("220"))
+        # Unauthenticated after REIN
+        with self.assertRaisesRegex(ftplib.error_perm, "^530"):
+            ftp.pwd()
+        ftp.login("student", "lab-test")
+        self.assertEqual(ftp.pwd(), "/")
+
+    def test_additional_rfc959_response_codes(self):
+        ftp = self.ftp()
+        (self.root / "sample.txt").write_bytes(b"content")
+        (self.root / "subfolder").mkdir(exist_ok=True)
+
+        # 212: STAT on directory
+        dir_stat = ftp.sendcmd("STAT subfolder")
+        self.assertTrue(dir_stat.startswith("212"), f"Expected 212 for directory status, got: {dir_stat}")
+
+        # 213: STAT on regular file
+        file_stat = ftp.sendcmd("STAT sample.txt")
+        self.assertTrue(file_stat.startswith("213"), f"Expected 213 for file status, got: {file_stat}")
+
+        # 553: RNTO with invalid destination name
+        ftp.sendcmd("RNFR sample.txt")
+        with self.assertRaisesRegex(ftplib.error_perm, "^553"):
+            ftp.sendcmd("RNTO .ftp-upload-target")
+
+        # 553: STOR with invalid/reserved file name
+        with self.assertRaisesRegex(ftplib.error_perm, "^553"):
+            ftp.sendcmd("STOR .ftp-upload-forbidden")
+
+        # Simulated errno mappings
+        import errno
+        from ftp_lab.server import FTPSession
+
+        # 450: File busy (EBUSY)
+        with patch.object(FTPSession, 'authenticated_command', side_effect=OSError(errno.EBUSY, "Device or resource busy")):
+            with self.assertRaisesRegex(ftplib.error_temp, "^450"):
+                ftp.sendcmd("DELE sample.txt")
+
+        # 452: Insufficient storage space (ENOSPC)
+        with patch.object(FTPSession, 'authenticated_command', side_effect=OSError(errno.ENOSPC, "No space left on device")):
+            with self.assertRaisesRegex(ftplib.error_temp, "^452"):
+                ftp.sendcmd("STOR sample.txt")
+
+        # 552: Exceeded storage allocation (EDQUOT)
+        edquot = getattr(errno, 'EDQUOT', 122)
+        with patch.object(FTPSession, 'authenticated_command', side_effect=OSError(edquot, "Disk quota exceeded")):
+            with self.assertRaisesRegex(ftplib.error_perm, "^552"):
+                ftp.sendcmd("STOR sample.txt")
+
+        # 451: Local error during transfer (non-network OSError during streaming)
+        with patch("ftp_lab.server.socket_chunks", side_effect=OSError(errno.EIO, "I/O error")):
+            data = ftp.transfercmd("STOR iotest.dat")
+            with self.assertRaisesRegex(ftplib.error_temp, "^451"):
+                ftp.voidresp()
+            data.close()
 
     def test_timeout_waiting_for_passive_data_connection_and_recovery(self):
         ftp = self.ftp()

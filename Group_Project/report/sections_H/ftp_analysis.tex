@@ -1,7 +1,7 @@
 \section{FTP verification and limitations}\label{sec:ftp-analysis}
 
 \subsection{Independent behavioral checks}
-The terminal/benchmark subset was freshly validated on 16 November 2026 with Python~3.14.10. Python~3.11 is the declared source-compatibility floor; it is not an additional runtime tested in this report. ResourceWarning was treated as an error. The following command selects only the four core/CLI test modules and the benchmark tests:
+The terminal/benchmark subset was freshly validated on 22 November 2026 with Python~3.14.10. Python~3.11 is the declared source-compatibility floor; it is not an additional runtime tested in this report. ResourceWarning was treated as an error. The following command selects only the four core/CLI test modules and the benchmark tests:
 
 \begin{lstlisting}[style=ftpterm]
 # From the repository root
@@ -12,28 +12,29 @@ PYTHONPATH="$PWD/Group_Project/FTP:$PWD/Group_Project/FTP/tests" \
 
 \begin{table}[H]
 \centering\small
-\caption{Fresh terminal-focused validation: all 52 tests passed.}
+\caption{Fresh terminal-focused validation: all 58 tests passed.}
+\label{tab:ftp-tests}
 \begin{tabularx}{\linewidth}{@{}l r Y@{}}
 \toprule
 Module & Tests & Main coverage \\
 \midrule
-\code{test\_core} & 11 & Framing, replies, ASCII boundaries, rooted file operations. \\
-\code{test\_server} & 18 & Independent \code{ftplib}, modes, concurrency, errors, reset/shutdown preservation. \\
+\code{test\_core} & 13 & Framing, replies, ASCII boundaries, rename, append/unique uploads, rooted files. \\
+\code{test\_server} & 22 & Concurrency, passive/active, RFC~959 commands, RNFR/RNTO rename, response codes, reset/shutdown. \\
 \code{test\_client} & 9 & Own client, independent wire peers, progress, failed-copy preservation, batch behavior. \\
 \code{test\_cli} & 2 & Separate terminal subprocesses, script input and shutdown. \\
 \code{test\_benchmark} & 12 & Plain/gzip verification, bounded retrieval, cleanup, exports and offline artifacts. \\
 \midrule
-Total & 52 & Real sockets, isolated roots and verified file outcomes. \\
+Total & 58 & Real sockets, isolated roots and verified file outcomes. \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-Using an independent FTP client and controlled wire peers matters: if our client and server shared the same mistake, a round trip between them alone might still pass. The tests also check empty and all-byte files, UTF-8/quoted names, active/passive modes, authentication state, malformed input, symlinks/traversal, timeouts, capacity and shutdown during an upload. The captured test output is included in \code{evidence/terminal-validation.txt}. Fresh terminal evidence in Section~\ref{sec:ftp-terminal} and the older measured media runs in Section~\ref{sec:ftp-benchmark} are kept as distinct observations.
+Using an independent FTP client and controlled wire peers matters: if our client and server shared the same mistake, a round trip between them alone might still pass. The tests also check empty and all-byte files, UTF-8/quoted names, active/passive modes, authentication state, malformed input, symlinks/traversal, timeouts, capacity and shutdown during an upload. Beyond these 58 core terminal/benchmark checks, the repository test suite includes 18 webapp and network tests (\code{test\_network\_app} and \code{test\_webapp}), bringing the total test suite to 76 tests (75 passed, 1 skipped when a secondary physical LAN interface is absent). The captured test output is included in \code{evidence/terminal-validation.txt}. Fresh terminal evidence in Section~\ref{sec:ftp-terminal} and the older measured media runs in Section~\ref{sec:ftp-benchmark} are kept as distinct observations.
 
 \subsection{Implementation limits}
 \begin{itemize}[nosep]
 \item \textbf{Plaintext credentials and content.} FTP does not encrypt USER/PASS or file data. The project is intended for trusted lab networks. TLS/FTPS and SSH-based SFTP are not implemented.
-\item \textbf{An explicit subset.} The server uses one configured account and supports IPv4, file structure and stream mode. Anonymous FTP, multiple configured users, resume, rename, quotas and complete RFC coverage are outside scope.
+\item \textbf{Protocol and command coverage.} The server implements all 33 commands defined in RFC~959 and 5 standard extensions (\code{EPSV}, \code{EPRT}, \code{SIZE}, \code{FEAT}, \code{OPTS}), including two-phase atomic rename (\code{RNFR}/\code{RNTO}), session reinitialization (\code{REIN}), status inspection (\code{STAT}), and append/unique storage (\code{APPE}/\code{STOU}). The server operates with one configured account per process and supports IPv4, stream mode, and file structure.
 \item \textbf{No fixed passive range or NAT orchestration.} Data ports are ephemeral. A control connection alone is insufficient if firewalls block negotiated data connections.
 \item \textbf{Clean EOF has a limited meaning.} Without an external expected length/hash, a peer deliberately sending a shorter file with clean EOF can resemble a legitimate smaller upload. The server detects resets/timeouts/shutdown; benchmark round trips additionally verify expected size and SHA-256.
 \item \textbf{Abort behavior.} ABOR clears idle setup. Commands are processed serially in a session; Telnet urgent/out-of-band abort is not implemented. Closing/resetting the data socket interrupts active work.

@@ -1,10 +1,11 @@
 {
-  "date": "2026-11-16",
+  "date": "2026-11-22",
   "pdf_pages": {
-    "report": 36,
-    "report_H": 37
+    "report": 37,
+    "report_H": 40
   },
-  "terminal_test_count": 52,
+  "terminal_test_count": 58,
+  "repository_test_count": 79,
   "terminal_tests_passed": true,
   "binary_passive_copy_match": true,
   "binary_active_copy_match": true,

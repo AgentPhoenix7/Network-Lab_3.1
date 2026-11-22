@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 
-from ftp_lab.client import FTPClient, FTPError
+from ftp_lab.client import FTPClient, FTPError, execute
 from ftp_lab.protocol import ProtocolError
 from support import running_server
 
@@ -98,9 +98,29 @@ class ClientTests(unittest.TestCase):
                     target = Path(folder) / "download"
                     client.download("remote name", target)
                     self.assertEqual(target.read_bytes(), payload)
-                    client.command("DELE", "remote name")
+                    client.rename("remote name", "renamed file")
+                    self.assertEqual(client.list(names_only=True), ["renamed file"])
+                    execute(client, "rename 'renamed file' 'back again'")
+                    self.assertEqual(client.list(names_only=True), ["back again"])
+                    # Test append
+                    append_source = Path(folder) / "append.txt"
+                    append_source.write_bytes(b"-appended")
+                    client.append(append_source, "back again")
+                    self.assertEqual(client.size("back again"), len(payload) + len(b"-appended"))
+                    execute(client, f"append '{append_source}' 'back again'")
+                    self.assertEqual(client.size("back again"), len(payload) + 2 * len(b"-appended"))
+                    # Test stat
+                    stat_reply = client.stat()
+                    self.assertEqual(stat_reply.code, 211)
+                    execute(client, "stat 'back again'")
+                    client.command("DELE", "back again")
                     client.command("CDUP")
                     client.command("RMD", "new")
+                    # Test rein
+                    client.rein()
+                    with self.assertRaises(FTPError):
+                        client.pwd()
+                    client.login("student", "lab-test")
                     client.quit()
 
     def test_ascii_and_binary_mode_survive_directory_listing(self):

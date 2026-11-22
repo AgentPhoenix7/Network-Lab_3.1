@@ -135,6 +135,35 @@ class FilesystemTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.fs.normalize('y' * 100)
 
+    def test_rename_regular_file_and_directory(self):
+        (self.root / 'old.txt').write_bytes(b'rename payload')
+        self.fs.check_exists('old.txt')
+        self.fs.rename('old.txt', 'new.txt')
+        self.assertFalse((self.root / 'old.txt').exists())
+        self.assertEqual((self.root / 'new.txt').read_bytes(), b'rename payload')
+        self.fs.mkdir('old_dir')
+        self.fs.rename('old_dir', 'new_dir')
+        self.assertFalse((self.root / 'old_dir').exists())
+        self.assertTrue((self.root / 'new_dir').is_dir())
+        with self.assertRaises((OSError, ValueError)):
+            self.fs.check_exists('nonexistent.txt')
+        with self.assertRaises((OSError, ValueError)):
+            self.fs.rename('nonexistent.txt', 'dest.txt')
+
+    def test_append_upload_and_unique_name(self):
+        # Appending to nonexistent creates file
+        with self.fs.append_upload('append_test.txt') as target:
+            target.write(b'first ')
+        self.assertEqual((self.root / 'append_test.txt').read_bytes(), b'first ')
+        # Appending to existing file appends data
+        with self.fs.append_upload('append_test.txt') as target:
+            target.write(b'second')
+        self.assertEqual((self.root / 'append_test.txt').read_bytes(), b'first second')
+        # Unique name generates an unused name
+        unique = self.fs.unique_name()
+        self.assertTrue(unique.startswith('file_'))
+        self.assertFalse((self.root / unique).exists())
+
 
 if __name__ == '__main__':
     unittest.main()
