@@ -658,6 +658,7 @@ class AppService:
         except (OSError, ValueError, RuntimeError, FTPError, EOFError, Cancelled) as exc:
             status = 'cancelled' if isinstance(exc, Cancelled) else 'failed'
             error = str(exc).replace(password, '<redacted>') if password else str(exc)
+            shutil.rmtree(folder, ignore_errors=True)
             self._update(owner, job_id, status=status, phase=status.title(), error=error,
                          elapsed_seconds=time.monotonic() - started)
         finally:

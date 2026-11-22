@@ -448,6 +448,41 @@ class FTPClient:
             if staging is not None:
                 staging.unlink(missing_ok=True)
 
+    def rename(self, remote_from: str, remote_to: str):
+        """Rename a remote file or directory using RNFR and RNTO.
+
+        What it does:
+            Sends RNFR followed by RNTO to rename a file or directory on the server.
+
+        How it does:
+            1. Transmits 'RNFR remote_from', expecting intermediate status 350.
+            2. Transmits 'RNTO remote_to', expecting completion status 250.
+            3. Returns the final 250 Reply object.
+        """
+        self.expect(self.command('RNFR', remote_from), (350,))
+        return self.expect(self.command('RNTO', remote_to), (250,))
+
+    def append(self, local, remote='', *, progress: Callable[[int], None] | None = None):
+        """Append data from a local file to a remote file using APPE."""
+        local_path = Path(local)
+        remote_name = remote or local_path.name
+        with local_path.open('rb') as file:
+            def send(data):
+                chunks = iter(lambda: file.read(BLOCK_SIZE), b'')
+                for chunk in chunks if self.binary else encode_ascii(chunks):
+                    data.sendall(chunk)
+                    if progress:
+                        progress(len(chunk))
+            return self.transfer('APPE', remote_name, send)
+
+    def stat(self, remote=''):
+        """Query server or file status over control connection using STAT."""
+        return self.command('STAT', remote)
+
+    def rein(self):
+        """Reinitialize the FTP session using REIN."""
+        return self.expect(self.command('REIN'), (220,))
+
     def quit(self):
         """Disconnect gracefully from the FTP server.
 
@@ -465,9 +500,9 @@ class FTPClient:
 
 HELP = '''Commands (quote paths containing spaces):
   pwd | ls [remote] | nlst [remote] | cd remote | cdup
-  mkdir remote | rmdir remote | delete remote | size remote
-  get remote [local] | put local [remote]
-  ascii | binary | passive | active | noop | help | quit'''
+  mkdir remote | rmdir remote | delete remote | rename old new | size remote
+  get remote [local] | put local [remote] | append local [remote]
+  stat [remote] | rein | ascii | binary | passive | active | noop | help | quit'''
 
 
 def execute(client: FTPClient, line: str) -> bool:
@@ -482,7 +517,7 @@ def execute(client: FTPClient, line: str) -> bool:
         2. Dispatches based on command keyword:
            - quit / bye: calls client.quit() and returns False.
            - help: displays HELP text.
-           - pwd, cd, cdup, mkdir, rmdir, delete, size: invokes corresponding FTP commands.
+           - pwd, cd, cdup, mkdir, rmdir, delete, rename, size: invokes corresponding FTP commands.
            - ls, nlst: fetches and prints directory entries.
            - get, put: downloads/uploads files (deriving basename if omitted).
            - ascii, binary: toggles client.binary mode.
@@ -509,6 +544,8 @@ def execute(client: FTPClient, line: str) -> bool:
     elif command in ('cd', 'mkdir', 'rmdir', 'delete') and len(args) == 1:
         verb = {'cd': 'CWD', 'mkdir': 'MKD', 'rmdir': 'RMD', 'delete': 'DELE'}[command]
         print(client.command(verb, args[0]).message)
+    elif command in ('rename', 'rn') and len(args) == 2:
+        print(client.rename(args[0], args[1]).message)
     elif command in ('cdup', 'noop') and not args:
         print(client.command('CDUP' if command == 'cdup' else 'NOOP').message)
     elif command == 'size' and len(args) == 1:
@@ -523,6 +560,16 @@ def execute(client: FTPClient, line: str) -> bool:
         remote = args[1] if len(args) == 2 else Path(args[0]).name
         client.upload(args[0], remote)
         print(f'Uploaded {args[0]} to {remote}')
+    elif command == 'append' and 1 <= len(args) <= 2:
+        remote = args[1] if len(args) == 2 else Path(args[0]).name
+        client.append(args[0], remote)
+        print(f'Appended {args[0]} to {remote}')
+    elif command == 'stat' and len(args) <= 1:
+        reply = client.stat(args[0] if args else '')
+        for line in reply.lines:
+            print(line)
+    elif command == 'rein' and not args:
+        print(client.rein().message)
     elif command in ('ascii', 'binary') and not args:
         client.binary = command == 'binary'
         print(f'Transfer type: {command}')

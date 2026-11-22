@@ -157,6 +157,10 @@
                 <span id="history-count" class="tab-count">0</span></button
               ><button type="button" class="view-tab" data-view="performance">
                 Performance
+              </button
+              ><button type="button" class="view-tab" data-view="protocol">
+                Protocol Explorer
+                <span class="tab-badge">RFC 959</span>
               </button>
               <div class="connection-indicator">
                 <span class="status-dot muted" id="connection-dot"></span
@@ -353,6 +357,198 @@
                 End-to-end time includes compression. Local demo results reflect
                 this computer, not your network’s capacity.
               </p>
+            </section>
+            <section
+              id="view-protocol"
+              class="view-panel"
+              aria-labelledby="protocol-title"
+              hidden
+            >
+              <div class="view-heading">
+                <div>
+                  <span class="eyebrow">RFC 959 PROTOCOL SPECIFICATION &amp; DUAL-CONNECTION ENGINE</span>
+                  <h2 id="protocol-title">Protocol &amp; Command Demonstrator</h2>
+                  <p>
+                    Inspect, test, and animate every RFC 959 FTP command and state transition.
+                  </p>
+                </div>
+              </div>
+
+              <div class="protocol-subnav" role="tablist" aria-label="Command categories">
+                <button type="button" class="subnav-pill active" data-proto-cat="scenarios">Guided Flows</button>
+                <button type="button" class="subnav-pill" data-proto-cat="access">Access Control (8)</button>
+                <button type="button" class="subnav-pill" data-proto-cat="params">Parameters (5)</button>
+                <button type="button" class="subnav-pill" data-proto-cat="file">File Operations (7)</button>
+                <button type="button" class="subnav-pill" data-proto-cat="dir">Directory (6)</button>
+                <button type="button" class="subnav-pill" data-proto-cat="misc">Info &amp; Misc (7)</button>
+                <button type="button" class="subnav-pill" data-proto-cat="extensions">Extensions (5)</button>
+              </div>
+
+              <div class="protocol-filter-bar">
+                <div class="search-input-wrap">
+                  <span class="search-icon" aria-hidden="true">⌕</span>
+                  <input
+                    type="search"
+                    id="proto-search"
+                    placeholder="Search commands (e.g. STOU, APPE, PASV, RNFR, STAT)..."
+                    aria-label="Filter FTP commands"
+                  />
+                </div>
+                <span id="proto-count-badge" class="count-badge">38 commands</span>
+              </div>
+
+              <div class="protocol-layout">
+                <!-- Left column: Command or Scenario list -->
+                <aside class="protocol-catalog" aria-label="Command catalog">
+                  <div id="proto-catalog-list" class="proto-catalog-list"></div>
+                </aside>
+
+                <!-- Right column: Interactive Animator, Live Inspector & Transcript -->
+                <div class="protocol-stage">
+                  <!-- Active Command / Scenario Header -->
+                  <div class="proto-header-card card">
+                    <div class="proto-header-top">
+                      <div>
+                        <div class="proto-header-meta">
+                          <span id="proto-active-verb" class="proto-verb-badge">USER</span>
+                          <span id="proto-active-rfc" class="proto-rfc-tag">RFC 959 § 4.1.1</span>
+                          <span id="proto-active-channel" class="proto-channel-tag">Control Connection</span>
+                        </div>
+                        <h3 id="proto-active-title">User Name Identification</h3>
+                      </div>
+                      <div class="proto-actions">
+                        <button id="proto-run-btn" type="button" class="button primary">
+                          Run &amp; Animate <span aria-hidden="true">▶</span>
+                        </button>
+                        <button id="proto-reset-btn" type="button" class="button secondary">
+                          Reset <span aria-hidden="true">↺</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <p id="proto-active-desc" class="proto-desc">
+                      Sends user identification to the server. If password authentication is required, server returns 331.
+                    </p>
+
+                    <div id="proto-arg-container" class="proto-arg-row">
+                      <label for="proto-arg-input">Argument:</label>
+                      <input id="proto-arg-input" type="text" value="student" placeholder="Command argument" />
+                      <span id="proto-syntax-hint" class="proto-syntax-hint">Syntax: USER &lt;SP&gt; &lt;username&gt; &lt;CRLF&gt;</span>
+                    </div>
+
+                    <div class="proto-replies-row">
+                      <span class="proto-replies-label">RFC 959 Replies:</span>
+                      <div id="proto-replies-list" class="proto-replies-tags">
+                        <span class="code-pill code-intermediate">331 Password required</span>
+                        <span class="code-pill code-success">230 Logged in</span>
+                        <span class="code-pill code-error">530 Not logged in</span>
+                        <span class="code-pill code-error">501 Syntax error</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Visual Dual-Connection Architecture Animation Canvas -->
+                  <div class="proto-canvas-card card" aria-label="Protocol architecture animation">
+                    <div class="canvas-header">
+                      <h4>Dual-Connection Architecture &amp; Transmission Flow</h4>
+                      <div class="canvas-legend">
+                        <span class="legend-item"><span class="legend-dot control-dot"></span> Control Stream (TCP 2121)</span>
+                        <span class="legend-item"><span class="legend-dot data-dot"></span> Data Channel (Dynamic)</span>
+                      </div>
+                    </div>
+
+                    <div class="canvas-stage">
+                      <!-- Client Host Box -->
+                      <div class="host-node client-node" id="host-client">
+                        <div class="node-header">
+                          <span class="node-icon">💻</span>
+                          <div class="node-title-group">
+                            <span class="node-name">Client Host</span>
+                            <span class="node-sub">User-PI / User-DTP</span>
+                          </div>
+                        </div>
+                        <div class="node-state-pill" id="client-state-pill">IDLE</div>
+                        <div class="port-chips">
+                          <span class="port-chip">Ctrl: 127.0.0.1:54320</span>
+                          <span class="port-chip" id="client-data-port">Data: Dynamic</span>
+                        </div>
+                      </div>
+
+                      <!-- Wires Area -->
+                      <div class="wires-container">
+                        <!-- Control Connection Pipe -->
+                        <div class="wire-track control-track" id="control-track">
+                          <div class="wire-label">
+                            <span class="pipe-name">CONTROL CONNECTION</span>
+                            <span class="pipe-meta">NVT-ASCII · Persistent CRLF Framing</span>
+                          </div>
+                          <div class="wire-line control-line"></div>
+                          <!-- Traveling Packet Element -->
+                          <div class="packet-token" id="control-packet" hidden>
+                            <span id="packet-text">C&gt; USER student</span>
+                          </div>
+                        </div>
+
+                        <!-- Data Connection Pipe -->
+                        <div class="wire-track data-track" id="data-track">
+                          <div class="wire-label">
+                            <span class="pipe-name">DATA CONNECTION</span>
+                            <span class="pipe-meta" id="data-pipe-status">IDLE (Closed)</span>
+                          </div>
+                          <div class="wire-line data-line" id="data-line"></div>
+                          <!-- Data Particles Element -->
+                          <div class="data-stream" id="data-stream" hidden>
+                            <span class="stream-particle">📦</span>
+                            <span class="stream-particle">📦</span>
+                            <span class="stream-particle">📦</span>
+                            <span class="stream-particle">📦</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Server Host Box -->
+                      <div class="host-node server-node" id="host-server">
+                        <div class="node-header">
+                          <span class="node-icon">🖧</span>
+                          <div class="node-title-group">
+                            <span class="node-name">FTP Server</span>
+                            <span class="node-sub">Server-PI / Server-DTP</span>
+                          </div>
+                        </div>
+                        <div class="node-state-pill" id="server-state-pill">LISTENING</div>
+                        <div class="port-chips">
+                          <span class="port-chip">Ctrl: 127.0.0.1:2121</span>
+                          <span class="port-chip" id="server-data-port">Data: :0 (Dynamic)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Live Telnet Wire Transcript Console -->
+                  <div class="proto-terminal-card card">
+                    <div class="terminal-bar">
+                      <div class="terminal-dots">
+                        <span class="term-dot dot-red"></span>
+                        <span class="term-dot dot-yellow"></span>
+                        <span class="term-dot dot-green"></span>
+                      </div>
+                      <span class="terminal-title">NVT-ASCII Control Stream Transcript (RFC 959 Wire Trace)</span>
+                      <button id="proto-clear-term" class="button text small" type="button">Clear</button>
+                    </div>
+                    <pre class="terminal-body" id="proto-terminal-body" tabindex="0"><span class="term-dim"># Connecting to FTP control listener at 127.0.0.1:2121...</span>
+<span class="term-srv">S&gt; 220 Python socket FTP lab ready</span>
+<span class="term-hint"># Select any command or scenario and click "Run &amp; Animate".</span></pre>
+                    <div class="terminal-footer">
+                      <div class="term-legend">
+                        <span class="term-leg-item"><strong class="c-cli">C&gt;</strong> Client Request</span>
+                        <span class="term-leg-item"><strong class="c-srv">S&gt;</strong> Server Reply</span>
+                        <span class="term-leg-item"><strong class="c-dat">D&gt;</strong> Data Channel</span>
+                      </div>
+                      <span class="rfc-hint">1xx: Preliminary · 2xx: Completion · 3xx: Intermediate · 4xx: Transient · 5xx: Error</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </section>
             <footer class="workspace-footer">
               <span

@@ -220,6 +220,67 @@ class Sandbox:
                 except FileNotFoundError:
                     pass
 
+    @contextmanager
+    def append_upload(self, path: str):
+        """Publish an append upload atomically via temporary staging file.
+
+        What it does:
+            Context manager providing an atomic append target for the APPE command.
+            Preserves pre-existing file content if the transfer fails or aborts.
+
+        How it does:
+            1. Resolves parent directory descriptor and target filename via self.parent(path).
+            2. If the destination exists, verifies it is a regular file.
+            3. Generates a unique staging filename (.ftp-upload-<uuid>) in parent directory.
+            4. Copies existing file content (if any) into the staging file.
+            5. Yields the binary file object for incoming chunks to append.
+            6. On clean exit, flushes and atomically moves staging to destination using os.replace().
+            7. In finally block, unlinks the staging file if still present.
+        """
+        with self.parent(path) as (parent, name):
+            exists = False
+            try:
+                info = os.stat(name, dir_fd=parent, follow_symlinks=False)
+                if not stat.S_ISREG(info.st_mode):
+                    raise PermissionError('Only regular files can be appended to')
+                exists = True
+            except FileNotFoundError:
+                pass
+            staging = STAGING_PREFIX + uuid.uuid4().hex
+            fd = os.open(staging, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=parent)
+            try:
+                with os.fdopen(fd, 'wb') as target:
+                    if exists:
+                        src_fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=parent)
+                        with os.fdopen(src_fd, 'rb') as src:
+                            while chunk := src.read(65536):
+                                target.write(chunk)
+                    yield target
+                    target.flush()
+                os.replace(staging, name, src_dir_fd=parent, dst_dir_fd=parent)
+            finally:
+                try:
+                    os.unlink(staging, dir_fd=parent)
+                except FileNotFoundError:
+                    pass
+
+    def unique_name(self) -> str:
+        """Generate an unused unique filename in the current directory for STOU.
+
+        What it does:
+            Generates a unique filename in the current working directory.
+
+        How it does:
+            Generates names of the form 'file_<8-char-hex>' and checks existence until an
+            unused name is found.
+        """
+        while True:
+            candidate = f'file_{uuid.uuid4().hex[:8]}'
+            try:
+                self.check_exists(candidate)
+            except (FileNotFoundError, OSError, ValueError):
+                return candidate
+
     def size(self, path: str) -> int:
         """Get the byte size of a regular file.
 
@@ -270,6 +331,41 @@ class Sandbox:
             if not stat.S_ISREG(os.stat(name, dir_fd=fd, follow_symlinks=False).st_mode):
                 raise PermissionError('Only regular files can be deleted')
             os.unlink(name, dir_fd=fd)
+
+    def check_exists(self, path: str):
+        """Verify that a path exists in the sandbox as a regular file or directory.
+
+        What it does:
+            Checks existence and file kind of a path for RNFR command.
+
+        How it does:
+            Resolves parent directory descriptor and inspects os.stat(follow_symlinks=False).
+            Raises FileNotFoundError if missing or PermissionError if special/symlink.
+        """
+        with self.parent(path) as (fd, name):
+            info = os.stat(name, dir_fd=fd, follow_symlinks=False)
+            if not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
+                raise PermissionError('Target is not a regular file or directory')
+
+    def rename(self, old_path: str, new_path: str):
+        """Rename an existing regular file or directory.
+
+        What it does:
+            Atomically moves or renames a file or directory within the virtual sandbox.
+
+        How it does:
+            1. Resolves parent directory descriptors and names for old_path and new_path.
+            2. Verifies old_name exists and is a regular file or directory without following symlinks.
+            3. Verifies new_name complies with valid_name rules.
+            4. Uses os.replace() with src_dir_fd and dst_dir_fd to rename the entry safely within the root.
+        """
+        with self.parent(old_path) as (old_dir_fd, old_name), self.parent(new_path) as (new_dir_fd, new_name):
+            old_info = os.stat(old_name, dir_fd=old_dir_fd, follow_symlinks=False)
+            if not (stat.S_ISREG(old_info.st_mode) or stat.S_ISDIR(old_info.st_mode)):
+                raise PermissionError('Only regular files or directories can be renamed')
+            if not valid_name(new_name):
+                raise ValueError('Invalid destination name')
+            os.replace(old_name, new_name, src_dir_fd=old_dir_fd, dst_dir_fd=new_dir_fd)
 
     def entries(self, path: str = '') -> list[tuple[str, os.stat_result]]:
         """List file and directory entries for LIST and NLST commands.

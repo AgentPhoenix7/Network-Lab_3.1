@@ -204,7 +204,8 @@ Quote paths containing spaces, using shell-style quoting.
 | `pwd`, `cd path`, `cdup` | Inspect/change the virtual working directory |
 | `ls [path]`, `nlst [path]` | Detailed listing or names only |
 | `mkdir path`, `rmdir path` | Create/remove an empty directory |
-| `delete path`, `size path` | Remove a file or print its binary size |
+| `delete path`, `rename old new` | Remove a file or rename a file/directory |
+| `size path` | Print the binary file size |
 | `put local [remote]` | Upload, using the local basename by default |
 | `get remote [local]` | Download, using the remote basename by default |
 | `ascii`, `binary` | Select text conversion or byte-exact transfers |
@@ -272,15 +273,15 @@ In active mode the client listens, sends EPRT/PORT, and the server connects
 to that endpoint after the transfer command. The client tries EPSV/EPRT
 first and falls back to PASV/PORT for servers that reject the extensions.
 
-Supported wire commands:
+Supported wire commands (covering RFC 959 and Forouzan Table 10.4):
 
 ```text
-USER PASS QUIT NOOP SYST FEAT HELP OPTS UTF8 ON
-PWD CWD CDUP MKD RMD DELE SIZE
-TYPE A | TYPE A N | TYPE I | TYPE L 8
-MODE S | STRU F
+USER PASS ACCT CWD CDUP SMNT REIN QUIT NOOP SYST FEAT HELP OPTS UTF8 ON
+PWD CWD CDUP MKD RMD DELE RNFR RNTO SIZE STAT
+TYPE A | TYPE A N | TYPE E | TYPE EBCDIC | TYPE I | TYPE L 8
+MODE S | MODE B | MODE C | STRU F | STRU R | STRU P
 PASV EPSV [1|ALL] PORT EPRT (IPv4)
-LIST [path] NLST [path] RETR path STOR path ABOR
+LIST [path] NLST [path] RETR path STOR path STOU APPE ALLO REST ABOR SITE
 ```
 
 SIZE requires binary type. LIST/NLST accept a literal file or directory
@@ -313,7 +314,7 @@ invalid request), 550 (unavailable/forbidden path), and 221 (goodbye).
 This is a teaching implementation of an FTP subset, not a complete FTP
 service. FTP sends credentials and data in plaintext; use lab credentials
 on a trusted network. TLS/SFTP, IPv6, anonymous/multi-user accounts, resume,
-rename, quotas, and Telnet urgent/OOB abort handling are not implemented.
+quotas, and Telnet urgent/OOB abort handling are not implemented.
 ABOR clears idle data setup; commands are handled serially within a session,
 so an in-progress transfer is interrupted by closing its data connection.
 In stream mode, clean EOF is the end of a file: without an external expected

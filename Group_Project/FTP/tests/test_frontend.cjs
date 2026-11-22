@@ -134,3 +134,56 @@ test('a response from the previous session cannot restore files after logout', a
   await rejection;
   assert.deepEqual(await gate.protect(Promise.resolve({job: {id: 'new-job'}})), {job: {id: 'new-job'}});
 });
+
+test('commandCatalog covers all 33 RFC 959 commands and modern extensions', () => {
+  assert.equal(typeof ui.commandCatalog, 'object', 'commandCatalog is not exported');
+  const rfc959Commands = [
+    'USER', 'PASS', 'ACCT', 'CWD', 'CDUP', 'SMNT', 'REIN', 'QUIT',
+    'PORT', 'PASV', 'TYPE', 'STRU', 'MODE',
+    'RETR', 'STOR', 'STOU', 'APPE', 'ALLO', 'REST',
+    'RNFR', 'RNTO', 'ABOR', 'DELE', 'RMD', 'MKD', 'PWD', 'LIST', 'NLST',
+    'SITE', 'SYST', 'STAT', 'HELP', 'NOOP'
+  ];
+  const extensionCommands = ['EPSV', 'EPRT', 'SIZE', 'FEAT', 'OPTS'];
+
+  for (const verb of rfc959Commands) {
+    const cmd = ui.commandCatalog[verb];
+    assert.ok(cmd, `Missing RFC 959 command: ${verb}`);
+    assert.equal(cmd.verb, verb);
+    assert.ok(cmd.name, `Command ${verb} missing name`);
+    assert.ok(cmd.category, `Command ${verb} missing category`);
+    assert.ok(cmd.rfc, `Command ${verb} missing RFC reference`);
+    assert.ok(cmd.syntax, `Command ${verb} missing syntax`);
+    assert.ok(cmd.description, `Command ${verb} missing description`);
+    assert.ok(Array.isArray(cmd.replies) && cmd.replies.length > 0, `Command ${verb} missing replies`);
+    assert.equal(typeof cmd.run, 'function', `Command ${verb} missing run function`);
+
+    const steps = cmd.run(cmd.defaultArg);
+    assert.ok(Array.isArray(steps) && steps.length >= 2, `Command ${verb} run() did not produce packet trace`);
+    assert.equal(steps[0].sender, 'client');
+  }
+
+  for (const verb of extensionCommands) {
+    const cmd = ui.commandCatalog[verb];
+    assert.ok(cmd, `Missing extension command: ${verb}`);
+    assert.equal(cmd.category, 'extensions');
+  }
+});
+
+test('GUIDED_SCENARIOS exports complete multi-step RFC 959 workflows', () => {
+  assert.equal(typeof ui.GUIDED_SCENARIOS, 'object', 'GUIDED_SCENARIOS is not exported');
+  const scenarioKeys = ['auth_flow', 'pasv_upload', 'port_download', 'unique_append', 'rename_tx', 'session_rein'];
+  for (const key of scenarioKeys) {
+    const sc = ui.GUIDED_SCENARIOS[key];
+    assert.ok(sc, `Missing scenario ${key}`);
+    assert.ok(sc.title, `Scenario ${key} missing title`);
+    assert.ok(sc.subtitle, `Scenario ${key} missing subtitle`);
+    assert.ok(sc.description, `Scenario ${key} missing description`);
+    assert.ok(Array.isArray(sc.steps) && sc.steps.length >= 2, `Scenario ${key} has insufficient steps`);
+    for (const step of sc.steps) {
+      assert.ok(['client', 'server', 'data-client', 'data-server'].includes(step.sender));
+      assert.ok(['control', 'data'].includes(step.channel));
+      assert.ok(step.text);
+    }
+  }
+});

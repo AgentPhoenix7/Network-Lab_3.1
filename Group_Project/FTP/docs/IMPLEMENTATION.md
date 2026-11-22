@@ -5,7 +5,7 @@ LAN extension. The detailed browser design is in
 [LOCAL_APP_PLAN.md](LOCAL_APP_PLAN.md), its walkthrough in
 [LOCAL_APP.md](LOCAL_APP.md), and network setup in [LAN_ACCESS.md](LAN_ACCESS.md).
 Dated validation milestones are retained below, separately from the current
-70-test suite.
+75-test suite.
 
 ## Scope and design
 
@@ -119,6 +119,19 @@ outputs explicitly, and catches invalid gzip deflate data as a failed job.
 Regression tests first reproduced the misleading display and stuck worker;
 the updated suite passes **70 Python and 8 frontend tests**. A browser
 download verified both the real filename and byte-exact unpacked content.
+
+The protocol textbook and RFC 959 alignment milestone on 2026-11-22 adds
+support for atomic rename via `RNFR` (350) and `RNTO` (250/503), completing
+full coverage of all 20 standard FTP commands from Forouzan Table 10.4 and
+RFC 959. Follow-up RFC 959 alignment adds store unique (`STOU`), atomic append
+(`APPE`), control status (`STAT`), session reinitialization (`REIN`), and
+declarative RFC 959 responses for `ALLO` (202), `ACCT` (202), `SITE` (202),
+`SMNT` (502), and `REST` (502), achieving complete coverage of all 33 commands
+defined in RFC 959. It also expands parameter negotiation for `TYPE` (ASCII
+`A`, EBCDIC `E`, Binary/Image `I`, `L 8`), `STRU` (File `F`, Record `R`, Page
+`P`), `MODE` (Stream `S`, Block `B`, Compressed `C`), and textbook-style
+single-port `PORT` syntax alongside standard 6-tuple notation. The updated test
+suite passes **75 Python tests (1 skipped) and 8 frontend tests**.
 
 ## References
 

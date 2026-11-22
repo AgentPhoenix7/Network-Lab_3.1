@@ -235,9 +235,12 @@ class FTPSession(socketserver.BaseRequestHandler):
         self.pending_user = None
         self.authenticated = False
         self.representation = 'A'
+        self.structure = 'F'
+        self.mode = 'S'
         self.passive = None
         self.active = None
         self.epsv_only = False
+        self.rename_from = None
         filesystem = None
         try:
             self.ftp_server.register(self.request)
@@ -313,14 +316,29 @@ class FTPSession(socketserver.BaseRequestHandler):
         verb = verb.upper()
         if not verb or not verb.isascii() or not verb.isalpha():
             raise CommandError(500, 'Invalid command')
-        required = {'USER', 'TYPE', 'MODE', 'STRU', 'CWD', 'MKD', 'RMD', 'DELE', 'RETR', 'STOR', 'SIZE', 'PORT', 'EPRT', 'OPTS'}
-        no_arg = {'QUIT', 'NOOP', 'PWD', 'CDUP', 'SYST', 'FEAT', 'PASV', 'ABOR'}
+        required = {'USER', 'TYPE', 'MODE', 'STRU', 'CWD', 'MKD', 'RMD', 'DELE', 'RNFR', 'RNTO', 'RETR', 'STOR', 'APPE', 'ALLO', 'ACCT', 'SITE', 'SMNT', 'REST', 'SIZE', 'PORT', 'EPRT', 'OPTS'}
+        no_arg = {'QUIT', 'NOOP', 'PWD', 'CDUP', 'SYST', 'FEAT', 'PASV', 'ABOR', 'REIN'}
         if verb in required and not arg or verb in no_arg and arg:
             raise CommandError(501, 'Invalid command arguments')
+        if verb != 'RNTO':
+            self.rename_from = None
         if verb == 'QUIT':
             self.reply(221, 'Goodbye')
             return False
-        if verb == 'USER':
+        if verb == 'REIN':
+            self.reset_data()
+            self.pending_user = None
+            self.authenticated = False
+            self.representation = 'A'
+            self.structure = 'F'
+            self.mode = 'S'
+            self.epsv_only = False
+            self.rename_from = None
+            self.fs.chdir('/')
+            self.reply(220, 'Service ready for new user')
+        elif verb == 'ACCT':
+            self.reply(202, 'Command not implemented, superfluous at this site')
+        elif verb == 'USER':
             self.reset_data()
             self.pending_user, self.authenticated = arg, False
             self.fs.chdir('/')
@@ -342,11 +360,36 @@ class FTPSession(socketserver.BaseRequestHandler):
                 self.stream.send_line(feature)
             self.reply(211, 'End')
         elif verb == 'HELP':
-            self.reply(214, 'USER PASS QUIT PWD CWD CDUP MKD RMD DELE TYPE MODE STRU PASV EPSV PORT EPRT LIST NLST RETR STOR SIZE NOOP ABOR')
+            self.reply(214, 'USER PASS ACCT CWD CDUP SMNT REIN QUIT PORT PASV TYPE STRU MODE RETR STOR STOU APPE ALLO REST RNFR RNTO ABOR DELE RMD MKD PWD LIST NLST SITE SYST STAT HELP NOOP EPRT EPSV SIZE FEAT OPTS')
         elif verb == 'OPTS':
             if arg.upper() != 'UTF8 ON':
                 raise CommandError(501, 'Only UTF8 ON is supported')
             self.reply(200, 'UTF8 enabled')
+        elif verb in ('ALLO', 'SITE'):
+            self.reply(202, 'Command not implemented, superfluous at this site')
+        elif verb in ('SMNT', 'REST'):
+            raise CommandError(502, 'Command not implemented')
+        elif verb == 'STAT':
+            if not arg:
+                self.stream.send_line('211-FTP server status:')
+                self.stream.send_line(f' Connected from {self.client_address[0]}:{self.client_address[1]}')
+                self.stream.send_line(f' Logged in as: {self.pending_user if self.authenticated else "Not logged in"}')
+                self.stream.send_line(f' TYPE: {self.representation}, STRU: {self.structure}, MODE: {self.mode}')
+                if self.passive is not None:
+                    self.stream.send_line(' Data: Passive listening')
+                elif self.active is not None:
+                    self.stream.send_line(f' Data: Active ({self.active[0]}:{self.active[1]})')
+                else:
+                    self.stream.send_line(' Data: Idle')
+                self.reply(211, 'End of status')
+            else:
+                if not self.authenticated:
+                    raise CommandError(530, 'Please login with USER and PASS')
+                entries = self.fs.entries(arg)
+                self.stream.send_line(f'213-Status of {arg}:')
+                for name, info in entries:
+                    self.stream.send_line(f' {stat.filemode(info.st_mode)} 1 ftp ftp {info.st_size:12d} Jan 01 00:00 {name}')
+                self.reply(213, 'End of status')
         elif not self.authenticated:
             raise CommandError(530, 'Please login with USER and PASS')
         else:
@@ -364,11 +407,13 @@ class FTPSession(socketserver.BaseRequestHandler):
             Dispatches filesystem, transfer type, data setup, and file transfer commands.
 
         How it does:
-            - TYPE: validates and records ASCII ('A') or Binary ('I') representation.
-            - MODE/STRU: validates Stream mode ('S') and File structure ('F').
+            - TYPE: validates and records ASCII ('A'), Binary ('I'), or EBCDIC ('E') representation.
+            - MODE: validates Stream ('S'), Block ('B'), or Compressed ('C') mode.
+            - STRU: validates File ('F'), Record ('R'), or Page ('P') structure.
             - PWD: asks sandbox for current path and replies with 257.
             - CWD/CDUP: changes sandbox directory via self.fs.chdir().
             - MKD/RMD/DELE: creates directory, removes directory, or deletes file.
+            - RNFR/RNTO: rename sequence locating existing file and moving to target.
             - SIZE: requires Binary mode and replies with file size via self.fs.size().
             - PASV/EPSV/PORT/EPRT: delegates to self.configure_data().
             - LIST/NLST/RETR/STOR: delegates to self.transfer().
@@ -376,14 +421,27 @@ class FTPSession(socketserver.BaseRequestHandler):
         """
         if verb == 'TYPE':
             kind = arg.upper()
-            if kind not in ('A', 'A N', 'I', 'L 8'):
-                raise CommandError(504, 'Only TYPE A and TYPE I are supported')
-            self.representation = 'A' if kind.startswith('A') else 'I'
+            if kind in ('A', 'A N'):
+                self.representation = 'A'
+            elif kind in ('I', 'L 8'):
+                self.representation = 'I'
+            elif kind in ('E', 'EBCDIC'):
+                self.representation = 'E'
+            else:
+                raise CommandError(504, 'Only TYPE A, E, and I are supported')
             self.reply(200, 'Transfer type set')
-        elif verb in ('MODE', 'STRU'):
-            if arg.upper() != ('S' if verb == 'MODE' else 'F'):
-                raise CommandError(504, 'Only stream mode and file structure are supported')
-            self.reply(200, 'OK')
+        elif verb == 'MODE':
+            mode = arg.upper()
+            if mode not in ('S', 'B', 'C'):
+                raise CommandError(504, 'Only MODE S, B, and C are supported')
+            self.mode = mode
+            self.reply(200, f'Mode set to {mode}')
+        elif verb == 'STRU':
+            stru = arg.upper()
+            if stru not in ('F', 'R', 'P'):
+                raise CommandError(504, 'Only STRU F, R, and P are supported')
+            self.structure = stru
+            self.reply(200, f'Structure set to {stru}')
         elif verb == 'PWD':
             self.reply(257, '"' + self.fs.pwd().replace('"', '""') + '"')
         elif verb in ('CWD', 'CDUP'):
@@ -396,13 +454,24 @@ class FTPSession(socketserver.BaseRequestHandler):
         elif verb in ('RMD', 'DELE'):
             (self.fs.rmdir if verb == 'RMD' else self.fs.delete)(arg)
             self.reply(250, 'Removed')
+        elif verb == 'RNFR':
+            self.fs.check_exists(arg)
+            self.rename_from = arg
+            self.reply(350, 'File exists, ready for destination name')
+        elif verb == 'RNTO':
+            if self.rename_from is None:
+                raise CommandError(503, 'Send RNFR first')
+            old = self.rename_from
+            self.rename_from = None
+            self.fs.rename(old, arg)
+            self.reply(250, 'Rename successful')
         elif verb == 'SIZE':
             if self.representation != 'I':
                 raise CommandError(550, 'SIZE requires TYPE I')
             self.reply(213, str(self.fs.size(arg)))
         elif verb in ('PASV', 'EPSV', 'PORT', 'EPRT'):
             self.configure_data(verb, arg)
-        elif verb in ('LIST', 'NLST', 'RETR', 'STOR'):
+        elif verb in ('LIST', 'NLST', 'RETR', 'STOR', 'STOU', 'APPE'):
             self.transfer(verb, arg)
         elif verb == 'ABOR':
             self.reset_data()
@@ -459,10 +528,14 @@ class FTPSession(socketserver.BaseRequestHandler):
         try:
             if verb == 'PORT':
                 fields = arg.split(',')
-                if len(fields) != 6 or any(not f.isascii() or not f.isdigit() or not 0 <= int(f) <= 255 for f in fields):
+                if len(fields) == 6 and all(f.isascii() and f.isdigit() and 0 <= int(f) <= 255 for f in fields):
+                    ip = '.'.join(str(int(f)) for f in fields[:4])
+                    port = int(fields[4]) * 256 + int(fields[5])
+                elif arg.isascii() and arg.isdigit() and 1024 <= int(arg) <= 65535:
+                    ip = self.client_address[0]
+                    port = int(arg)
+                else:
                     raise ValueError('Invalid PORT')
-                ip = '.'.join(str(int(f)) for f in fields[:4])
-                port = int(fields[4]) * 256 + int(fields[5])
             else:
                 delimiter = arg[0]
                 fields = arg.split(delimiter)
@@ -552,6 +625,7 @@ class FTPSession(socketserver.BaseRequestHandler):
         started = False
         file = None
         entries = []
+        unique_name = None
         try:
             with ExitStack() as stack:
                 # Validate paths before acknowledging a transfer or consuming data.
@@ -559,11 +633,19 @@ class FTPSession(socketserver.BaseRequestHandler):
                     file = stack.enter_context(self.fs.open_read(arg))
                 elif verb == 'STOR':
                     file = stack.enter_context(self.fs.upload(arg))
+                elif verb == 'APPE':
+                    file = stack.enter_context(self.fs.append_upload(arg))
+                elif verb == 'STOU':
+                    unique_name = self.fs.unique_name()
+                    file = stack.enter_context(self.fs.upload(unique_name))
                 else:
                     entries = self.fs.entries(arg)
                 if self.passive is None and self.active is None:
                     raise CommandError(425, 'Use PASV, EPSV, PORT or EPRT first')
-                self.reply(150, 'Opening data connection')
+                if verb == 'STOU' and unique_name is not None:
+                    self.reply(150, f'FILE: {unique_name}')
+                else:
+                    self.reply(150, 'Opening data connection')
                 started = True
                 with self.data_connection() as data:
                     if verb in ('LIST', 'NLST'):
@@ -582,7 +664,10 @@ class FTPSession(socketserver.BaseRequestHandler):
                 # before ExitStack commits the staged upload replacement.
                 if self.ftp_server.closing.is_set():
                     raise ConnectionAbortedError('Server closed during transfer')
-            self.reply(226, 'Transfer complete')
+            if verb == 'STOU' and unique_name is not None:
+                self.reply(250, f'Transfer complete (unique file: {unique_name})')
+            else:
+                self.reply(226, 'Transfer complete')
             LOG.info('%s %s completed', self.client_address[0], verb)
         except OSError as exc:
             if started:

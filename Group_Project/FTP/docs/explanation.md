@@ -223,11 +223,12 @@ described by the FTP standards:
 
 | Area | What is implemented |
 | --- | --- |
-| Login | One configured username/password, `USER` followed by `PASS` |
-| File transfer | Upload and download, binary and NVT ASCII types |
+| Login | Configured username/password, `USER` followed by `PASS`, reinitialization (`REIN`), and account handling (`ACCT`) |
+| File transfer | Upload (`STOR`), store unique (`STOU`), append (`APPE`), download (`RETR`), allocation acknowledgement (`ALLO`), binary and NVT ASCII types |
 | Data setup | IPv4 PASV/EPSV and PORT/EPRT |
-| Directories | Working directory, navigation, creation, empty-directory removal |
-| File operations | Listings, binary size, regular-file deletion |
+| Directories | Working directory, navigation (`CWD`, `CDUP`), creation (`MKD`), empty-directory removal (`RMD`) |
+| File operations | Listings (`LIST`, `NLST`), status over control connection (`STAT`), binary size (`SIZE`), regular-file deletion (`DELE`), and renaming (`RNFR`/`RNTO`) |
+| RFC 959 Commands | Complete coverage of all 33 RFC 959 commands (including `ABOR`, `NOOP`, `SYST`, `HELP`, `SITE`, `SMNT`, `REST`) |
 | Concurrent use | Independent sessions, bounded by a client limit |
 | File publication | Staging files followed by atomic replacement |
 | Errors | Numeric FTP errors, connection timeouts, cleanup |
@@ -1163,9 +1164,11 @@ The photo is still downloaded in binary mode. In the opposite direction,
 choosing `ascii`, calling `size`, and then downloading a text file restores
 TYPE A for that download.
 
-The server additionally accepts `TYPE A N` and `TYPE L 8` as supported
-forms, plus `MODE S` and `STRU F`. Other requested types/modes/structures
-receive `504`; the implementation does not pretend to support them.
+The server accepts the standard Table 10.4 configurations: `TYPE A` (ASCII),
+`TYPE E` / `TYPE EBCDIC` (EBCDIC), and `TYPE I` / `TYPE L 8` (Image/binary).
+For structure and mode, it accepts `STRU F` (file), `STRU R` (record), and
+`STRU P` (page), plus `MODE S` (stream), `MODE B` (block), and `MODE C`
+(compressed). Unsupported parameter values receive `504` or `501`.
 
 ---
 
@@ -1446,7 +1449,7 @@ handles login and allowed pre-login commands, and checks authentication.
 | Command group | Implementation route |
 | --- | --- |
 | TYPE/MODE/STRU | Validate supported transfer parameters |
-| PWD/CWD/CDUP/MKD/RMD/DELE/SIZE | Call `Sandbox` methods and reply |
+| PWD/CWD/CDUP/MKD/RMD/DELE/RNFR/RNTO/SIZE | Call `Sandbox` methods and reply |
 | PASV/EPSV/PORT/EPRT | `configure_data()` |
 | LIST/NLST/RETR/STOR | `transfer()` |
 | ABOR | Clear idle data setup, reply 226 |
@@ -1546,6 +1549,7 @@ user commands onto the protocol:
 | --- | --- |
 | `cd path`, `cdup` | CWD, CDUP |
 | `mkdir path`, `rmdir path`, `delete path` | MKD, RMD, DELE |
+| `rename old new` | RNFR, RNTO |
 | `ls`, `nlst` | TYPE A, data negotiation, LIST or NLST |
 | `get`, `put` | File-transfer method, including TYPE and data setup |
 | `size` | TYPE I, then SIZE |
