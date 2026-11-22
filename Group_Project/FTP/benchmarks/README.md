@@ -61,6 +61,12 @@ successful real-LAN measurement from these observations.
 
 ## Graphs and raw data
 
+The benchmark suite exports four publication-quality figures (PNG and SVG) in [results/](results/):
+- **`compression.png` / `.svg` (Original vs. Gzip Payload Sizes)**: Features a dual-panel layout with grouped bars for each file. Uncompressed high-volume media (`audio.wav` and `video.avi`, 0–150 MiB) are cleanly separated from the compressed control (`video.mp4`, 0–2.5 MiB), complete with exact size callouts and explicit compression reduction badges (-97.1%, -95.2%, -0.2%).
+- **`throughput.png` / `.svg` (Payload Wire Rate vs. Effective Throughput)**: Grouped comparison per file showing Plain Effective Rate, Gzip Wire Rate (actual bits transmitted per second over data channel), and Gzip Effective Rate (source bits transferred per total elapsed second, factoring CPU compression time). This visually illustrates the trade-off: on loopback networks, CPU compression overhead reduces effective throughput by >90%.
+- **`durations.png` / `.svg` (Phase Breakdown: Plain vs. Gzip)**: Paired stacked bars for Plain vs. Gzip per file, breaking down Preparation (Gzip CPU), Upload, Verification Download, and Hash/Decompress verification, highlighting that CPU gzip preparation dominates total transfer time.
+- **`time-series.png` / `.svg` (Payload Transferred over Elapsed Time)**: Multi-panel time-series layout with dedicated per-media subplots and independent scales, ensuring that both 128 MiB transfers and 1.75 MiB transfers are clearly visible with progress markers.
+
 ![FTP payload and effective throughput](results/throughput.png)
 
 ![Original and gzip payload sizes](results/compression.png)
