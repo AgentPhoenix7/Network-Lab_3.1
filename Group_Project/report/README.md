@@ -22,7 +22,7 @@ the FTP browser application.
 - `code/ftp_lab/*.py`: actual terminal/benchmark source snapshots used by the
   numbered excerpts, arranged as their original importable package, with hashes in `data/report-provenance.json`.
 - `evidence/`: fresh terminal command input, trace, byte/hash checks and the
-  52-test terminal/benchmark validation output from 2026-11-16.
+  58-test terminal/benchmark validation output from 2026-11-22.
 
 `sections/` and `sections_H/` from the archive are retained. The latter's
 fixed-placement preference also applies to the appended FTP sections.

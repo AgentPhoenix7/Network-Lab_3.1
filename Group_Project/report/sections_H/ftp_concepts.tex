@@ -14,6 +14,34 @@ FTP separates conversation from content~\cite{rfc959,topic17}. A persistent \emp
 \label{fig:ftp-slide-architecture}
 \end{figure}
 
+Figure~\ref{fig:rfc959-model} illustrates the official architectural model from RFC~959~\cite{rfc959}. The User Protocol Interpreter (User-PI) initiates the control connection to the Server Protocol Interpreter (Server-PI). File data transfers are performed by the respective Data Transfer Processes (User-DTP and Server-DTP) over a separate, temporary data connection under instructions from the protocol interpreters.
+
+\begin{figure}[H]
+\centering
+\begin{lstlisting}[basicstyle=\ttfamily\scriptsize,columns=fixed,numbers=none]
+                  -------------
+                  |/---------\|
+                  ||   User  ||    ------
+                  ||Interface|<--->| User |
+                  |\---------/|    ------
+----------------  |     |     |
+|/------------\|  |/---------\|
+||  Server-PI ||<-------->|| User-PI ||   Control Connection
+|\------------/|  |\---------/|
+|      |       |  |     |     |
+|/------------\|  |/---------\|
+||  Server-DTP||<-------->|| User-DTP||   Data Connection
+|\------------/|  |\---------/|
+|/------------\|  |/---------\|
+|| File System||  ||   File  ||
+|\------------/|  ||  System ||
+----------------  |\---------/|
+   Server-FTP        USER-FTP
+\end{lstlisting}
+\caption{Model for FTP Use from RFC~959 Figure~1~\cite{rfc959}. The control connection connects User-PI and Server-PI; the data connection connects User-DTP and Server-DTP.}
+\label{fig:rfc959-model}
+\end{figure}
+
 The standard control port is TCP~21. We use TCP~2121 by default so the experiment can run without a privileged port. The slide note on PDF page~74 associates data with TCP~20; that is the traditional active-mode server data port, not a universal destination for every FTP data connection. Passive mode uses a negotiated listening port. Our lab server uses ephemeral data ports in both modes instead of binding active data sockets to port~20.
 
 \subsection{Commands, replies, and TCP framing}
@@ -28,21 +56,34 @@ TCP provides an ordered byte stream; a \code{recv()} call does not necessarily r
 
 \begin{table}[H]
 \centering\small
-\caption{Replies used in the terminal implementation.}
+\caption{Comprehensive RFC~959 and extension reply codes implemented in the server.}
+\label{tab:ftp-replies}
 \begin{tabularx}{\linewidth}{@{}l Y l Y@{}}
 \toprule
-Code & Meaning & Code & Meaning \\
+Code & Meaning / Context & Code & Meaning / Context \\
 \midrule
-220 & Service ready & 331 & Password required \\
-230 & Login successful & 530 & Not authenticated \\
-150 & Data transfer starting & 226 & Transfer completed \\
-425 & Cannot establish data connection & 426 & Transfer failed after starting \\
-550 & File/path unavailable or forbidden & 221 & Control session closing \\
+125 / 150 & Data connection open / transfer starting & 200 & Command okay \\
+202 & Command superfluous (\code{ALLO}, \code{SITE}, \code{ACCT}) & 211 & System status / feature list / status \\
+212 & Directory status reply & 213 & File status / file size reply \\
+214 & Help message with command list & 215 & System identification (\code{UNIX Type: L8}) \\
+220 & Service ready for new user / greeting & 221 & Service closing control connection (\code{QUIT}) \\
+226 & Closing data connection; transfer complete & 227 / 229 & Entering Passive / Extended Passive Mode \\
+230 & User logged in, proceed & 250 & Requested file action okay, completed \\
+257 & Pathname created (\code{PWD}, \code{MKD}) & 331 & User name okay, need password \\
+350 & Action pending info (\code{RNFR} $\to$ \code{RNTO}) & 421 & Service unavailable, closing control connection \\
+425 & Cannot establish data connection & 426 & Connection closed; transfer aborted \\
+450 & File unavailable / busy (\code{EBUSY}, \code{EAGAIN}) & 451 & Action aborted: local processing error \\
+452 & Insufficient storage space (\code{ENOSPC}) & 500 & Syntax error, command unrecognized \\
+501 & Syntax error in parameters or arguments & 502 & Command not implemented \\
+503 & Bad sequence of commands (e.g., \code{RNTO} first) & 504 & Command not implemented for parameter \\
+522 & Network protocol not supported (\code{EPRT}/\code{EPSV}) & 530 & Not authenticated / please log in \\
+550 & File/path unavailable or forbidden & 552 & Exceeded storage allocation \\
+553 & File name not allowed & & \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
-The first digit describes a reply category: preliminary, successful completion, intermediate, transient failure, or permanent failure. A file operation has two important replies: a preliminary \code{150} before the data transfer and a completion \code{226} afterward. Receiving some bytes is not sufficient evidence of success. The client checks the final reply before publishing a downloaded file. Multiline replies are also supported: a line beginning with \code{xyz-} continues until the matching \code{xyz } terminator.
+The first digit describes a reply category: preliminary (1xx), successful completion (2xx), intermediate (3xx), transient failure (4xx), or permanent failure (5xx). A file operation has two important replies: a preliminary \code{150} before the data transfer and a completion \code{226} afterward. Receiving some bytes is not sufficient evidence of success. The client checks the final reply before publishing a downloaded file. Multiline replies are also supported: a line beginning with \code{xyz-} continues until the matching \code{xyz } terminator, used by \code{FEAT}, \code{STAT}, and multiline greetings.
 
 \subsection{Passive and active data setup}
 In \emph{passive mode}, the server listens on a fresh port and the client connects to it. The client first tries \code{EPSV}; it falls back to \code{PASV} for selected unsupported-command replies. An EPSV reply such as \code{229 (|||46107|)} identifies the data port on the control peer. A PASV reply encodes the port as $256p_1+p_2$. For the lecture example in Figure~\ref{fig:ftp-slide-session}, $(238,169)$ means $238\times256+169=61097$.

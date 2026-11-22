@@ -26,7 +26,7 @@ This section follows the preceding ARP report's pattern: the idea, pseudocode, a
 \end{algorithmic}
 \end{algorithm}
 
-\lstinputlisting[style=ftplst,firstline=27,lastline=50,firstnumber=27,caption={\code{protocol.py}: CRLF detection, bounded buffering and EOF handling.}]{code/ftp_lab/protocol.py}
+\lstinputlisting[style=ftplst,firstline=53,lastline=73,firstnumber=53,caption={\code{protocol.py}: CRLF detection, bounded buffering and EOF handling.}]{code/ftp_lab/protocol.py}
 
 \subsection{Authentication and command dispatch}
 The server begins unauthenticated. \code{USER} clears earlier authentication and remembers the proposed username. \code{PASS} compares the configured account and password, replying 230 on success or 530 on failure. A fresh USER cannot inherit an earlier successful login. Authenticated commands then dispatch to the filesystem or data-connection routines.
@@ -50,7 +50,7 @@ The server begins unauthenticated. \code{USER} clears earlier authentication and
 \end{algorithmic}
 \end{algorithm}
 
-\lstinputlisting[style=ftplst,firstline=176,lastline=211,firstnumber=176,caption={\code{server.py}: session commands and login gating.}]{code/ftp_lab/server.py}
+\lstinputlisting[style=ftplst,firstline=342,lastline=373,firstnumber=342,caption={\code{server.py}: session commands, login gating and service dispatch.}]{code/ftp_lab/server.py}
 
 \subsection{Negotiating one data connection}
 Passive setup binds a listener to the actual local address of the accepted control socket and an ephemeral port. This is important when the control listener is bound to all interfaces: the data endpoint must be reachable on the interface the client actually used. EPSV announces only the port, while PASV announces address octets and two port bytes. Active setup validates the supplied endpoint before storing it.
@@ -72,7 +72,7 @@ Passive setup binds a listener to the actual local address of the accepted contr
 \end{algorithmic}
 \end{algorithm}
 
-\lstinputlisting[style=ftplst,firstline=258,lastline=282,firstnumber=258,caption={\code{server.py}: passive listener and EPSV/PASV replies.}]{code/ftp_lab/server.py}
+\lstinputlisting[style=ftplst,firstline=532,lastline=551,firstnumber=532,caption={\code{server.py}: passive listener and EPSV/PASV replies.}]{code/ftp_lab/server.py}
 
 The client uses its control peer's address for PASV rather than trusting an arbitrary advertised IP. The server checks incoming passive data peers; an unrelated connection cannot consume another client's prepared transfer. The listener/active endpoint is single-use and cleared even after errors.
 
@@ -94,21 +94,59 @@ The filesystem's upload context writes to a reserved hidden filename. Leaving th
 \end{algorithmic}
 \end{algorithm}
 
-\lstinputlisting[style=ftplst,firstline=84,lastline=105,firstnumber=84,caption={\code{filesystem.py}: staged upload publication and cleanup.}]{code/ftp_lab/filesystem.py}
+\lstinputlisting[style=ftplst,firstline=202,lastline=223,firstnumber=202,caption={\code{filesystem.py}: staged upload publication and cleanup.}]{code/ftp_lab/filesystem.py}
 
 Locally shutting down a data socket can make \code{recv()} return clean EOF. The server explicitly checks its closing event before the upload context exits, so a shutdown is not misread as a complete smaller upload. A deterministic test covers that ordering, in addition to a concurrent shutdown test.
+
+\subsection{Two-phase atomic rename (RNFR and RNTO)}
+RFC~959 specifies a two-step sequence for renaming files or directories: \code{RNFR} (Rename From) specifies the source file, which returns \code{350} if valid; \code{RNTO} (Rename To) must immediately follow to supply the new name and complete the move with \code{250}. Any intervening command resets the rename state; sending \code{RNTO} without a preceding \code{RNFR} is rejected with \code{503}.
+
+\begin{figure}[htbp]
+\centering
+\begin{lstlisting}[basicstyle=\ttfamily\scriptsize,columns=fixed,numbers=none]
+                         COMMAND -- RNFR
+                            |
+                            V
+                    +---------------+
+                    |     State     |
+                    +---------------+
+                     /   |     |   \
+                    /    |     |    \
+                   /     |     |     \
+             1xx  /  2xx | 3xx |  4xx \  5xx
+                 /       |     |       \
+                V        V     V        V
+              Failure  Failure |     Failure
+                               V
+                          COMMAND -- RNTO
+                             |
+                             V
+                     +---------------+
+                     |     State     |
+                     +---------------+
+                      /   |     |   \
+                     /    |     |    \
+                    /     |     |     \
+              1xx  /  2xx | 3xx |  4xx \  5xx
+                  /       |     |       \
+                 V        V     V        V
+               Failure Success Failure Failure
+\end{lstlisting}
+\caption{Two-phase rename state diagram adapted from RFC~959~\cite{rfc959}. Intermediate reply \code{350} permits \code{RNTO}; all other branches reset session rename state.}
+\label{fig:rfc959-rename}
+\end{figure}
 
 \subsection{Client completion checks and local downloads}
 The client selects TYPE, prepares a passive or active endpoint, sends the transfer command, requires a preliminary reply, and invokes a data callback. It then requires the final completion reply. A failure after a preliminary reply closes the control session because an unread completion reply would make later command/reply matching unsafe.
 
-\lstinputlisting[style=ftplst,firstline=242,lastline=266,firstnumber=242,caption={\code{client.py}: receive to staging, validate completion, then replace the local target.}]{code/ftp_lab/client.py}
+\lstinputlisting[style=ftplst,firstline=426,lastline=450,firstnumber=426,caption={\code{client.py}: receive to staging, validate completion, then replace the local target.}]{code/ftp_lab/client.py}
 
 Progress callbacks receive per-block byte counts. They support measurement and cancellation without changing the FTP file stream. If a callback raises during a transfer, the client requests a data-socket reset before close; otherwise an interrupted upload might look like a legitimate smaller file ending at clean EOF.
 
 \subsection{Bounded concurrency and streaming representations}
 The server uses a semaphore to admit at most the configured number of control sessions and releases a slot when its worker exits. Its socket registry applies timeouts and allows shutdown to interrupt blocked control, passive-listener, and data operations. Sessions are independent threads, while all file content is processed in bounded blocks rather than read completely into memory.
 
-\lstinputlisting[style=ftplst,firstline=77,lastline=97,firstnumber=77,caption={\code{server.py}: admit/reject a control connection and release its capacity slot.}]{code/ftp_lab/server.py}
+\lstinputlisting[style=ftplst,firstline=143,lastline=172,firstnumber=143,caption={\code{server.py}: admit/reject a control connection and release its capacity slot.}]{code/ftp_lab/server.py}
 
 For ASCII, \code{encode\_ascii()} and \code{decode\_ascii()} are streaming generators. The decoder carries pending-CR state between blocks; binary mode bypasses these conversions. The operating system supplies TCP retransmission and ordering. The project does not add a custom checksum trailer to FTP payloads; SHA-256 is used by the benchmark as an independent round-trip check.
 \endgroup

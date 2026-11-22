@@ -15,7 +15,7 @@ Directory changed
 C> TYPE I
 S> 200 Transfer type set
 C> EPSV
-S> 229 Entering Extended Passive Mode (|||35225|)
+S> 229 Entering Extended Passive Mode (|||53057|)
 C> STOR sample.bin
 S> 150 Opening data connection
 S> 226 Transfer complete
@@ -23,7 +23,7 @@ Uploaded source.bin to sample.bin
 C> TYPE A
 S> 200 Transfer type set
 C> EPSV
-S> 229 Entering Extended Passive Mode (|||57815|)
+S> 229 Entering Extended Passive Mode (|||53797|)
 C> LIST
 S> 150 Opening data connection
 S> 226 Transfer complete
@@ -33,29 +33,41 @@ S> 200 Transfer type set
 C> SIZE sample.bin
 S> 213 4096
 4096
+C> STAT sample.bin
+S> 213-Status of file sample.bin:
+S>  -rw------- 1 ftp ftp         4096 Jan 01 00:00 sample.bin
+S> 213 End of status
+213-Status of file sample.bin:
+ -rw------- 1 ftp ftp         4096 Jan 01 00:00 sample.bin
+213 End of status
+C> RNFR sample.bin
+S> 350 File exists, ready for destination name
+C> RNTO renamed.bin
+S> 250 Rename successful
+Rename successful
 C> TYPE I
 S> 200 Transfer type set
 C> EPSV
-S> 229 Entering Extended Passive Mode (|||46107|)
-C> RETR sample.bin
+S> 229 Entering Extended Passive Mode (|||60891|)
+C> RETR renamed.bin
 S> 150 Opening data connection
 S> 226 Transfer complete
-Downloaded sample.bin to passive-copy.bin
+Downloaded renamed.bin to passive-copy.bin
 Data mode: active
 C> TYPE I
 S> 200 Transfer type set
-C> EPRT |1|127.0.0.1|49451|
+C> EPRT |1|127.0.0.1|57769|
 S> 200 Active data endpoint set
-C> RETR sample.bin
+C> RETR renamed.bin
 S> 150 Opening data connection
 S> 226 Transfer complete
-Downloaded sample.bin to active-copy.bin
+Downloaded renamed.bin to active-copy.bin
 Data mode: passive
 Transfer type: ascii
 C> TYPE A
 S> 200 Transfer type set
 C> EPSV
-S> 229 Entering Extended Passive Mode (|||49603|)
+S> 229 Entering Extended Passive Mode (|||54651|)
 C> STOR text.txt
 S> 150 Opening data connection
 S> 226 Transfer complete
@@ -63,13 +75,13 @@ Uploaded source.txt to text.txt
 C> TYPE A
 S> 200 Transfer type set
 C> EPSV
-S> 229 Entering Extended Passive Mode (|||46385|)
+S> 229 Entering Extended Passive Mode (|||46931|)
 C> RETR text.txt
 S> 150 Opening data connection
 S> 226 Transfer complete
 Downloaded text.txt to text-copy.txt
 Transfer type: binary
-C> DELE sample.bin
+C> DELE renamed.bin
 S> 250 Removed
 Removed
 C> DELE text.txt

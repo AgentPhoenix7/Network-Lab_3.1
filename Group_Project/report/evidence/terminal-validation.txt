@@ -1,5 +1,7 @@
+test_append_upload_and_unique_name (test_core.FilesystemTests.test_append_upload_and_unique_name) ... ok
 test_failed_upload_preserves_existing_file_and_removes_staging_file (test_core.FilesystemTests.test_failed_upload_preserves_existing_file_and_removes_staging_file) ... ok
 test_navigation_and_absolute_paths_are_virtual (test_core.FilesystemTests.test_navigation_and_absolute_paths_are_virtual) ... ok
+test_rename_regular_file_and_directory (test_core.FilesystemTests.test_rename_regular_file_and_directory) ... ok
 test_resulting_virtual_path_length_is_bounded (test_core.FilesystemTests.test_resulting_virtual_path_length_is_bounded) ... ok
 test_special_files_and_reserved_names_are_rejected (test_core.FilesystemTests.test_special_files_and_reserved_names_are_rejected) ... ok
 test_traversal_and_symlinks_cannot_read_or_write_outside (test_core.FilesystemTests.test_traversal_and_symlinks_cannot_read_or_write_outside) ... ok
@@ -13,6 +15,7 @@ test_capacity_limit_rejects_additional_clients (test_server.CapacityTests.test_c
 test_shutdown_eof_does_not_publish_a_staged_upload (test_server.CapacityTests.test_shutdown_eof_does_not_publish_a_staged_upload) ... ok
 test_shutdown_interrupts_data_receive_before_long_timeout (test_server.CapacityTests.test_shutdown_interrupts_data_receive_before_long_timeout) ... ok
 test_active_bounce_bad_ports_and_extended_commands (test_server.ServerTests.test_active_bounce_bad_ports_and_extended_commands) ... ok
+test_additional_rfc959_response_codes (test_server.ServerTests.test_additional_rfc959_response_codes) ... ok
 test_ascii_transfers_convert_posix_newlines (test_server.ServerTests.test_ascii_transfers_convert_posix_newlines) ... ok
 test_binary_roundtrip_empty_all_bytes_and_large_active_and_passive (test_server.ServerTests.test_binary_roundtrip_empty_all_bytes_and_large_active_and_passive) ... ok
 test_data_setup_required_and_consumed_on_failed_transfer (test_server.ServerTests.test_data_setup_required_and_consumed_on_failed_transfer) ... ok
@@ -24,7 +27,10 @@ test_login_sequence_and_reauthentication_revoke_access (test_server.ServerTests.
 test_long_quoted_directory_creation_returns_success (test_server.ServerTests.test_long_quoted_directory_creation_returns_success) ... ok
 test_missing_file_does_not_break_control_session (test_server.ServerTests.test_missing_file_does_not_break_control_session) ... ok
 test_path_escape_symlinks_and_listing_injection_are_denied (test_server.ServerTests.test_path_escape_symlinks_and_listing_injection_are_denied) ... ok
+test_protocol_pdf_table_commands (test_server.ServerTests.test_protocol_pdf_table_commands) ... ok
 test_reset_upload_preserves_original_and_cleans_staging_file (test_server.ServerTests.test_reset_upload_preserves_original_and_cleans_staging_file) ... ok
+test_rfc959_commands (test_server.ServerTests.test_rfc959_commands) ... ok
+test_rnfr_rnto_rename_sequence (test_server.ServerTests.test_rnfr_rnto_rename_sequence) ... ok
 test_shutdown_closes_idle_sessions_promptly (test_server.ServerTests.test_shutdown_closes_idle_sessions_promptly) ... ok
 test_timeout_waiting_for_passive_data_connection_and_recovery (test_server.ServerTests.test_timeout_waiting_for_passive_data_connection_and_recovery) ... ok
 test_ascii_and_binary_mode_survive_directory_listing (test_client.ClientTests.test_ascii_and_binary_mode_survive_directory_listing) ... ok
@@ -52,6 +58,16 @@ test_media_generator_creates_playable_files_and_manifest_without_padding (test_b
 test_report_graph_exports_are_standalone_images (test_benchmark.OfflineArtifactTests.test_report_graph_exports_are_standalone_images) ... ok
 
 ----------------------------------------------------------------------
-Ran 52 tests in 6.384s
+Ran 58 tests in 7.390s
 
 OK
+Rename successful
+Appended /home/agntdrgn/Documents/GitHub/Network-Lab_3.1/Group_Project/FTP/.scratch/tmp/tmpj0sg05xm/append.txt to back again
+213-Status of file back again:
+ -rw------- 1 ftp ftp        65810 Jan 01 00:00 back again
+213 End of status
+Rename successful
+Appended /home/agntdrgn/Documents/GitHub/Network-Lab_3.1/Group_Project/FTP/.scratch/tmp/tmpj0sg05xm/append.txt to back again
+213-Status of file back again:
+ -rw------- 1 ftp ftp        65810 Jan 01 00:00 back again
+213 End of status

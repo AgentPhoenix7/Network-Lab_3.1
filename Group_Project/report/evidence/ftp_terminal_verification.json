@@ -1,11 +1,11 @@
 {
-  "date": "2026-11-16",
+  "date": "2026-11-22",
   "python": "3.14.10",
   "transport": "real IPv4 loopback TCP",
   "source_binary_bytes": 4096,
   "binary_sha256": "c8f5d0341d54d951a71b136e6e2afcb14d11ed8489a7ae126a8fee0df6ecf193",
   "source_text_bytes": 34,
-  "text_sha256": "2790297189d5f4d7043fee711e9e6604dbd890c98bbd78b8fc295b96b14fac5f",
+  "text_sha256": "5f70ecf622cc5da95868eb976b780ec317bbdf85cd8b9188d880f8835b05c554",
   "passive_binary_match": true,
   "active_binary_match": true,
   "ascii_round_trip_match": true,

@@ -50,14 +50,14 @@
     }
   ],
   "measurement_observation_date": "2026-11-15",
-  "report_validation_date": "2026-11-16",
+  "report_validation_date": "2026-11-22",
   "ftp_sources": {
     "code/ftp_lab/__init__.py": "bf321ad410b995015de4bf967f67e2ef1aba6c2ed2cca0d13cd63e04b9d91431",
-    "code/ftp_lab/benchmark.py": "20cb270961cd0b664287a4692224e49e3ab9547be6f06b959cf45626ade09ac2",
-    "code/ftp_lab/client.py": "bb20ff893f06b1ee062d8c7a80dfaf6c74c4668067e4e7f0c6fe8322bda66e83",
-    "code/ftp_lab/filesystem.py": "0ea14ebc3244d1dd7dc2cad19c5a3cf1b6d4a212a09007dbcc5a4d2aa4553c92",
-    "code/ftp_lab/protocol.py": "e78e8cf8568904608f1655ff65e8c9d63a986cfdc323f9ae19419446f691c144",
-    "code/ftp_lab/server.py": "26335ac2a20dc744392a121ad9395adfb1c9fd5a18e7762267e211efa0e85843"
+    "code/ftp_lab/benchmark.py": "df66edcdc307da16b7088c7b1e7a3eb03376748699e2ea60618aa7ddfe228b7e",
+    "code/ftp_lab/client.py": "02bd68f88d32c947762b592c00cd86dc24d6304b928b42c1c0632dbdee8fb248",
+    "code/ftp_lab/filesystem.py": "79549dfa6d4e8345a05f068020711b058b2da1a7f1c92c014a8276beab1c4f71",
+    "code/ftp_lab/protocol.py": "c377c4c0266554a630a4954839fdabff598dc138385e640a469ca5fc267b457a",
+    "code/ftp_lab/server.py": "25ba9febb116999f7898fbdc31656790111ceb0698c964feb2f6464ae60cd03c"
   },
   "csv_line_endings": "Report CSV files use LF line endings; all original rows and field values are preserved."
 }
