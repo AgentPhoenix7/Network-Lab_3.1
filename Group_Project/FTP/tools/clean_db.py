@@ -18,7 +18,19 @@ if str(ROOT_DIR) not in sys.path:
 
 
 def clean_database(data_dir: Path, *, clean_all: bool = False, force: bool = False, recreate: bool = False) -> int:
-    """Clean the SQLite database and optional transfer spool files."""
+    """Clean the SQLite database and optional transfer spool files.
+
+    What it does:
+        Removes SQLite database files (main db, WAL journal, and shared-memory index)
+        and optionally purges transfer spool files from the specified application data directory.
+
+    How it does:
+        1. Identifies targets: app.db, app.db-wal, app.db-shm, and optionally the transfers spool directory.
+        2. Prompts user for interactive confirmation unless force is True.
+        3. Removes selected files and directories with shutil.rmtree and Path.unlink.
+        4. Re-initializes a fresh database schema via Database(db_path) if recreate is True.
+        5. Returns exit code 0 on success or 1 on user abortion.
+    """
     db_path = data_dir / 'app.db'
     wal_path = data_dir / 'app.db-wal'
     shm_path = data_dir / 'app.db-shm'
@@ -79,6 +91,15 @@ def clean_database(data_dir: Path, *, clean_all: bool = False, force: bool = Fal
 
 
 def main(argv=None):
+    """Run the database cleanup command-line tool.
+
+    What it does:
+        Parses CLI arguments and invokes clean_database with the configured options.
+
+    How it does:
+        Constructs an ArgumentParser, parses CLI options (--data-dir, --all, --force, --recreate),
+        and delegates execution to clean_database.
+    """
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--data-dir', type=Path, default=Path('app-data'), help='Path to app-data directory (default: app-data)')
     parser.add_argument('--all', action='store_true', help='Also empty the transfers spool directory')

@@ -177,19 +177,47 @@ class AppHandler(BaseHTTPRequestHandler):
         return int(value)
 
     def do_GET(self):
-        """Handle HTTP GET requests."""
+        """Handle incoming HTTP GET requests.
+
+        What it does:
+            Dispatches GET requests to the centralized application routing handler.
+
+        How it does:
+            Invokes self.route() to authenticate, parse query parameters, and serve static assets or API endpoints.
+        """
         self.route()
 
     def do_POST(self):
-        """Handle HTTP POST requests."""
+        """Handle incoming HTTP POST requests.
+
+        What it does:
+            Dispatches POST requests to the centralized application routing handler.
+
+        How it does:
+            Invokes self.route() to validate CSRF tokens, parse payloads, and execute state-mutating actions.
+        """
         self.route()
 
     def do_PUT(self):
-        """Handle HTTP PUT requests."""
+        """Handle incoming HTTP PUT requests.
+
+        What it does:
+            Dispatches PUT requests to the centralized application routing handler.
+
+        How it does:
+            Invokes self.route() to validate CSRF tokens, verify payload streams, and update resources.
+        """
         self.route()
 
     def do_DELETE(self):
-        """Handle HTTP DELETE requests."""
+        """Handle incoming HTTP DELETE requests.
+
+        What it does:
+            Dispatches DELETE requests to the centralized application routing handler.
+
+        How it does:
+            Invokes self.route() to authenticate requests, validate CSRF protection, and delete resources.
+        """
         self.route()
 
     def route(self):
@@ -401,7 +429,14 @@ def main(argv=None):
         raise
 
     def interrupt(signum, frame):
-        """Translate SIGTERM signal to KeyboardInterrupt."""
+        """Translate SIGTERM signal to KeyboardInterrupt for graceful shutdown.
+
+        What it does:
+            Translates OS termination signals into a standard Python KeyboardInterrupt exception.
+
+        How it does:
+            Raises KeyboardInterrupt to exit the main serving loop and trigger resource cleanup.
+        """
         raise KeyboardInterrupt
 
     signal.signal(signal.SIGTERM, interrupt)

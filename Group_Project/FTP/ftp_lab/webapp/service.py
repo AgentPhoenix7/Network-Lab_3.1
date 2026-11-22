@@ -534,6 +534,18 @@ class AppService:
         done = 0
 
         def advance(delta):
+            """Advance transfer byte counter, enforce limits, and record progress metrics.
+
+            What it does:
+                Checks for cancellation, verifies byte bounds, and periodically updates job progress.
+
+            How it does:
+                1. Calls self.check_cancel(job_id).
+                2. Increments `done` by delta and validates <= total and <= MAX_BYTES.
+                3. Calculates instantaneous and average transfer speeds.
+                4. Appends a progress sample every 0.2s to live metrics (capped at 2000 points).
+                5. Calls self._update() to notify database and connected web clients.
+            """
             nonlocal done, previous, previous_time, saved
             self.check_cancel(job_id)
             done += delta
@@ -582,9 +594,27 @@ class AppService:
                 from ..benchmark import run_benchmark
 
                 def factory():
+                    """Instantiate an authenticated FTPClient context for benchmark operations.
+
+                    What it does:
+                        Yields a connected and authenticated client connected to the configured device.
+
+                    How it does:
+                        Invokes self.client(owner, token, job['device_id']).
+                    """
                     return self.client(owner, token, job['device_id'])
 
                 def measured(mode, done, total, elapsed):
+                    """Record benchmark progress samples and update live job progress.
+
+                    What it does:
+                        Captures live benchmark speed and byte metrics during plain and gzip phases.
+
+                    How it does:
+                        1. Invokes self.check_cancel(job_id).
+                        2. Appends elapsed/bytes/speed sample to self.live[job_id]['samples'].
+                        3. Calls self._update() to refresh transfer percentages and throughput.
+                    """
                     self.check_cancel(job_id)
                     with self.lock:
                         samples = self.live[job_id]['samples']

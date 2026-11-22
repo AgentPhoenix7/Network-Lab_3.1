@@ -24,11 +24,17 @@ SAMPLES_DIR = SERVER_DATA / "samples"
 
 
 def make_mode_b_block(data: bytes, *, eor: bool = False, eof: bool = False) -> bytes:
-    """Format bytes into an RFC 959 Mode B block.
-    Descriptor byte:
-      Bit 7 (0x80) = EOF (End of File)
-      Bit 6 (0x40) = EOR (End of Record)
-    Byte count: 2 bytes (big endian)
+    """Format bytes into an RFC 959 Mode B transmission block.
+
+    What it does:
+        Encapsulates payload bytes into an RFC 959 Section 3.4.2 Block Mode frame
+        with a 1-byte descriptor header and 2-byte big-endian byte count.
+
+    How it does:
+        1. Encodes descriptor bit 7 (0x80) for EOF and bit 6 (0x40) for EOR.
+        2. Validates that byte count does not exceed 65,535 bytes.
+        3. Packs descriptor and count using struct.pack('>BH', descriptor, count).
+        4. Concatenates header bytes with raw payload data and returns the block.
     """
     descriptor = 0
     if eof:
@@ -42,10 +48,17 @@ def make_mode_b_block(data: bytes, *, eor: bool = False, eof: bool = False) -> b
 
 
 def make_mode_c_compressed(data: bytes) -> bytes:
-    """Encode bytes using RFC 959 Section 3.4.3 Compressed Mode run-length scheme:
-      00xxxxxx (count 0-63): string of count+1 raw bytes follows
-      10xxxxxx (count 0-63): single byte replicated count+1 times
-      11xxxxxx (count 0-63): blank/space (0x20 or 0x40 in EBCDIC) replicated count+1 times
+    """Encode bytes using the RFC 959 Section 3.4.3 Compressed Mode run-length scheme.
+
+    What it does:
+        Compresses a sequence of bytes using the standard 2-bit descriptor run-length encoding.
+
+    How it does:
+        1. Scans incoming bytes for repeated byte runs (>= 3 identical bytes, up to 64).
+        2. Encodes space runs (0x20 in ASCII or 0x40 in EBCDIC) as 11xxxxxx (0xC0 | count - 1).
+        3. Encodes non-space byte runs as 10xxxxxx (0x80 | count - 1) followed by the replicated byte.
+        4. Encodes literal non-repeating byte chunks as 00xxxxxx (0x00 | count - 1) followed by raw bytes.
+        5. Returns the resulting compressed bytearray as immutable bytes.
     """
     out = bytearray()
     i = 0
@@ -81,12 +94,16 @@ def make_mode_c_compressed(data: bytes) -> bytes:
 
 
 def make_page_payload(pages: list[tuple[int, bytes]]) -> bytes:
-    """Encode indexed pages per RFC 959 Section 3.1.2.3:
-      Page header:
-        Page Type (1 byte: 0 = data page, 1 = eof)
-        Page Number (2 bytes, big-endian)
-        Page Length (2 bytes, big-endian)
-      Followed by page data.
+    """Encode indexed pages per RFC 959 Section 3.1.2.3 Page Structure specification.
+
+    What it does:
+        Constructs a structured page payload with headers and indexed byte slices.
+
+    How it does:
+        1. Iterates over indexed page tuples (page_num, page_bytes).
+        2. Formats a 5-byte page header: Page Type (1 byte, 0=data, 1=eof), Page Number
+           (2 bytes, big-endian), and Page Length (2 bytes, big-endian).
+        3. Concatenates the packed header and page bytes into a contiguous byte stream.
     """
     payload = bytearray()
     for idx, (page_num, page_bytes) in enumerate(pages):
@@ -99,6 +116,20 @@ def make_page_payload(pages: list[tuple[int, bytes]]) -> bytes:
 
 
 def generate_all():
+    """Generate the complete 27-permutation RFC 959 demonstration suite and manifest.
+
+    What it does:
+        Creates welcome.txt and 27 authentic sample files in server-data/samples/ covering
+        every combination of TYPE (A, I, E), STRU (F, R, P), and MODE (S, B, C), along with
+        manifest.json and README.md.
+
+    How it does:
+        1. Prepares base payloads for ASCII text, Binary image, and EBCDIC mainframe cards.
+        2. Iterates through all 27 combinations, formatting each according to TYPE, STRU, and MODE.
+        3. Writes each sample to server-data/samples/ and calculates its SHA-256 digest.
+        4. Writes server-data/welcome.txt in sandbox root explaining navigation.
+        5. Writes server-data/samples/manifest.json and server-data/samples/README.md.
+    """
     os.makedirs(SAMPLES_DIR, exist_ok=True)
 
     # 1. Sandbox root welcome file (TYPE A, STRU F, MODE S)

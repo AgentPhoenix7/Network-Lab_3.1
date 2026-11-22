@@ -21,6 +21,18 @@ MIB = 1024 * 1024
 
 
 def generate(output, mib=128, mp4=False):
+    """Generate synthetic WAV, raw AVI, and optional H.264 MP4 media fixtures.
+
+    What it does:
+        Synthesizes standard multi-megabyte media test files using FFmpeg lavfi filters
+        without padding bytes or artificial disk bloat, saving probe metadata and SHA-256 digests.
+
+    How it does:
+        1. Validates requested size (0 < mib <= 4096) and verifies presence of ffmpeg/ffprobe.
+        2. Calculates frame counts for 48 kHz stereo PCM audio and 640x360 raw yuv420p video.
+        3. Spawns FFmpeg commands to generate audio.wav and video.avi (and optionally video.mp4).
+        4. Inspects media formats via ffprobe, computes sha256 checksums, and writes manifest.json.
+    """
     if not math.isfinite(mib) or not 0 < mib <= 4096:
         raise ValueError('--mib must be finite and between 0 and 4096')
     for executable in ('ffmpeg', 'ffprobe'):
@@ -80,6 +92,14 @@ def generate(output, mib=128, mp4=False):
 
 
 def main(argv=None):
+    """Run the media fixture generation CLI.
+
+    What it does:
+        Parses CLI parameters (--output, --mib, --mp4) and calls generate.
+
+    How it does:
+        Builds ArgumentParser, parses args, executes generate(), and handles errors cleanly.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--mib', type=float, default=128, help='Minimum WAV and AVI sizes, each (default 128 MiB)')

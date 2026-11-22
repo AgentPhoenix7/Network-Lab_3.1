@@ -139,7 +139,7 @@ RFC~959 specifies a two-step sequence for renaming files or directories: \code{R
 \subsection{Client completion checks and local downloads}
 The client selects TYPE, prepares a passive or active endpoint, sends the transfer command, requires a preliminary reply, and invokes a data callback. It then requires the final completion reply. A failure after a preliminary reply closes the control session because an unread completion reply would make later command/reply matching unsafe.
 
-\lstinputlisting[style=ftplst,firstline=426,lastline=450,firstnumber=426,caption={\code{client.py}: receive to staging, validate completion, then replace the local target.}]{code/ftp_lab/client.py}
+\lstinputlisting[style=ftplst,firstline=457,lastline=496,firstnumber=457,caption={\code{client.py}: receive to staging, validate completion, then replace the local target.}]{code/ftp_lab/client.py}
 
 Progress callbacks receive per-block byte counts. They support measurement and cancellation without changing the FTP file stream. If a callback raises during a transfer, the client requests a data-socket reset before close; otherwise an interrupted upload might look like a legitimate smaller file ending at clean EOF.
 

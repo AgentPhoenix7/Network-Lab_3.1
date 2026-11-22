@@ -428,7 +428,7 @@ class FTPSession(socketserver.BaseRequestHandler):
         """Execute stateful operations and transfers for authenticated sessions.
 
         What it does:
-            Dispatches filesystem, transfer type, data setup, and file transfer commands.
+            Dispatches filesystem, transfer type, structure, mode, data setup, and transfer commands.
 
         How it does:
             - TYPE: validates and records ASCII ('A'), Binary ('I'), or EBCDIC ('E') representation.
@@ -440,7 +440,7 @@ class FTPSession(socketserver.BaseRequestHandler):
             - RNFR/RNTO: rename sequence locating existing file and moving to target.
             - SIZE: requires Binary mode and replies with file size via self.fs.size().
             - PASV/EPSV/PORT/EPRT: delegates to self.configure_data().
-            - LIST/NLST/RETR/STOR: delegates to self.transfer().
+            - LIST/NLST/RETR/STOR/STOU/APPE: delegates to self.transfer().
             - ABOR: resets data configuration and replies 226.
         """
         if verb == 'TYPE':
@@ -627,23 +627,26 @@ class FTPSession(socketserver.BaseRequestHandler):
         """Execute a data transfer for directory listings, uploads, or downloads.
 
         What it does:
-            Coordinates the complete data exchange cycle for LIST, NLST, RETR, and STOR.
+            Coordinates the complete data exchange cycle for LIST, NLST, RETR, STOR, STOU, and APPE.
 
         How it does:
             1. Validates files and targets using ExitStack before acknowledging the transfer:
                - RETR opens file for reading via self.fs.open_read().
                - STOR opens atomic staging file via self.fs.upload().
+               - APPE opens atomic staging append file via self.fs.append_upload().
+               - STOU generates unique filename and opens atomic staging file via self.fs.upload().
                - LIST/NLST retrieves directory entries from self.fs.entries().
             2. Verifies that a data connection mode (passive/active) was pre-configured.
-            3. Sends preliminary response 150 'Opening data connection'.
+            3. Sends preliminary response 150 'Opening data connection' (or 'FILE: <name>' for STOU).
             4. Connects via self.data_connection() context manager:
                - For LIST/NLST: writes formatted listing text lines over the data connection.
                - For RETR: reads blocks from file and transmits over data socket (converting
-                 newlines if representation is 'A').
-               - For STOR: reads chunks from socket and writes to staging file (converting if 'A').
+                 newlines via encode_ascii if representation is 'A').
+               - For STOR/APPE/STOU: reads chunks from socket and writes to staging file
+                 (converting CRLF via decode_ascii if representation is 'A').
             5. Checks if server shutdown occurred during transfer (raising ConnectionAbortedError
                to prevent committing a partial upload).
-            6. Closes the data connection and sends completion reply 226.
+            6. Closes the data connection and sends completion reply 226 (or 250 with filename for STOU).
             7. Resets data configuration in a finally block.
         """
         started = False
@@ -745,7 +748,14 @@ def main(argv=None):
         parser.error(str(exc))
 
     def interrupt(signum, frame):
-        """Signal handler translating SIGTERM into KeyboardInterrupt for graceful shutdown."""
+        """Signal handler translating SIGTERM into KeyboardInterrupt for graceful shutdown.
+
+        What it does:
+            Translates an asynchronous SIGTERM signal into a standard Python KeyboardInterrupt exception.
+
+        How it does:
+            Raises KeyboardInterrupt to exit the server serving loop and trigger clean server shutdown.
+        """
         raise KeyboardInterrupt
 
     signal.signal(signal.SIGTERM, interrupt)

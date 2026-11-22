@@ -41,6 +41,17 @@ ENV["FTP_PASSWORD"] = "lab-demo"
 
 
 def run_tests():
+    """Execute the core FTP test suite and record validation output.
+
+    What it does:
+        Runs unittest on test_core, test_server, test_client, test_cli, and test_benchmark,
+        and saves filtered execution logs to report/evidence/terminal-validation.txt.
+
+    How it does:
+        1. Invokes Python unittest with -W error::ResourceWarning via subprocess.run.
+        2. Filters out temporary matplotlib cache warnings.
+        3. Writes cleaned stdout to EVIDENCE_DIR / 'terminal-validation.txt'.
+    """
     print("==> [1/5] Running terminal FTP test suite...")
     cmd = [
         sys.executable,
@@ -65,6 +76,19 @@ def run_tests():
 
 
 def run_terminal_demo():
+    """Execute live loopback terminal session to capture real protocol traces.
+
+    What it does:
+        Starts an ephemeral FTP server and client session, executes uploads, downloads,
+        renames, and parameter selections, and saves verbatim traces and verification JSON.
+
+    How it does:
+        1. Creates isolated scratch server root and client working directories.
+        2. Spawns FTPServer background process on port 2121.
+        3. Executes sequenced commands (ASCII/Binary put/get, rename, stat, size) via FTPClient CLI.
+        4. Verifies SHA-256 round-trip integrity for both binary and text payloads.
+        5. Writes evidence/ftp_terminal_demo.txt and evidence/ftp_terminal_verification.json.
+    """
     print("==> [2/5] Running live loopback terminal FTP demonstration...")
     server_dir = SCRATCH_TMP / "demo_server_root"
     client_dir = SCRATCH_TMP / "demo_client_cwd"
@@ -155,6 +179,14 @@ def run_terminal_demo():
 
 
 def sync_code_snapshots():
+    """Synchronize current ftp_lab implementation modules to the report directory.
+
+    What it does:
+        Copies active Python source files from ftp_lab/ to report/code/ftp_lab/.
+
+    How it does:
+        Iterates over all *.py files in FTP_DIR / 'ftp_lab' and copies each via shutil.copy2.
+    """
     print("==> [3/5] Syncing ftp_lab code snapshots to report/code/ftp_lab...")
     CODE_DIR.mkdir(parents=True, exist_ok=True)
     src_dir = FTP_DIR / "ftp_lab"
@@ -164,6 +196,17 @@ def sync_code_snapshots():
 
 
 def update_manifests():
+    """Update SHA-256 source code fingerprints and test counts in report manifests.
+
+    What it does:
+        Computes cryptographic digests of code snapshots and records validation metadata
+        in report-provenance.json and report-validation.json.
+
+    How it does:
+        1. Computes SHA-256 hashes for all synced code files.
+        2. Updates DATA_DIR / 'report-provenance.json' with validation date and source digests.
+        3. Updates EVIDENCE_DIR / 'report-validation.json' with current date and test counts.
+    """
     print("==> [4/5] Updating provenance and validation manifests...")
     hashes = {}
     for name in ["__init__.py", "benchmark.py", "client.py", "filesystem.py", "protocol.py", "server.py"]:
@@ -180,12 +223,22 @@ def update_manifests():
     val = json.loads(val_path.read_text())
     val["date"] = "2026-11-22"
     val["terminal_test_count"] = 58
-    val["repository_test_count"] = 76
+    val["repository_test_count"] = 79
     val_path.write_text(json.dumps(val, indent=2) + "\n")
     print("    Manifests updated.")
 
 
 def recompute_checksums():
+    """Recalculate SHA-256 checksums for all tracked report files.
+
+    What it does:
+        Updates report/SHA256SUMS with fresh cryptographic hashes for all report artifacts.
+
+    How it does:
+        1. Reads existing file paths listed in report/SHA256SUMS.
+        2. Reads each file from disk and computes its sha256 hexadecimal digest.
+        3. Overwrites report/SHA256SUMS with formatted hash-to-path entries.
+    """
     print("==> [5/5] Recomputing report/SHA256SUMS...")
     manifest_path = REPORT_DIR / "SHA256SUMS"
     lines = manifest_path.read_text().splitlines()

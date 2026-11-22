@@ -79,11 +79,25 @@ class FTPClient:
             raise
 
     def __enter__(self):
-        """Context manager entry point returning the client instance."""
+        """Context manager entry point returning the client instance.
+
+        What it does:
+            Enables usage of FTPClient within a Python 'with' statement.
+
+        How it does:
+            Returns self to the context block.
+        """
         return self
 
     def __exit__(self, *exc):
-        """Context manager exit point closing the underlying connection."""
+        """Context manager exit point closing the underlying connection.
+
+        What it does:
+            Ensures that the FTP client connection is closed when exiting a 'with' block.
+
+        How it does:
+            Invokes self.close() unconditionally upon context exit.
+        """
         self.close()
 
     def close(self):
@@ -376,6 +390,14 @@ class FTPClient:
         content = bytearray()
 
         def receive(data):
+            """Accumulate raw listing bytes from the data connection stream.
+
+            What it does:
+                Reads data chunks from the socket and extends the byte buffer.
+
+            How it does:
+                Iterates over socket_chunks(data) and calls content.extend(chunk).
+            """
             for chunk in socket_chunks(data):
                 content.extend(chunk)
 
@@ -399,6 +421,15 @@ class FTPClient:
             self.expect(self.command('TYPE', self.representation), (200,))
 
             def send(data):
+                """Read and transmit file chunks over the data connection.
+
+                What it does:
+                    Streams data chunks from the local file over the socket with optional ASCII encoding.
+
+                How it does:
+                    Reads BLOCK_SIZE chunks from source, encodes newlines if not binary mode,
+                    transmits via data.sendall(), and invokes the progress callback.
+                """
                 chunks = iter(lambda: source.read(BLOCK_SIZE), b'')
                 for chunk in chunks if self.binary else encode_ascii(chunks):
                     data.sendall(chunk)
@@ -431,7 +462,23 @@ class FTPClient:
                 self.expect(self.command('TYPE', self.representation), (200,))
 
                 def receive(data):
+                    """Receive and decode incoming file stream into the staging file.
+
+                    What it does:
+                        Reads data chunks, updates transfer progress, and writes to staging file.
+
+                    How it does:
+                        Calls incoming() generator, decodes ASCII CRLF if not binary, and writes to disk.
+                    """
                     def incoming():
+                        """Yield incoming socket chunks and track transfer progress bytes.
+
+                        What it does:
+                            Streams raw chunks from the data socket and reports progress.
+
+                        How it does:
+                            Iterates through socket_chunks(data), executes progress callback, and yields chunk.
+                        """
                         for chunk in socket_chunks(data):
                             if progress is not None:
                                 progress(len(chunk))
@@ -463,11 +510,31 @@ class FTPClient:
         return self.expect(self.command('RNTO', remote_to), (250,))
 
     def append(self, local, remote='', *, progress: Callable[[int], None] | None = None):
-        """Append data from a local file to a remote file using APPE."""
+        """Append data from a local file to a remote file using APPE.
+
+        What it does:
+            Appends the contents of a local file to an existing or new remote file on the server.
+
+        How it does:
+            1. Resolves local path and determines remote filename (defaults to local basename).
+            2. Opens local file in binary read mode.
+            3. Sets transfer representation ('TYPE I' or 'TYPE A').
+            4. Defines a send callback reading BLOCK_SIZE chunks and streaming them to the data connection.
+            5. Executes self.transfer('APPE', remote_name, send) and returns the completion reply.
+        """
         local_path = Path(local)
         remote_name = remote or local_path.name
         with local_path.open('rb') as file:
             def send(data):
+                """Read and stream local file chunks to the data connection socket for appending.
+
+                What it does:
+                    Streams chunks from local file over data socket, updating progress metrics.
+
+                How it does:
+                    Reads BLOCK_SIZE chunks, applies encode_ascii if not binary, calls data.sendall(),
+                    and triggers the progress callback.
+                """
                 chunks = iter(lambda: file.read(BLOCK_SIZE), b'')
                 for chunk in chunks if self.binary else encode_ascii(chunks):
                     data.sendall(chunk)
@@ -476,11 +543,25 @@ class FTPClient:
             return self.transfer('APPE', remote_name, send)
 
     def stat(self, remote=''):
-        """Query server or file status over control connection using STAT."""
+        """Query server or file status over control connection using STAT.
+
+        What it does:
+            Sends an RFC 959 STAT command to query server operational status or file metadata.
+
+        How it does:
+            Transmits 'STAT' with optional remote target over the control stream and returns the Reply.
+        """
         return self.command('STAT', remote)
 
     def rein(self):
-        """Reinitialize the FTP session using REIN."""
+        """Reinitialize the FTP session using REIN.
+
+        What it does:
+            Resets the FTP session state on the server while keeping the control connection open.
+
+        How it does:
+            Transmits 'REIN' command and expects a 220 service ready reply.
+        """
         return self.expect(self.command('REIN'), (220,))
 
     def quit(self):
@@ -499,20 +580,50 @@ class FTPClient:
 
     @property
     def binary(self) -> bool:
-        """Whether the client is in binary/image mode (True) or ASCII text mode (False)."""
+        """Whether the client is in binary/image mode (True) or ASCII text mode (False).
+
+        What it does:
+            Returns True if current transfer representation is binary/image (TYPE I or E), False if ASCII (TYPE A).
+
+        How it does:
+            Inspects self._representation and returns True if it differs from 'A'.
+        """
         return getattr(self, '_representation', 'I') != 'A'
 
     @binary.setter
     def binary(self, val: bool):
+        """Set the binary transfer mode flag.
+
+        What it does:
+            Updates the transfer representation to 'I' (Image) if True or 'A' (ASCII) if False.
+
+        How it does:
+            Sets self._representation to 'I' if val is truthy, otherwise 'A'.
+        """
         self._representation = 'I' if val else 'A'
 
     @property
     def representation(self) -> str:
-        """The FTP transfer representation type ('A', 'I', or 'E')."""
+        """The FTP transfer representation type ('A', 'I', or 'E').
+
+        What it does:
+            Returns the currently configured RFC 959 transfer representation code.
+
+        How it does:
+            Retrieves self._representation, defaulting to 'I' if unset.
+        """
         return getattr(self, '_representation', 'I')
 
     @representation.setter
     def representation(self, val: str):
+        """Set the FTP transfer representation type.
+
+        What it does:
+            Updates the internal representation code to the specified format.
+
+        How it does:
+            Converts val to uppercase string and assigns to self._representation.
+        """
         self._representation = str(val).upper()
 
 
@@ -539,6 +650,10 @@ def execute(client: FTPClient, line: str) -> bool:
            - pwd, cd, cdup, mkdir, rmdir, delete, rename, size: invokes corresponding FTP commands.
            - ls, nlst: fetches and prints directory entries.
            - get, put: downloads/uploads files (deriving basename if omitted).
+           - append: appends local file content to remote file via APPE.
+           - type, stru, mode: sets RFC 959 transfer representation, structure, or transmission mode.
+           - quote, raw: transmits raw protocol command directly to control connection.
+           - stat, rein: queries status or reinitializes session state.
            - ascii, binary: toggles client.binary mode.
            - passive, active: toggles client.passive mode.
            - noop: verifies connection liveness.

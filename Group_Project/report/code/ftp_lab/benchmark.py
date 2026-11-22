@@ -144,6 +144,19 @@ def run_benchmark(source, client_factory, work_dir, remote_dir='/', progress=Non
                     last_sample = -1.0
 
                     def report(delta, *, upload_start=upload_start, payload_size=payload_size, mode=mode):
+                        """Track incremental upload bytes and sample transfer throughput over time.
+
+                        What it does:
+                            Accumulates bytes uploaded, updates the live progress callback, and
+                            records periodic throughput samples at 100ms intervals into the result.
+
+                        How it does:
+                            1. Verifies non-cancellation via _check(cancel).
+                            2. Increments `done` by delta.
+                            3. Calculates elapsed seconds and records a snapshot dict (bytes, speed_bps)
+                               if >= 0.1s has elapsed or transfer has completed.
+                            4. Invokes user-supplied progress callback if provided.
+                        """
                         nonlocal done, last_sample
                         _check(cancel)
                         done += delta
@@ -170,6 +183,17 @@ def run_benchmark(source, client_factory, work_dir, remote_dir='/', progress=Non
                     received = 0
 
                     def receive_progress(delta, *, payload_size=payload_size):
+                        """Track incremental download bytes and guard against stream size overrun.
+
+                        What it does:
+                            Validates chunk length, increments total received bytes, and verifies that
+                            the downloaded payload does not exceed the expected size.
+
+                        How it does:
+                            1. Verifies non-cancellation via _check(cancel).
+                            2. Ensures delta is non-negative and received + delta does not exceed payload_size.
+                            3. Increments nonlocal received accumulator.
+                        """
                         nonlocal received
                         _check(cancel)
                         if delta < 0 or received + delta > payload_size:
@@ -307,6 +331,18 @@ def render_graphs(results, output):
     c_verif = "#6a4c93"      # Verification
 
     def save_fig(fig, name):
+        """Render and save a Matplotlib figure as dual PNG and SVG image files.
+
+        What it does:
+            Renders the provided matplotlib Figure instance and writes both PNG (160 DPI)
+            and vector SVG graphics to the benchmark output directory.
+
+        How it does:
+            1. Binds FigureCanvasAgg to the figure.
+            2. Invokes fig.savefig() for '{name}.png' with dpi=160 and bbox_inches='tight'.
+            3. Invokes fig.savefig() for '{name}.svg' with bbox_inches='tight'.
+            4. Clears the figure with fig.clear() to release memory.
+        """
         FigureCanvasAgg(fig)
         fig.savefig(output / f"{name}.png", dpi=160, bbox_inches="tight")
         fig.savefig(output / f"{name}.svg", bbox_inches="tight")
@@ -341,6 +377,14 @@ def render_graphs(results, output):
             data_by_src[src]["samples"].append((r.get("repeat", 1), r["samples"]))
 
     def mean(lst, default=0.0):
+        """Calculate the arithmetic mean of a sequence of numeric values.
+
+        What it does:
+            Computes the average value of elements in a list, returning a default if empty.
+
+        How it does:
+            Sums all elements in lst and divides by len(lst) if non-empty, otherwise returns default.
+        """
         return sum(lst) / len(lst) if lst else default
 
     # 1. COMPRESSION PLOT
@@ -603,6 +647,17 @@ def main(argv=None):
             server_context = _local_server(work) if args.local else nullcontext((args.host, args.port))
             with server_context as address:
                 def factory():
+                    """Create, connect, and authenticate an FTPClient instance for benchmarking.
+
+                    What it does:
+                        Instantiates a new FTPClient targeting the benchmark server address and logs in.
+
+                    How it does:
+                        1. Instantiates FTPClient with host/port address and 120s timeout.
+                        2. Calls client.login() with configured username and password.
+                        3. Closes socket and re-raises if any exception occurs during initialization.
+                        4. Returns the authenticated client instance.
+                    """
                     client = FTPClient(*address, timeout=120)
                     try:
                         client.login('benchmark' if args.local else args.user, password)
