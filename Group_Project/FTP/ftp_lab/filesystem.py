@@ -391,7 +391,8 @@ class Sandbox:
                     raise PermissionError('Unsupported listing target')
         entries = []
         with self.directory(parts) as fd:
-            for name in sorted(os.listdir(fd)):
+            for raw_name in sorted(os.listdir(fd)):
+                name = os.fsdecode(raw_name)
                 if not valid_name(name):
                     continue
                 try:
