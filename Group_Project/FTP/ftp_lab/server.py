@@ -120,7 +120,7 @@ class FTPServer(socketserver.ThreadingTCPServer):
         How it does:
             Sets sock.settimeout(self.io_timeout). Acquires self.socket_lock; if the server
             is shutting down (closing is set), closes the socket and raises ConnectionAbortedError.
-            Otherwise adds the socket to self.sockets.
+            Otherwise, adds the socket to self.sockets.
         """
         sock.settimeout(self.io_timeout)
         with self.socket_lock:
@@ -153,7 +153,7 @@ class FTPServer(socketserver.ThreadingTCPServer):
             Validates the socket and sets its timeout. If the server is closing or if acquiring
             a slot from self.slots (non-blocking) fails because the client cap has been reached,
             sends '421 Too many clients or server shutting down\\r\\n' and closes the connection.
-            Otherwise delegates to super().process_request() to dispatch a worker thread.
+            Otherwise, delegates to super().process_request() to dispatch a worker thread.
         """
         if not isinstance(request, socket.socket):
             raise TypeError('FTP requires a TCP socket')
