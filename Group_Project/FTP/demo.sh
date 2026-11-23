@@ -6,6 +6,7 @@
 #   ./demo.sh client   run the interactive client   (terminal 2)
 #
 # Files live in $FTP_DEMO_DIR (default ~/ftp-demo), not in the repo.
+# uv selects the project's locked environment; the client keeps downloads as its working directory.
 set -euo pipefail
 
 PROJECT="$(cd "$(dirname "$0")" && pwd)"
@@ -25,7 +26,8 @@ server() {
     echo "== FTP server on 127.0.0.1:$PORT (root: $DEMO_DIR/server-root)"
     echo "== Stop with Ctrl+C"
     cd "$PROJECT"
-    exec python3 -m ftp_lab.server --port "$PORT" --root "$DEMO_DIR/server-root"
+    exec uv run --locked --no-dev --project "$PROJECT" python -m ftp_lab.server \
+        --port "$PORT" --root "$DEMO_DIR/server-root"
 }
 
 client() {
@@ -47,7 +49,8 @@ client() {
    quit
 EOF
     cd "$DEMO_DIR/downloads"   # local files for put/get
-    PYTHONPATH="$PROJECT" exec python3 -m ftp_lab.client --port "$PORT" --trace
+    PYTHONPATH="$PROJECT" exec uv run --locked --no-dev --project "$PROJECT" \
+        python -m ftp_lab.client --port "$PORT" --trace
 }
 
 open_terminals() {

@@ -5,7 +5,7 @@ LAN extension. The detailed browser design is in
 [LOCAL_APP_PLAN.md](LOCAL_APP_PLAN.md), its walkthrough in
 [LOCAL_APP.md](LOCAL_APP.md), and network setup in [LAN_ACCESS.md](LAN_ACCESS.md).
 Dated validation milestones are retained below, separately from the current
-75-test suite.
+79-test Python suite and 10 frontend tests.
 
 ## Scope and design
 
@@ -43,7 +43,10 @@ implementation.
 - `ftp_lab/webapp/`: SQLite persistence, authenticated HTTP API, background
   work, offline browser UI, and destination-bound Host/Origin checks.
 - `ftp_lab/benchmark.py`: original/gzip comparisons, bounded round-trip
-  verification, timing/samples, CSV/JSON and optional graph exports.
+  verification, timing/samples, CSV/JSON and the optional plot entry point.
+- `ftp_lab/plots.py`: Matplotlib PNG/SVG exports, isolated from transfer logic.
+- `pyproject.toml`, `uv.lock`: dependency declarations and locked environment;
+  no third-party runtime dependencies, `dev` for Pylint, `plots` for Matplotlib.
 - `tools/media_fixtures.py`: real offline WAV/AVI/MP4 fixture generation.
 - `benchmarks/`: preserved original measurements, provenance and graphs.
 - `tests/`: unittest and Node checks using sockets, isolated roots,
@@ -69,9 +72,9 @@ Tests put temporary data under the FTP component's `build/tmp` via TMPDIR.
 - [x] 1. Write failing framing/codec and filesystem tests, then implement
   `ControlStream`, ASCII conversion and `Sandbox`.
 - [x] 2. Write failing real-socket ftplib interoperability and error tests,
-  then implement `FTPServer` and `python3 -m ftp_lab.server`.
+  then implement `FTPServer` and `uv run --locked --no-dev python -m ftp_lab.server`.
 - [x] 3. Write failing socket-client and CLI tests, then implement
-  `FTPClient` and `python3 -m ftp_lab.client`.
+  `FTPClient` and `uv run --locked --no-dev python -m ftp_lab.client`.
 - [x] 4. Document the demo and supported subset; run all tests, inspect
   ignore rules and the FTP-only diff, and obtain a fresh code review.
 - [x] 5. Add the authenticated browser workspace, saved devices/history,
@@ -136,6 +139,24 @@ it expands RFC 959 reply code coverage by implementing directory status `212`
 `553`, local processing transfer error `451`, insufficient storage `452`,
 transient file busy `450`, and quota exhaustion `552`. The updated test
 suite passes **76 Python tests (1 skipped) and 10 frontend tests**.
+
+## Current uv workflow
+
+The current development setup uses uv and the existing project `.venv`.
+Run `uv sync --locked --extra plots`, `make lint`, and `make test` from the
+FTP directory. Runtime commands use `uv run --locked --no-dev python`.
+The manifest supports Python 3.11+; runtime checks here use Python 3.14.10.
+See the [README](../README.md#set-up-the-environment) for dependency updates,
+offline execution, PyCharm selection, and equivalent commands without Make.
+
+On 2026-11-23, the lint cleanup passed Pylint with no messages and PyCharm
+source inspections with no remaining warnings/errors, using documented
+local exceptions for intentional protocol, resource, and lab conventions.
+The suite discovered 79 Python tests (78 passed, one opt-in LAN case skipped)
+and passed all 10 frontend tests. Thirty generated sample artifacts matched
+the previous version byte for byte, eight chart PNG comparisons matched
+pixel for pixel, and the CSS pixel dimensions were preserved. These results
+are separate from the earlier dated milestones above.
 
 ## References
 

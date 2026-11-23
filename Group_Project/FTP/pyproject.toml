@@ -1,0 +1,17 @@
+[project]
+name = "ftp-lab"
+version = "0.1.0"
+description = "Socket-based FTP client, concurrent server, and local browser workspace"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+plots = ["matplotlib>=3.11.2"]
+
+[dependency-groups]
+dev = ["pylint>=4.1.4"]
+
+[tool.uv]
+# Run the source tree directly; the FTP application has no packaging/build step.
+package = false

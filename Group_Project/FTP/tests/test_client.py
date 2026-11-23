@@ -1,3 +1,5 @@
+"""Verify client transfers against the lab server and independent protocol peers."""
+
 import os
 import socket
 import subprocess
@@ -9,9 +11,10 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from pathlib import Path
 
+from support import running_server
+
 from ftp_lab.client import FTPClient, FTPError, execute
 from ftp_lab.protocol import ProtocolError
-from support import running_server
 
 
 @contextmanager
@@ -37,7 +40,10 @@ def independent_peer(handler):
 
 
 class ClientTests(unittest.TestCase):
+    """Client protocol, transfer, and command shell integration tests."""
+
     def test_progress_callbacks_measure_transferred_payload(self):
+        """Verify progress callbacks measure transferred payload."""
         with (
             running_server(timeout=5) as (server, _root),
             tempfile.TemporaryDirectory() as folder,
@@ -48,13 +54,13 @@ class ClientTests(unittest.TestCase):
             with FTPClient(*server.address) as client:
                 client.login("student", "lab-test")
                 client.upload(source, "file", progress=sent.append)
-                client.download(
-                    "file", Path(folder) / "result", progress=received.append
-                )
+                client.download("file", Path(folder) / "result", progress=received.append)
             self.assertEqual(sum(sent), source.stat().st_size)
             self.assertEqual(sum(received), source.stat().st_size)
 
     def test_cancelled_upload_callback_preserves_remote_destination(self):
+        """Verify canceled upload callback preserves remote destination."""
+
         def cancel(_delta):
             raise RuntimeError("cancelled by user")
 
@@ -76,6 +82,7 @@ class ClientTests(unittest.TestCase):
             self.assertEqual((root / "file").read_bytes(), b"original")
 
     def test_own_client_upload_download_and_directory_commands_in_both_modes(self):
+        """Verify own client upload download and directory commands in both modes."""
         with (
             running_server() as (server, _root),
             tempfile.TemporaryDirectory() as folder,
@@ -108,7 +115,9 @@ class ClientTests(unittest.TestCase):
                     client.append(append_source, "back again")
                     self.assertEqual(client.size("back again"), len(payload) + len(b"-appended"))
                     execute(client, f"append '{append_source}' 'back again'")
-                    self.assertEqual(client.size("back again"), len(payload) + 2 * len(b"-appended"))
+                    self.assertEqual(
+                        client.size("back again"), len(payload) + 2 * len(b"-appended")
+                    )
                     # Test stat
                     stat_reply = client.stat()
                     self.assertEqual(stat_reply.code, 211)
@@ -124,6 +133,7 @@ class ClientTests(unittest.TestCase):
                     client.quit()
 
     def test_ascii_and_binary_mode_survive_directory_listing(self):
+        """Verify ascii and binary mode survive directory listing."""
         with (
             running_server() as (server, root),
             tempfile.TemporaryDirectory() as folder,
@@ -146,6 +156,7 @@ class ClientTests(unittest.TestCase):
                 self.assertEqual(target.read_bytes(), source.read_bytes())
 
     def test_password_is_redacted_and_command_injection_is_blocked(self):
+        """Verify password is redacted and command injection is blocked."""
         transcript = []
         with (
             running_server() as (server, _root),
@@ -158,6 +169,7 @@ class ClientTests(unittest.TestCase):
                 client.command("CWD", "/\r\nDELE file")
 
     def test_missing_remote_preserves_local_file(self):
+        """Verify missing remote preserves local file."""
         with (
             running_server() as (server, _root),
             tempfile.TemporaryDirectory() as folder,
@@ -173,6 +185,7 @@ class ClientTests(unittest.TestCase):
             self.assertEqual(list(Path(folder).iterdir()), [target])
 
     def peer_transfer(self, control, reader, *, fail=False):
+        """Serve an independent passive transfer with optional completion failure."""
         control.sendall(b"220-Welcome\r\n Independent FTP test peer\r\n220 Ready\r\n")
         for expected, reply in (
             (b"USER student\r\n", b"331 Password\r\n"),
@@ -191,18 +204,15 @@ class ClientTests(unittest.TestCase):
             data_listener.settimeout(3)
             port = data_listener.getsockname()[1]
             # The client must use the control peer, ignoring this advertised IP.
-            control.sendall(
-                f"227 Passive (8,8,8,8,{port // 256},{port % 256})\r\n".encode()
-            )
-            self.assertEqual(
-                reader.readline(), b"RETR file\r\n" if fail else b"NLST\r\n"
-            )
+            control.sendall(f"227 Passive (8,8,8,8,{port // 256},{port % 256})\r\n".encode())
+            self.assertEqual(reader.readline(), b"RETR file\r\n" if fail else b"NLST\r\n")
             control.sendall(b"150 Opening\r\n")
             with data_listener.accept()[0] as data:
                 data.sendall(b"partial" if fail else b"independent file\r\n")
         control.sendall(b"426 Transfer failed\r\n" if fail else b"226 Complete\r\n")
 
     def test_multiline_greeting_epsv_fallback_and_pasv_peer_pinning(self):
+        """Verify multiline greeting epsv fallback and pasv peer pinning."""
         with (
             independent_peer(self.peer_transfer) as address,
             FTPClient(*address, timeout=2) as client,
@@ -211,6 +221,8 @@ class ClientTests(unittest.TestCase):
             self.assertEqual(client.list(names_only=True), ["independent file"])
 
     def test_failed_completion_from_independent_peer_preserves_local_file(self):
+        """Verify failed completion from independent peer preserves local file."""
+
         def peer(control, reader):
             self.peer_transfer(control, reader, fail=True)
 
@@ -228,6 +240,7 @@ class ClientTests(unittest.TestCase):
             self.assertEqual(list(Path(folder).iterdir()), [target])
 
     def test_batch_cli_roundtrip_and_failure_exit_status(self):
+        """Verify batch cli roundtrip and failure exit status."""
         with (
             running_server() as (server, _root),
             tempfile.TemporaryDirectory() as folder,

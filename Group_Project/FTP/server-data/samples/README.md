@@ -36,10 +36,12 @@ parameters supported by this FTP implementation.
 
 ## How to demonstrate each permutation in the terminal
 
-Connect using the FTP terminal client:
+Start the server as described in the [main README](../../README.md), then
+connect using the FTP terminal client in the locked uv environment:
 ```bash
 cd Group_Project/FTP
-FTP_PASSWORD=lab-demo python3 -m ftp_lab.client --trace
+uv sync --locked --no-dev
+FTP_PASSWORD=lab-demo uv run --locked --no-dev python -m ftp_lab.client --trace
 ```
 
 At the `ftp>` prompt, navigate to `samples` and select your parameters:
@@ -64,7 +66,7 @@ get type-A_stru-F_mode-S_ascii-file-stream.txt downloads/demo_A_F_S.txt
 ### Inspecting EBCDIC files locally
 EBCDIC files (`TYPE E`) are encoded in IBM CP037. View them in decoded plaintext with Python:
 ```bash
-python3 -c "print(open('downloads/type-E_stru-F_mode-S_ebcdic-file-stream.ebcdic', 'rb').read().decode('cp037'))"
+uv run --locked --no-dev python -c "print(open('downloads/type-E_stru-F_mode-S_ebcdic-file-stream.ebcdic', 'rb').read().decode('cp037'))"
 ```
 
 ### Inspecting Binary files locally

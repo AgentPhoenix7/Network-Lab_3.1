@@ -263,7 +263,7 @@ port with the FTP control or data ports:
 | Browser setting | Default or behavior |
 | --- | --- |
 | HTTP listener | `0.0.0.0:8080`, accepting the host's IPv4 interfaces |
-| Host-only alternative | `python3 -m ftp_lab.webapp --demo --host 127.0.0.1` |
+| Host-only alternative | `uv run --locked --no-dev python -m ftp_lab.webapp --demo --host 127.0.0.1` |
 | First account | Created through loopback on the host computer |
 | Other browsers | Sign in at `http://HOST_LAN_IP:8080` after owner setup |
 | Shared data | Owner's saved profiles, transfer history, and host FTP folder |
@@ -361,19 +361,20 @@ for the complete service/database/frontend flow and
 
 ## 5. The Python features that make the code work
 
-### 5.1 A module, a package, and `python3 -m`
+### 5.1 A module, a package, and `python -m`
 
 A `.py` file is a module. The `ftp_lab/` directory, containing
 `__init__.py`, is a package. Running:
 
 ```bash
-python3 -m ftp_lab.server
+uv run --locked --no-dev python -m ftp_lab.server
 ```
 
-asks Python to run that module in its package context. Imports such as
+uses uv to select the project environment, then asks Python to run that
+module in its package context. Imports such as
 `from .filesystem import Sandbox` then refer to another module in the
 same package. Run the command from `Group_Project/FTP`, the directory
-containing `ftp_lab`. Running `python3 ftp_lab/server.py` directly does
+containing `ftp_lab`. Running `python ftp_lab/server.py` directly does
 not establish the same package context and can break those relative imports.
 
 The familiar block at the bottom of each entry-point module:
@@ -1362,7 +1363,7 @@ The server has a shared connection manager, `FTPServer`, and one
 ### 17.1 Startup through `main()`
 
 ```text
-python3 -m ftp_lab.server
+uv run --locked --no-dev python -m ftp_lab.server
     |
     +-> argparse reads host, port, root, user, timeout, client limit
     +-> read FTP_PASSWORD
@@ -1675,8 +1676,8 @@ the code actually supplies is part of understanding the implementation.
 
 ## 20. How the tests check the implementation
 
-The current Python test files define **70 test methods**, including the
-browser service and benchmark additions. Node.js also runs **8 frontend
+The current Python test files define **79 test methods**, including the
+browser service and benchmark additions. Node.js also runs **10 frontend
 helper tests** when available. Some methods exercise
 several cases or modes, so that is not a count of individual transfers.
 The Python tests use `unittest` from the standard library. The original
@@ -1710,19 +1711,21 @@ an untrusted PASV IP, or send a failed completion after some data bytes.
 
 | File | Methods | What it checks |
 | --- | --- | --- |
-| [test_core.py](../tests/test_core.py) | 11 | Framing, truncated/invalid input, multiline replies, injection, ASCII boundaries, root/filesystem operations, symlinks, rollback, special files and path bounds |
-| [test_server.py](../tests/test_server.py) | 18 | `ftplib` interoperability, login state, both data modes, binary/ASCII content, directory names, errors, timeouts, reset uploads, concurrency, capacity, shutdown and long replies |
+| [test_core.py](../tests/test_core.py) | 13 | Framing, truncated/invalid input, multiline replies, injection, ASCII boundaries, root/filesystem operations, symlinks, rollback, special files and path bounds |
+| [test_server.py](../tests/test_server.py) | 22 | `ftplib` interoperability, login state, both data modes, binary/ASCII content, directory names, errors, timeouts, reset uploads, concurrency, capacity, shutdown and long replies |
 | [test_client.py](../tests/test_client.py) | 9 | Own client in both modes, type preferences, redaction, local preservation, independent peers, progress/cancellation and batch CLI behavior |
 | [test_cli.py](../tests/test_cli.py) | 2 | Separate server/client subprocesses, script files, SIGTERM cleanup and clean missing-password errors |
 | [test_benchmark.py](../tests/test_benchmark.py) | 12 | Original/gzip verification, samples and exports, cancellation/cleanup, invalid input and hostile oversized retrieval |
 | [test_webapp.py](../tests/test_webapp.py) | 11 | SQLite/auth persistence, request protections, jobs, streaming, gzip, ownership, cancellation, source claims and size/name bounds |
+| [test_permutations.py](../tests/test_permutations.py) | 3 | Sample manifest integrity, representation/structure/mode negotiation, and downloads of all 27 fixtures |
 | [test_network_app.py](../tests/test_network_app.py) | 7 | LAN binding, shared files/profiles, independent sessions/passwords, Host/Origin checks, concurrent demo-profile creation, owner bootstrap; real-interface case opt-in |
 
-[test_frontend.cjs](../tests/test_frontend.cjs) adds eight Node.js tests for
+[test_frontend.cjs](../tests/test_frontend.cjs) adds ten Node.js tests for
 readable sizes/times, folder paths, graph samples, compression comparisons,
 complete preparation timing, ignoring a stale response after logout, and
 the completed-download filename/source presentation without changing the
-names shown for pending, original or upload jobs.
+names shown for pending, original or upload jobs. The command catalog and
+guided-scenario tests also validate the RFC explorer data.
 
 The binary server test includes an empty file, all 256 byte values,
 and a larger payload built as `bytes(range(256)) * 8193`. It checks
@@ -1756,8 +1759,9 @@ background thread could be missed by the main test.
 
 ### 20.4 What the Makefile actually does
 
-`make test` does not compile Python. It creates `build/tmp` under the FTP directory, sets `TMPDIR`, `TMP`, and
-`TEMP` to that path, disables
+`make test` runs `uv run --locked --extra plots python` so its interpreter
+and dependencies come from the project lock. It creates `build/tmp` under
+the FTP directory, sets `TMPDIR`, `TMP`, and `TEMP` to that path, disables
 bytecode generation for the run, and invokes unittest discovery.
 `ResourceWarning` is treated as an error to help expose resource leaks.
 
@@ -1765,8 +1769,12 @@ Tests using `tempfile` inherit that temporary location from the command's
 environment. Running unittest manually without the variables would not
 automatically place its temporary data in `build`.
 
-`make server` and `make client` are convenience wrappers around the
-corresponding `python3 -m ...` commands. The server still requires its
+`make lint` selects the default development group and the `plots` extra so
+Pylint can resolve the optional renderer's imports. `make sync`
+synchronizes `.venv` with that group and the `plots` extra. `make server`,
+`make client`, `make app`, and `make clean-db` run through
+`uv run --locked --no-dev python` because their runtime uses only the
+standard library. The server still requires its
 password environment variable; Make does not supply a hidden account.
 
 These checks establish particular behaviors under test. They do not
@@ -1780,15 +1788,17 @@ or that a network/firewall configuration on another machine will work.
 ### 21.1 Start from the repository root
 
 Requirements are Python 3.11 or newer and a Linux/POSIX environment with
-the descriptor-relative APIs used above. No pip installation is needed.
-`make` is optional. Use an unused server root/directory name for the
+the descriptor-relative APIs used above, plus uv for environment management.
+Run `uv sync --locked --extra plots` inside `Group_Project/FTP` first; see
+[the environment setup](../README.md#set-up-the-environment) for dependency
+groups, offline operation, and upgrades. `make` is optional. Use an unused server root/directory name for the
 first walkthrough so preexisting demonstration files do not conflict.
 
 In **terminal 1**:
 
 ```bash
 cd Group_Project/FTP
-FTP_PASSWORD=lab-demo python3 -m ftp_lab.server
+FTP_PASSWORD=lab-demo uv run --locked --no-dev python -m ftp_lab.server
 ```
 
 The server should announce an address like:
@@ -1809,7 +1819,7 @@ In **terminal 2**, independently starting from the repository root:
 cd Group_Project/FTP
 mkdir -p downloads
 printf 'Hello from FTP.\n' > downloads/hello.txt
-python3 -m ftp_lab.client --trace
+uv run --locked --no-dev python -m ftp_lab.client --trace
 ```
 
 Enter the same password when prompted. Trace lines beginning with `C>`
@@ -1869,7 +1879,7 @@ Stop the server in terminal 1 with Ctrl+C when finished.
 With the server running, this reads terminal commands from stdin:
 
 ```bash
-FTP_PASSWORD=lab-demo python3 -m ftp_lab.client --script - <<'EOF'
+FTP_PASSWORD=lab-demo uv run --locked --no-dev python -m ftp_lab.client --script - <<'EOF'
 pwd
 nlst
 quit
@@ -1882,7 +1892,7 @@ delimiter, not an FTP command sent to the server.
 For a controlled failure example, request a filename you know is absent:
 
 ```bash
-FTP_PASSWORD=lab-demo python3 -m ftp_lab.client --script - <<'EOF'
+FTP_PASSWORD=lab-demo uv run --locked --no-dev python -m ftp_lab.client --script - <<'EOF'
 get definitely-missing-lesson-file.txt downloads/should-not-exist.txt
 EOF
 echo "$?"
@@ -1906,12 +1916,15 @@ Or, from the repository root without make:
 mkdir -p Group_Project/FTP/build/tmp
 TMPDIR="$PWD/Group_Project/FTP/build/tmp" TMP="$PWD/Group_Project/FTP/build/tmp" TEMP="$PWD/Group_Project/FTP/build/tmp" \
   PYTHONPATH="$PWD/Group_Project/FTP" \
-  python3 -W error::ResourceWarning -m unittest discover -s Group_Project/FTP/tests -v
+  uv run --project Group_Project/FTP --locked --extra plots python \
+  -W error::ResourceWarning -m unittest discover -s Group_Project/FTP/tests -v
+node Group_Project/FTP/tests/test_frontend.cjs
 ```
 
-The current Python suite reports `Ran 70 tests` and `OK`; `make test` also
-runs eight frontend tests if Node.js is installed. It requires
-local socket access; a sandbox rejecting even loopback traffic must
+The current Python suite discovers 79 tests. With all optional tools
+available but no `FTP_TEST_LAN_HOST`, 78 pass and the real-interface case
+is skipped. `make test` also runs ten frontend tests if Node.js is installed.
+The suite requires local socket access; a sandbox rejecting even loopback traffic must
 allow that access for these tests.
 Set `FTP_TEST_LAN_HOST` to an assigned local LAN IPv4 address to run the
 real-interface case too; that case otherwise reports a skip.
@@ -1921,7 +1934,7 @@ real-interface case too; that case otherwise reports a skip.
 | Symptom | What to check |
 | --- | --- |
 | No module named `ftp_lab` | Run from `Group_Project/FTP`, or use the documented PYTHONPATH for a repository-root test run |
-| Relative-import error when running a source file directly | Use `python3 -m ftp_lab.server`/`client` |
+| Relative-import error when running a source file directly | Use `uv run --locked --no-dev python -m ftp_lab.server`/`client` |
 | Server requests `FTP_PASSWORD` | Supply the environment variable to the server command |
 | Connection refused | Start the server first; check host and control port |
 | Address already in use | Choose another server `--port` and use the same client `--port` |
@@ -1943,7 +1956,7 @@ On the host computer, from the repository root:
 
 ```bash
 cd Group_Project/FTP
-python3 -m ftp_lab.webapp --demo
+uv run --locked --no-dev python -m ftp_lab.webapp --demo
 ```
 
 Create the first workspace account at `http://127.0.0.1:8080` on the host.
@@ -1977,6 +1990,8 @@ that a particular phone's Wi-Fi isolation or firewall path will permit it.
 Group_Project/FTP/
 |-- .gitignore
 |-- Makefile
+|-- pyproject.toml             <- runtime/extras/development dependency declarations
+|-- uv.lock                    <- locked direct and transitive dependencies
 |-- README.md
 |-- FTP.code-workspace
 |-- benchmarks/
@@ -1995,6 +2010,7 @@ Group_Project/FTP/
 |   |-- server.py
 |   |-- client.py
 |   |-- benchmark.py
+|   |-- plots.py               <- optional PNG/SVG rendering
 |   `-- webapp/
 |       |-- __init__.py
 |       |-- __main__.py
@@ -2003,6 +2019,9 @@ Group_Project/FTP/
 |       |-- server.py
 |       `-- static/            <- index.html, styles.css, app.js
 |-- tools/
+|   |-- clean_db.py
+|   |-- generate_report_evidences.py
+|   |-- generate_sandbox_samples.py
 |   `-- media_fixtures.py
 `-- tests/
     |-- support.py
@@ -2013,6 +2032,7 @@ Group_Project/FTP/
     |-- test_benchmark.py
     |-- test_webapp.py
     |-- test_network_app.py
+    |-- test_permutations.py
     `-- test_frontend.cjs
 ```
 
@@ -2107,13 +2127,15 @@ docstring; it is not an alternative server or a hidden FTP implementation.
 ### 22.6 Supporting files
 
 - [README.md](../README.md): concise setup, feature and limitation reference.
-- [Makefile](../Makefile): reproducible test environment and launch shortcuts.
+- [pyproject.toml](../pyproject.toml) and [uv.lock](../uv.lock): dependency
+  declarations and the reproducible environment selected by uv.
+- [Makefile](../Makefile): locked uv test/lint environments and launch shortcuts.
 - [IMPLEMENTATION.md](IMPLEMENTATION.md): scope, design, implementation
   checklist and recorded validation context.
 - [.gitignore](../.gitignore): omit sample server/download data, Python
   caches/environments, local environment settings and logs. Source, tests,
   this explanation, and the other documentation remain trackable.
-- [tests/support.py](../tests/support.py), seven Python test modules and
+- [tests/support.py](../tests/support.py), eight Python test modules and
   the Node.js helper tests: setup and the checks explained in section 20.
 - [LOCAL_APP.md](LOCAL_APP.md): browser operation and module-by-module
   database/auth/service/frontend explanation.
@@ -2131,7 +2153,8 @@ docstring; it is not an alternative server or a hidden FTP implementation.
 | `webapp/service.py` | `AppService`, `filename`, `remote_path`: job validation, disk streaming, session passwords, workers, cancellation and attachments |
 | `webapp/server.py` | `AppServer`, `AppHandler`, `main`: bind options, request destination/Origin checks, owner bootstrap, routes and HTTP streaming |
 | `webapp/static/app.js` | Session generation guard, API wrapper, source staging, job polling, `downloadPresentation()` for output/source names, dialogs and SVG rendering |
-| `benchmark.py` | `run_benchmark`, `csv_report`, `export_reports`, `render_graphs`: measured plain/gzip transfers, bounded SHA-256 verification, raw data and plots |
+| `benchmark.py` | `run_benchmark`, `csv_report`, `export_reports`: measured plain/gzip transfers, bounded SHA-256 verification and raw reports; `render_graphs` forwards to the optional renderer |
+| `plots.py` | `render_graphs`: standalone Matplotlib PNG/SVG exports; imported plotting dependencies are needed only when charts are requested |
 | `tools/media_fixtures.py` | `generate`, `main`: offline playable WAV/raw AVI/MP4 sources and provenance manifest |
 
 The detailed [local app guide](LOCAL_APP.md) follows an upload and download

@@ -15,6 +15,7 @@ import threading
 import time
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
+from typing import BinaryIO
 
 from .filesystem import Sandbox
 from .protocol import (
@@ -47,11 +48,16 @@ class CommandError(Exception):
 class FTPServer(socketserver.ThreadingTCPServer):
     """Multi-threaded IPv4 TCP FTP server with bounded concurrency and graceful shutdown."""
 
+    # Listener configuration and socket lifecycle state belong to the server.
+    # pylint: disable=too-many-instance-attributes
+
     allow_reuse_address = True
     daemon_threads = False
     block_on_close = True
 
-    def __init__(self, address, root: Path, username: str, password: str, *, timeout=30.0, max_clients=32):
+    def __init__(
+        self, address, root: Path, username: str, password: str, *, timeout=30.0, max_clients=32
+    ):
         """Initialize the concurrent FTP server.
 
         What it does:
@@ -62,14 +68,22 @@ class FTPServer(socketserver.ThreadingTCPServer):
             1. Validates that timeout and max_clients are positive and credentials are non-empty
                without control characters.
             2. Resolves root to an absolute existing directory.
-            3. Initializes a BoundedSemaphore(max_clients) to cap simultaneous active client sessions.
+            3. Initializes a BoundedSemaphore(max_clients) to cap simultaneous active client
+                sessions.
             4. Sets up a threading.Event (closing) and a thread-safe registry (self.sockets,
                self.socket_lock) to record active control and data sockets for shutdown cleanup.
-            5. Calls the superclass socketserver.ThreadingTCPServer.__init__ with FTPSession handler.
+            5. Calls the superclass socketserver.ThreadingTCPServer.__init__ with FTPSession
+                handler.
         """
+        # Preserve the public listener and authentication configuration API.
+        # pylint: disable=too-many-arguments
         if not math.isfinite(timeout) or timeout <= 0 or max_clients < 1:
             raise ValueError('Timeout and client limit must be positive')
-        if not username or not password or any(ord(c) < 32 or ord(c) == 127 for c in username + password):
+        if (
+            not username
+            or not password
+            or any(ord(c) < 32 or ord(c) == 127 for c in username + password)
+        ):
             raise ValueError('A nonempty user/password without control characters is required')
         self.root = Path(root).resolve(strict=True)
         if not self.root.is_dir():
@@ -93,7 +107,7 @@ class FTPServer(socketserver.ThreadingTCPServer):
             Extracts host and port from self.server_address and validates host type.
         """
         host, port = self.server_address[:2]
-        if not isinstance(host, str):
+        if not isinstance(host, str) or not isinstance(port, int):
             raise TypeError('Expected a bound IPv4 address')
         return host, port
 
@@ -132,7 +146,8 @@ class FTPServer(socketserver.ThreadingTCPServer):
         """Process an incoming client connection, enforcing concurrency limits.
 
         What it does:
-            Accepts or rejects an incoming client TCP connection based on current load and shutdown state.
+            Accepts or rejects an incoming client TCP connection based on current load and shutdown
+                state.
 
         How it does:
             Validates the socket and sets its timeout. If the server is closing or if acquiring
@@ -143,6 +158,8 @@ class FTPServer(socketserver.ThreadingTCPServer):
         if not isinstance(request, socket.socket):
             raise TypeError('FTP requires a TCP socket')
         request.settimeout(self.io_timeout)
+        # The request worker releases this slot after the connection handler exits.
+        # pylint: disable-next=consider-using-with
         if self.closing.is_set() or not self.slots.acquire(blocking=False):
             try:
                 request.sendall(b'421 Too many clients or server shutting down\r\n')
@@ -159,7 +176,8 @@ class FTPServer(socketserver.ThreadingTCPServer):
         """Execute client session handling in a dedicated thread.
 
         What it does:
-            Runs the client request thread and ensures the concurrency slot is returned upon completion.
+            Runs the client request thread and ensures the concurrency slot is returned upon
+                completion.
 
         How it does:
             Invokes super().process_request_thread() in a try-finally block, calling
@@ -199,8 +217,22 @@ class FTPServer(socketserver.ThreadingTCPServer):
 class FTPSession(socketserver.BaseRequestHandler):
     """Session handler managing state, command processing, and data transfers for one client."""
 
+    # FTP defines independent authentication, representation, and data-endpoint state.
+    # pylint: disable=too-many-instance-attributes
+
     request: socket.socket
     fs: Sandbox
+    ftp_server: FTPServer
+    stream: ControlStream
+    pending_user: str | None
+    authenticated: bool
+    representation: str
+    structure: str
+    mode: str
+    passive: socket.socket | None
+    active: tuple[str, int] | None
+    epsv_only: bool
+    rename_from: str | None
 
     def setup(self):
         """Prepare session references.
@@ -223,14 +255,17 @@ class FTPSession(socketserver.BaseRequestHandler):
 
         How it does:
             1. Wraps the request socket in a ControlStream with max_line=512.
-            2. Initializes state variables: pending_user, authenticated flag, transfer representation
+            2. Initializes state variables: pending_user, authenticated flag, transfer
+                representation
                ('A'), passive/active endpoint state, and epsv_only mode.
             3. Registers the client socket with the server and instantiates the Sandbox.
             4. Emits the 220 greeting.
-            5. Enters a loop reading lines via self.stream.readline() and dispatching via self.dispatch().
+            5. Enters a loop reading lines via self.stream.readline() and dispatching via
+                self.dispatch().
             6. Catches CommandError to send mapped numeric replies; ProtocolError and TimeoutError
                terminate the session.
-            7. In a finally block, resets data sockets, closes the sandbox, and discards the control socket.
+            7. In a finally block, resets data sockets, closes the sandbox, and discards the control
+                socket.
         """
         self.stream = ControlStream(self.request, max_line=512)
         self.pending_user = None
@@ -313,11 +348,38 @@ class FTPSession(socketserver.BaseRequestHandler):
             5. Dispatches to self.authenticated_command(verb, arg).
             6. Maps any internal OS/Value errors to CommandError 550.
         """
+        # Keep command sequencing and reply-code mapping together.
+        # pylint: disable=too-many-locals
+        # pylint: disable=too-many-branches
+        # pylint: disable=too-many-statements
         verb, _, arg = line.partition(' ')
         verb = verb.upper()
         if not verb or not verb.isascii() or not verb.isalpha():
             raise CommandError(500, 'Invalid command')
-        required = {'USER', 'TYPE', 'MODE', 'STRU', 'CWD', 'MKD', 'RMD', 'DELE', 'RNFR', 'RNTO', 'RETR', 'STOR', 'APPE', 'ALLO', 'ACCT', 'SITE', 'SMNT', 'REST', 'SIZE', 'PORT', 'EPRT', 'OPTS'}
+        required = {
+            'USER',
+            'TYPE',
+            'MODE',
+            'STRU',
+            'CWD',
+            'MKD',
+            'RMD',
+            'DELE',
+            'RNFR',
+            'RNTO',
+            'RETR',
+            'STOR',
+            'APPE',
+            'ALLO',
+            'ACCT',
+            'SITE',
+            'SMNT',
+            'REST',
+            'SIZE',
+            'PORT',
+            'EPRT',
+            'OPTS',
+        }
         no_arg = {'QUIT', 'NOOP', 'PWD', 'CDUP', 'SYST', 'FEAT', 'PASV', 'ABOR', 'REIN'}
         if verb in required and not arg or verb in no_arg and arg:
             raise CommandError(501, 'Invalid command arguments')
@@ -347,10 +409,15 @@ class FTPSession(socketserver.BaseRequestHandler):
         elif verb == 'PASS':
             if self.pending_user is None:
                 raise CommandError(503, 'Send USER first')
-            user_ok = hmac.compare_digest(self.pending_user.encode(), self.ftp_server.username.encode())
+            user_ok = hmac.compare_digest(
+                self.pending_user.encode(), self.ftp_server.username.encode()
+            )
             password_ok = hmac.compare_digest(arg.encode(), self.ftp_server.password.encode())
             self.authenticated = user_ok and password_ok
-            self.reply(230 if self.authenticated else 530, 'Login successful' if self.authenticated else 'Login incorrect')
+            self.reply(
+                230 if self.authenticated else 530,
+                'Login successful' if self.authenticated else 'Login incorrect',
+            )
         elif verb == 'NOOP':
             self.reply(200, 'OK')
         elif verb == 'SYST':
@@ -361,7 +428,13 @@ class FTPSession(socketserver.BaseRequestHandler):
                 self.stream.send_line(feature)
             self.reply(211, 'End')
         elif verb == 'HELP':
-            self.reply(214, 'USER PASS ACCT CWD CDUP SMNT REIN QUIT PORT PASV TYPE STRU MODE RETR STOR STOU APPE ALLO REST RNFR RNTO ABOR DELE RMD MKD PWD LIST NLST SITE SYST STAT HELP NOOP EPRT EPSV SIZE FEAT OPTS')
+            self.reply(
+                214,
+                'USER PASS ACCT CWD CDUP SMNT REIN QUIT PORT PASV TYPE '
+                'STRU MODE RETR STOR STOU APPE ALLO REST RNFR RNTO ABOR '
+                'DELE RMD MKD PWD LIST NLST SITE SYST STAT HELP NOOP '
+                'EPRT EPSV SIZE FEAT OPTS',
+            )
         elif verb == 'OPTS':
             if arg.upper() != 'UTF8 ON':
                 raise CommandError(501, 'Only UTF8 ON is supported')
@@ -373,9 +446,15 @@ class FTPSession(socketserver.BaseRequestHandler):
         elif verb == 'STAT':
             if not arg:
                 self.stream.send_line('211-FTP server status:')
-                self.stream.send_line(f' Connected from {self.client_address[0]}:{self.client_address[1]}')
-                self.stream.send_line(f' Logged in as: {self.pending_user if self.authenticated else "Not logged in"}')
-                self.stream.send_line(f' TYPE: {self.representation}, STRU: {self.structure}, MODE: {self.mode}')
+                self.stream.send_line(
+                    f' Connected from {self.client_address[0]}:{self.client_address[1]}'
+                )
+                self.stream.send_line(
+                    f' Logged in as: {self.pending_user if self.authenticated else "Not logged in"}'
+                )
+                self.stream.send_line(
+                    f' TYPE: {self.representation}, STRU: {self.structure}, MODE: {self.mode}'
+                )
                 if self.passive is not None:
                     self.stream.send_line(' Data: Passive listening')
                 elif self.active is not None:
@@ -400,15 +479,16 @@ class FTPSession(socketserver.BaseRequestHandler):
                 kind = 'file' if is_file else 'directory'
                 self.stream.send_line(f'{code}-Status of {kind} {arg}:')
                 for name, info in entries:
-                    self.stream.send_line(f' {stat.filemode(info.st_mode)} 1 ftp ftp {info.st_size:12d} Jan 01 00:00 {name}')
+                    self.stream.send_line(
+                        f' {stat.filemode(info.st_mode)} 1 ftp ftp '
+                        f'{info.st_size:12d} Jan 01 00:00 {name}'
+                    )
                 self.reply(code, 'End of status')
         elif not self.authenticated:
             raise CommandError(530, 'Please login with USER and PASS')
         else:
             try:
                 self.authenticated_command(verb, arg)
-            except CommandError:
-                raise
             except ValueError as exc:
                 LOG.debug('Argument/name validation error: %s', exc)
                 raise CommandError(553, f'File name not allowed: {exc}') from exc
@@ -417,9 +497,9 @@ class FTPSession(socketserver.BaseRequestHandler):
                 LOG.debug('Filesystem error: %s (errno=%s)', type(exc).__name__, err)
                 if err in (errno.EBUSY, getattr(errno, 'ETXTBSY', 26), errno.EAGAIN):
                     raise CommandError(450, f'File unavailable (busy): {exc}') from exc
-                elif err == errno.ENOSPC:
+                if err == errno.ENOSPC:
                     raise CommandError(452, 'Insufficient storage space in system') from exc
-                elif getattr(errno, 'EDQUOT', None) and err == errno.EDQUOT:
+                if getattr(errno, 'EDQUOT', None) and err == errno.EDQUOT:
                     raise CommandError(552, 'Exceeded storage allocation') from exc
                 raise CommandError(550, 'File or directory unavailable or forbidden') from exc
         return True
@@ -428,7 +508,8 @@ class FTPSession(socketserver.BaseRequestHandler):
         """Execute stateful operations and transfers for authenticated sessions.
 
         What it does:
-            Dispatches filesystem, transfer type, structure, mode, data setup, and transfer commands.
+            Dispatches filesystem, transfer type, structure, mode, data setup, and transfer
+                commands.
 
         How it does:
             - TYPE: validates and records ASCII ('A'), Binary ('I'), or EBCDIC ('E') representation.
@@ -443,6 +524,9 @@ class FTPSession(socketserver.BaseRequestHandler):
             - LIST/NLST/RETR/STOR/STOU/APPE: delegates to self.transfer().
             - ABOR: resets data configuration and replies 226.
         """
+        # Each branch implements a distinct authenticated FTP command.
+        # pylint: disable=too-many-branches
+        # pylint: disable=too-many-statements
         if verb == 'TYPE':
             kind = arg.upper()
             if kind in ('A', 'A N'):
@@ -513,8 +597,10 @@ class FTPSession(socketserver.BaseRequestHandler):
             1. Clears prior data configuration via self.reset_data().
             2. Handles EPSV ALL mode restriction.
             3. For PASV and EPSV:
-               - Creates a TCP listener socket bound to the control connection's local IP and port 0.
-               - Registers the listener, starts listening (listen(4)), and stores it in self.passive.
+               - Creates a TCP listener socket bound to the control connection's local IP and port
+                   0.
+               - Registers the listener, starts listening (listen(4)), and stores it in
+                   self.passive.
                - Responds with 229 (EPSV) or 227 (PASV) containing the allocated port.
             4. For PORT and EPRT:
                - Parses IPv4 address and port from the argument string.
@@ -522,6 +608,9 @@ class FTPSession(socketserver.BaseRequestHandler):
                  (self.client_address[0]) and port must be unprivileged (1024-65535).
                - Stores the target as self.active = (ip, port) and replies 200.
         """
+        # Validate all active and passive endpoint variants before committing state.
+        # pylint: disable=too-many-branches
+        # pylint: disable=too-many-statements
         self.reset_data()
         if self.epsv_only and verb != 'EPSV':
             raise CommandError(501, 'EPSV ALL requires EPSV')
@@ -552,7 +641,9 @@ class FTPSession(socketserver.BaseRequestHandler):
         try:
             if verb == 'PORT':
                 fields = arg.split(',')
-                if len(fields) == 6 and all(f.isascii() and f.isdigit() and 0 <= int(f) <= 255 for f in fields):
+                if len(fields) == 6 and all(
+                    f.isascii() and f.isdigit() and 0 <= int(f) <= 255 for f in fields
+                ):
                     ip = '.'.join(str(int(f)) for f in fields[:4])
                     port = int(fields[4]) * 256 + int(fields[5])
                 elif arg.isascii() and arg.isdigit() and 1024 <= int(arg) <= 65535:
@@ -637,7 +728,8 @@ class FTPSession(socketserver.BaseRequestHandler):
                - STOU generates unique filename and opens atomic staging file via self.fs.upload().
                - LIST/NLST retrieves directory entries from self.fs.entries().
             2. Verifies that a data connection mode (passive/active) was pre-configured.
-            3. Sends preliminary response 150 'Opening data connection' (or 'FILE: <name>' for STOU).
+            3. Sends preliminary response 150 'Opening data connection' (or 'FILE: <name>' for
+                STOU).
             4. Connects via self.data_connection() context manager:
                - For LIST/NLST: writes formatted listing text lines over the data connection.
                - For RETR: reads blocks from file and transmits over data socket (converting
@@ -646,11 +738,16 @@ class FTPSession(socketserver.BaseRequestHandler):
                  (converting CRLF via decode_ascii if representation is 'A').
             5. Checks if server shutdown occurred during transfer (raising ConnectionAbortedError
                to prevent committing a partial upload).
-            6. Closes the data connection and sends completion reply 226 (or 250 with filename for STOU).
+            6. Closes the data connection and sends completion reply 226 (or 250 with filename for
+                STOU).
             7. Resets data configuration in a finally block.
         """
+        # Keep staged-file publication and data-socket cleanup in one transaction.
+        # pylint: disable=too-many-locals
+        # pylint: disable=too-many-branches
+        # pylint: disable=too-many-statements
         started = False
-        file = None
+        file: BinaryIO | None = None
         entries = []
         unique_name = None
         try:
@@ -677,10 +774,15 @@ class FTPSession(socketserver.BaseRequestHandler):
                 with self.data_connection() as data:
                     if verb in ('LIST', 'NLST'):
                         for name, info in entries:
-                            line = name if verb == 'NLST' else f'{stat.filemode(info.st_mode)} 1 ftp ftp {info.st_size:12d} Jan 01 00:00 {name}'
+                            line = (
+                                name
+                                if verb == 'NLST'
+                                else f'{stat.filemode(info.st_mode)} 1 ftp ftp '
+                                f'{info.st_size:12d} Jan 01 00:00 {name}'
+                            )
                             data.sendall(line.encode('utf-8') + b'\r\n')
                     elif verb == 'RETR' and file is not None:
-                        chunks = iter(lambda: file.read(BLOCK_SIZE), b'')
+                        chunks = iter(lambda source=file: source.read(BLOCK_SIZE), b'')
                         for chunk in encode_ascii(chunks) if self.representation == 'A' else chunks:
                             data.sendall(chunk)
                     elif file is not None:
@@ -701,12 +803,13 @@ class FTPSession(socketserver.BaseRequestHandler):
                 err = getattr(exc, 'errno', None)
                 if err == errno.ENOSPC:
                     raise CommandError(452, 'Insufficient storage space in system') from exc
-                elif getattr(errno, 'EDQUOT', None) and err == errno.EDQUOT:
+                if getattr(errno, 'EDQUOT', None) and err == errno.EDQUOT:
                     raise CommandError(552, 'Exceeded storage allocation') from exc
-                elif isinstance(exc, (BrokenPipeError, ConnectionResetError, ConnectionAbortedError)):
+                if isinstance(exc, (BrokenPipeError, ConnectionResetError, ConnectionAbortedError)):
                     raise CommandError(426, 'Transfer failed; data connection closed') from exc
-                else:
-                    raise CommandError(451, 'Requested action aborted: local error in processing') from exc
+                raise CommandError(
+                    451, 'Requested action aborted: local error in processing'
+                ) from exc
             raise
         finally:
             self.reset_data()
@@ -742,19 +845,27 @@ def main(argv=None):
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
     try:
         args.root.mkdir(parents=True, exist_ok=True)
-        server = FTPServer((args.host, args.port), args.root, args.user, password,
-                           timeout=args.timeout, max_clients=args.max_clients)
+        server = FTPServer(
+            (args.host, args.port),
+            args.root,
+            args.user,
+            password,
+            timeout=args.timeout,
+            max_clients=args.max_clients,
+        )
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
 
-    def interrupt(signum, frame):
+    def interrupt(_signum, _frame):
         """Signal handler translating SIGTERM into KeyboardInterrupt for graceful shutdown.
 
         What it does:
-            Translates an asynchronous SIGTERM signal into a standard Python KeyboardInterrupt exception.
+            Translates an asynchronous SIGTERM signal into a standard Python KeyboardInterrupt
+                exception.
 
         How it does:
-            Raises KeyboardInterrupt to exit the server serving loop and trigger clean server shutdown.
+            Raises KeyboardInterrupt to exit the server serving loop and trigger clean server
+                shutdown.
         """
         raise KeyboardInterrupt
 

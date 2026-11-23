@@ -16,15 +16,21 @@ From the repository root:
 
 ```bash
 cd Group_Project/FTP
-python3 -m ftp_lab.webapp --demo
+uv sync --locked --no-dev
+uv run --locked --no-dev python -m ftp_lab.webapp --demo
 ```
 
 `make app` runs the same command. On the host, open `http://127.0.0.1:8080`.
 The app binds to all IPv4 interfaces by default. Other devices on the same
 trusted LAN use `http://HOST_LAN_IP:8080`; see [the LAN guide](LAN_ACCESS.md).
-Python 3.11+ on the Linux/POSIX environment described in the README is enough;
-the app requires no package installation, frontend build, cloud account,
-internet connection, or external JavaScript CDN.
+uv manages Python 3.11+ and `.venv` in the Linux/POSIX environment described
+in the [README](../README.md#set-up-the-environment). The app has no
+third-party Python runtime dependencies, frontend build, cloud account, or
+external JavaScript CDN. Initial setup can download the interpreter; once
+it is installed, `uv run --locked --offline --no-dev python -m ftp_lab.webapp
+--demo` runs without network downloads. Pylint belongs to the default `dev`
+group; optional offline PNG/SVG exports use the `plots` extra. The browser
+SVG charts need neither Matplotlib nor that extra.
 
 On first use, create a local account with a username of 2–64 characters and
 a password of 8–256 characters. Subsequent visits show **Sign in**. There is
@@ -174,7 +180,7 @@ cancellation, waits for workers, closes sockets, and stops the demo server.
 Custom settings are available without modifying source:
 
 ```bash
-python3 -m ftp_lab.webapp --demo --port 8085 --data-dir app-data
+uv run --locked --no-dev python -m ftp_lab.webapp --demo --port 8085 --data-dir app-data
 ```
 
 Without `--demo`, Relay manages external devices only. If a database already
@@ -215,7 +221,8 @@ Read the modules in this order:
 | [app.js](../ftp_lab/webapp/static/app.js) | API calls, views, source selection, polling, formatting and SVG graphs |
 | [index.html](../ftp_lab/webapp/static/index.html) | Semantic page structure, forms, dialogs and accessible labels |
 | [styles.css](../ftp_lab/webapp/static/styles.css) | Layout, colors, focus/disabled states and responsive rules |
-| [benchmark.py](../ftp_lab/benchmark.py) | Measured original/gzip transfers, content verification and report export |
+| [benchmark.py](../ftp_lab/benchmark.py) | Measured original/gzip transfers, content verification and CSV/JSON export |
+| [plots.py](../ftp_lab/plots.py) | Optional Matplotlib PNG/SVG report exports |
 
 ### 3.1 SQLite and local authentication
 
@@ -419,7 +426,7 @@ leaving a job stuck while unpacking.
 | --- | --- |
 | Browser cannot connect | Start the app and use the printed URL/port |
 | Address already in use | Stop the old app or choose another `--port` |
-| Missing Python module | Start from `Group_Project/FTP` using `python3 -m ftp_lab.webapp` |
+| Missing Python module | Start from `Group_Project/FTP` using `uv run --locked --no-dev python -m ftp_lab.webapp` |
 | Profile is saved but not connected | Enter that FTP server's password again |
 | File upload preparation finished but FTP is still running | Follow the phase label; the two legs are separate |
 | FTP operation times out | Check device reachability, login, and passive data-port access |
@@ -432,3 +439,12 @@ The automated tests use dynamically assigned loopback ports and temporary
 directories under the FTP component's `build/tmp/`. Generated stress media
 is placed in `benchmarks/generated-media/`; only small benchmark reports
 are committed.
+
+## Current environment and checks
+
+Use `uv sync --locked --extra plots`, then `make lint test` from the FTP
+directory for the full development environment. The suite has 79 Python
+tests and 10 frontend tests; the real LAN-interface case is opt-in. The
+dated milestones above retain their original counts. PyCharm uses
+`.venv/bin/python`. See the [setup guide](../README.md#set-up-the-environment)
+for lockfile maintenance and offline commands.

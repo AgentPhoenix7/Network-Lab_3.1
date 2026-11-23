@@ -1,21 +1,26 @@
+"""Exercise RFC 959 representation, structure, and transmission combinations."""
+
 from __future__ import annotations
 
-import io
 import json
 import shutil
 import tempfile
 import unittest
 from pathlib import Path
 
-from ftp_lab.client import FTPClient, execute
 from support import running_server
+
+from ftp_lab.client import FTPClient, execute
 
 SAMPLES_DIR = Path(__file__).resolve().parent.parent / "server-data" / "samples"
 SERVER_DATA = Path(__file__).resolve().parent.parent / "server-data"
 
 
 class PermutationsTestCase(unittest.TestCase):
+    """RFC 959 sample manifest and transfer permutation tests."""
+
     def test_samples_exist_and_manifest_matches(self):
+        """Verify samples exist and manifest matches."""
         manifest_path = SAMPLES_DIR / "manifest.json"
         self.assertTrue(manifest_path.exists(), "samples/manifest.json must exist")
         with manifest_path.open("r", encoding="utf-8") as f:
@@ -27,7 +32,8 @@ class PermutationsTestCase(unittest.TestCase):
             self.assertEqual(file_path.stat().st_size, item["size_bytes"])
 
     def test_client_type_stru_mode_execution(self):
-        with running_server() as (server, root):
+        """Verify client type stru mode execution."""
+        with running_server() as (server, _root):
             host, port = server.server_address
             with FTPClient(host, port) as client:
                 client.login('student', 'lab-test')
@@ -67,6 +73,7 @@ class PermutationsTestCase(unittest.TestCase):
                 execute(client, "quote SYST")
 
     def test_download_samples(self):
+        """Verify download samples."""
         manifest_path = SAMPLES_DIR / "manifest.json"
         with manifest_path.open("r", encoding="utf-8") as f:
             manifest = json.load(f)
@@ -84,7 +91,9 @@ class PermutationsTestCase(unittest.TestCase):
                 local_welcome = Path(tmpdir) / "welcome.txt"
                 client.download("welcome.txt", str(local_welcome))
                 self.assertTrue(local_welcome.exists())
-                self.assertEqual(local_welcome.stat().st_size, (SERVER_DATA / "welcome.txt").stat().st_size)
+                self.assertEqual(
+                    local_welcome.stat().st_size, (SERVER_DATA / "welcome.txt").stat().st_size
+                )
 
                 # Switch to samples directory
                 execute(client, "cd samples")

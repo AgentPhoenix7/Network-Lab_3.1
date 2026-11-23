@@ -6,7 +6,8 @@ On the computer hosting the project:
 
 ```bash
 cd Group_Project/FTP
-python3 -m ftp_lab.webapp --demo
+uv sync --locked --no-dev
+uv run --locked --no-dev python -m ftp_lab.webapp --demo
 ```
 
 The default bind address is `0.0.0.0` on TCP port 8080, which accepts IPv4
@@ -45,10 +46,10 @@ that device an FTP server. To connect an additional FTP server, use
 
 ```bash
 # Trusted LAN access (the default)
-python3 -m ftp_lab.webapp --demo --host 0.0.0.0 --port 8080
+uv run --locked --no-dev python -m ftp_lab.webapp --demo --host 0.0.0.0 --port 8080
 
 # Host-only access
-python3 -m ftp_lab.webapp --demo --host 127.0.0.1 --port 8080
+uv run --locked --no-dev python -m ftp_lab.webapp --demo --host 127.0.0.1 --port 8080
 ```
 
 You can bind only the host's assigned LAN IPv4 address using `--host` after
@@ -97,7 +98,7 @@ clients. From `Group_Project/FTP`, supply your lab password through
 `FTP_PASSWORD` and bind the desired interface:
 
 ```bash
-FTP_PASSWORD=choose-a-lab-password python3 -m ftp_lab.server \
+FTP_PASSWORD=choose-a-lab-password uv run --locked --no-dev python -m ftp_lab.server \
   --host 0.0.0.0 --port 2121 --root server-data
 ```
 
@@ -117,7 +118,10 @@ shared profile/file upload-download, isolated external FTP passwords,
 concurrent initial demo-profile creation, strict Host/Origin/CSRF handling,
 remote owner-claim prevention, and specific-address owner bootstrap.
 
-Run the normal suite with `make test`. To include the real LAN-interface
+Prepare the development environment with `uv sync --locked --extra plots`
+from `Group_Project/FTP`, then run the normal suite with `make test`. It
+discovers 79 Python tests and runs 10 frontend tests when Node.js is present.
+The dated counts below describe earlier milestones. To include the real LAN-interface
 case, from the repository root set an IPv4 address actually assigned to
 this host:
 
@@ -187,3 +191,11 @@ existing SQLite/session service, and the current frontend. The regression
 suite is extended in `tests/test_network_app.py`. Defaults and usage are
 synchronized with the README and detailed app guide. No firewall rules or
 router settings are changed automatically.
+
+## Environment maintenance
+
+Every launch above uses the locked uv environment with `--no-dev`; the
+HTTP/FTP services have no third-party Python runtime packages. uv does not
+configure LAN addresses or install Node.js, FFmpeg, or firewall tools. The
+[main setup guide](../README.md#set-up-the-environment) explains dependency
+groups, offline execution, PyCharm selection, and lockfile upgrades.

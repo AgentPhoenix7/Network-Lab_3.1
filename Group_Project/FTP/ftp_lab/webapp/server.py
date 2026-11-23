@@ -10,6 +10,7 @@ from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ipaddress import IPv4Address
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, quote, urlsplit
 
 from ..client import FTPError
@@ -28,7 +29,8 @@ class AppServer(ThreadingHTTPServer):
         """Initialize the web application HTTP server.
 
         What it does:
-            Prepares the HTTP server listening on the specified IPv4 endpoint and binds the AppService.
+            Prepares the HTTP server listening on the specified IPv4 endpoint and binds the
+                AppService.
 
         How it does:
             Validates and normalizes address, initializes rate-limiting state (attempts dictionary)
@@ -51,11 +53,15 @@ class AppServer(ThreadingHTTPServer):
             Extracts host and port from self.server_address.
         """
         host, port = self.server_address[:2]
+        if not isinstance(port, int):
+            raise TypeError('Expected a bound IPv4 port')
         return str(host), port
 
 
 class AppHandler(BaseHTTPRequestHandler):
     """HTTP request handler implementing security headers, CSRF checks, and API routing."""
+
+    app: AppServer
 
     server_version = 'LocalFTP/1.0'
 
@@ -74,6 +80,8 @@ class AppHandler(BaseHTTPRequestHandler):
         self.app = self.server
         self.connection.settimeout(30)
 
+    # Required override signature; logging remains silent to avoid leaking credentials.
+    # noinspection PyShadowingBuiltins
     def log_message(self, format, *args):
         """Suppress default HTTP request logging to prevent credential exposure.
 
@@ -81,7 +89,8 @@ class AppHandler(BaseHTTPRequestHandler):
             Silences HTTP access logging.
 
         How it does:
-            Returns immediately without writing logs, keeping filenames, tokens, and cookies private.
+            Returns immediately without writing logs, keeping filenames, tokens, and cookies
+                private.
         """
         return
 
@@ -92,13 +101,20 @@ class AppHandler(BaseHTTPRequestHandler):
             Adds defensive browser headers (CSP, nosniff, no-store, no-referrer) to responses.
 
         How it does:
-            Emits Content-Security-Policy, X-Content-Type-Options, Cache-Control, and Referrer-Policy
+            Emits Content-Security-Policy, X-Content-Type-Options, Cache-Control, and
+                Referrer-Policy
             headers before invoking BaseHTTPRequestHandler.end_headers().
         """
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('Cache-Control', 'no-store')
         self.send_header('Referrer-Policy', 'no-referrer')
-        self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'")
+        self.send_header(
+            'Content-Security-Policy',
+            "default-src 'self'; script-src 'self'; style-src "
+            "'self'; img-src 'self' data:; connect-src 'self'; "
+            "frame-ancestors 'none'; object-src 'none'; base-uri "
+            "'none'",
+        )
         super().end_headers()
 
     def reply(self, status: int, value: dict[str, Any], *, cookie: str | None = None):
@@ -108,7 +124,8 @@ class AppHandler(BaseHTTPRequestHandler):
             Encodes and transmits a JSON object with appropriate HTTP status and headers.
 
         How it does:
-            Serializes value with json.dumps(allow_nan=False), sends headers (Content-Type, Content-Length,
+            Serializes value with json.dumps(allow_nan=False), sends headers (Content-Type,
+                Content-Length,
             optional Set-Cookie), finishes headers, and writes encoded body to self.wfile.
         """
         body = json.dumps(value, allow_nan=False).encode()
@@ -176,47 +193,59 @@ class AppHandler(BaseHTTPRequestHandler):
             raise ValueError('Invalid content length')
         return int(value)
 
-    def do_GET(self):
+    # BaseHTTPRequestHandler dispatches to this exact method name.
+    # noinspection PyPep8Naming
+    def do_GET(self):  # pylint: disable=invalid-name
         """Handle incoming HTTP GET requests.
 
         What it does:
             Dispatches GET requests to the centralized application routing handler.
 
         How it does:
-            Invokes self.route() to authenticate, parse query parameters, and serve static assets or API endpoints.
+            Invokes self.route() to authenticate, parse query parameters, and serve static assets or
+                API endpoints.
         """
         self.route()
 
-    def do_POST(self):
+    # BaseHTTPRequestHandler dispatches to this exact method name.
+    # noinspection PyPep8Naming
+    def do_POST(self):  # pylint: disable=invalid-name
         """Handle incoming HTTP POST requests.
 
         What it does:
             Dispatches POST requests to the centralized application routing handler.
 
         How it does:
-            Invokes self.route() to validate CSRF tokens, parse payloads, and execute state-mutating actions.
+            Invokes self.route() to validate CSRF tokens, parse payloads, and execute state-mutating
+                actions.
         """
         self.route()
 
-    def do_PUT(self):
+    # BaseHTTPRequestHandler dispatches to this exact method name.
+    # noinspection PyPep8Naming
+    def do_PUT(self):  # pylint: disable=invalid-name
         """Handle incoming HTTP PUT requests.
 
         What it does:
             Dispatches PUT requests to the centralized application routing handler.
 
         How it does:
-            Invokes self.route() to validate CSRF tokens, verify payload streams, and update resources.
+            Invokes self.route() to validate CSRF tokens, verify payload streams, and update
+                resources.
         """
         self.route()
 
-    def do_DELETE(self):
+    # BaseHTTPRequestHandler dispatches to this exact method name.
+    # noinspection PyPep8Naming
+    def do_DELETE(self):  # pylint: disable=invalid-name
         """Handle incoming HTTP DELETE requests.
 
         What it does:
             Dispatches DELETE requests to the centralized application routing handler.
 
         How it does:
-            Invokes self.route() to authenticate requests, validate CSRF protection, and delete resources.
+            Invokes self.route() to authenticate requests, validate CSRF protection, and delete
+                resources.
         """
         self.route()
 
@@ -240,10 +269,15 @@ class AppHandler(BaseHTTPRequestHandler):
             self.reply(400, {'error': str(exc)[:500]})
         except (OSError, EOFError):
             try:
-                self.reply(502, {'error': 'The connection ended or timed out. Please reconnect and try again.'})
+                self.reply(
+                    502,
+                    {'error': 'The connection ended or timed out. Please reconnect and try again.'},
+                )
             except OSError:
                 pass
 
+    # Plain HTTP is intentional for this trusted LAN lab.
+    # noinspection HttpUrlsUsage
     def dispatch(self):
         """Validate request headers and dispatch to specific API endpoint handlers.
 
@@ -252,13 +286,19 @@ class AppHandler(BaseHTTPRequestHandler):
             device management, file browsing, and transfer job endpoints.
 
         How it does:
-            1. Validates Host header against destination socket IP and port to prevent DNS rebinding.
+            1. Validates Host header against destination socket IP and port to prevent DNS
+                rebinding.
             2. For mutating methods (POST/PUT/DELETE): validates X-FTP-App header, Origin header,
                and X-CSRF-Token matching csrf_token(token).
             3. Routes GET /api/session and static files (index.html, styles.css, app.js).
             4. Routes POST /api/setup and /api/login, enforcing 10 attempts/min rate limit.
             5. Dispatches authenticated device and job endpoints to AppService methods.
         """
+        # Keep HTTP method, authentication, and ownership checks beside each route.
+        # pylint: disable=too-many-locals
+        # pylint: disable=too-many-return-statements
+        # pylint: disable=too-many-branches
+        # pylint: disable=too-many-statements
         host = self.headers.get('Host', '')
         port = self.app.address[1]
         destination = IPv4Address(self.connection.getsockname()[0])
@@ -278,62 +318,109 @@ class AppHandler(BaseHTTPRequestHandler):
         path = route.path
         token, user = self.session()
         if method != 'GET':
-            if self.headers.get('X-FTP-App') != '1' or self.headers.get('Origin') != f'http://{host}':
+            if (
+                self.headers.get('X-FTP-App') != '1'
+                or self.headers.get('Origin') != f'http://{host}'
+            ):
                 self.reply(403, {'error': 'Invalid request origin'})
                 return
-            if user is not None and not hmac.compare_digest(self.headers.get('X-CSRF-Token', ''), csrf_token(token)):
+            if user is not None and not hmac.compare_digest(
+                self.headers.get('X-CSRF-Token', ''), csrf_token(token)
+            ):
                 self.reply(403, {'error': 'Your session changed. Refresh the page and try again.'})
                 return
         service = self.app.service
         if method == 'GET' and path == '/api/session':
-            self.reply(200, {'setup_required': service.db.setup_required(), 'user': user,
-                             'setup_allowed': setup_allowed,
-                             'csrf': csrf_token(token) if user else ''})
+            self.reply(
+                200,
+                {
+                    'setup_required': service.db.setup_required(),
+                    'user': user,
+                    'setup_allowed': setup_allowed,
+                    'csrf': csrf_token(token) if user else '',
+                },
+            )
             return
         if method == 'GET' and path in ('/', '/static/styles.css', '/static/app.js'):
-            name = {'/': 'index.html', '/static/styles.css': 'styles.css', '/static/app.js': 'app.js'}[path]
+            name = {
+                '/': 'index.html',
+                '/static/styles.css': 'styles.css',
+                '/static/app.js': 'app.js',
+            }[path]
             file = STATIC / name
             if not file.is_file():
                 raise NotFound('Page not found')
             body = file.read_bytes()
             self.send_response(200)
-            self.send_header('Content-Type', {'html': 'text/html; charset=utf-8', 'css': 'text/css', 'js': 'text/javascript'}[name.rsplit('.', 1)[1]])
+            self.send_header(
+                'Content-Type',
+                {'html': 'text/html; charset=utf-8', 'css': 'text/css', 'js': 'text/javascript'}[
+                    name.rsplit('.', 1)[1]
+                ],
+            )
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
             self.wfile.write(body)
             return
         if method == 'POST' and path in ('/api/setup', '/api/login'):
             if path == '/api/setup' and not setup_allowed:
-                self.reply(403, {'error': 'Create the workspace account on the host computer first using '
-                                         f'http://127.0.0.1:{port}'})
+                self.reply(
+                    403,
+                    {
+                        'error': 'Create the workspace account on the host computer first using '
+                        f'http://127.0.0.1:{port}'
+                    },
+                )
                 return
             data = self.payload()
             username, password = data.get('username'), data.get('password')
-            if not isinstance(username, str) or not isinstance(password, str) or len(password) > 256:
+            if (
+                not isinstance(username, str)
+                or not isinstance(password, str)
+                or len(password) > 256
+            ):
                 raise ValueError('Enter a username and password')
             with self.app.auth_lock:
-                attempts = [t for t in self.app.attempts.get(self.client_address[0], []) if t > time.monotonic() - 60]
+                attempts = [
+                    t
+                    for t in self.app.attempts.get(self.client_address[0], [])
+                    if t > time.monotonic() - 60
+                ]
                 if len(attempts) >= 10:
                     self.reply(429, {'error': 'Too many attempts. Wait a minute and try again.'})
                     return
                 attempts.append(time.monotonic())
                 self.app.attempts[self.client_address[0]] = attempts
-            user = service.db.setup(username, password) if path == '/api/setup' else service.db.login(username, password)
+            user = (
+                service.db.setup(username, password)
+                if path == '/api/setup'
+                else service.db.login(username, password)
+            )
             if user is None:
                 self.reply(401, {'error': 'Username or password did not match'})
                 return
             new_token = service.db.create_session(user['id'])
-            self.reply(200, {'setup_required': False, 'user': user, 'csrf': csrf_token(new_token)},
-                       cookie=f'ftp_session={new_token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800')
+            self.reply(
+                200,
+                {'setup_required': False, 'user': user, 'csrf': csrf_token(new_token)},
+                cookie=f'ftp_session={new_token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800',
+            )
             return
         if user is None:
-            self.reply(401 if path.startswith('/api/') else 404, {'error': 'Please sign in' if path.startswith('/api/') else 'Not found'})
+            self.reply(
+                401 if path.startswith('/api/') else 404,
+                {'error': 'Please sign in' if path.startswith('/api/') else 'Not found'},
+            )
             return
         owner = user['id']
         if method == 'POST' and path == '/api/logout':
             service.logout(token)
             service.db.delete_session(token)
-            self.reply(200, {'ok': True}, cookie='ftp_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0')
+            self.reply(
+                200,
+                {'ok': True},
+                cookie='ftp_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0',
+            )
         elif path == '/api/devices' and method == 'GET':
             self.reply(200, {'devices': service.devices(owner, token)})
         elif path == '/api/devices' and method == 'POST':
@@ -349,7 +436,14 @@ class AppHandler(BaseHTTPRequestHandler):
             except (ValueError, IndexError) as exc:
                 raise NotFound('Device not found') from exc
             if len(parts) == 5 and parts[4] == 'connect' and method == 'POST':
-                self.reply(200, {'device': service.connect_device(owner, token, device_id, self.payload().get('password', ''))})
+                self.reply(
+                    200,
+                    {
+                        'device': service.connect_device(
+                            owner, token, device_id, self.payload().get('password', '')
+                        )
+                    },
+                )
             elif len(parts) == 5 and parts[4] == 'files' and method == 'GET':
                 folder = parse_qs(route.query).get('path', ['/'])[0]
                 self.reply(200, service.files(owner, token, device_id, folder))
@@ -367,7 +461,14 @@ class AppHandler(BaseHTTPRequestHandler):
                 service.delete_job(owner, job_id)
                 self.reply(200, {'ok': True})
             elif len(parts) == 5 and parts[4] == 'source' and method == 'PUT':
-                self.reply(200, {'job': service.receive_source(owner, token, job_id, self.rfile, self.content_length())})
+                self.reply(
+                    200,
+                    {
+                        'job': service.receive_source(
+                            owner, token, job_id, self.rfile, self.content_length()
+                        )
+                    },
+                )
             elif len(parts) == 5 and parts[4] == 'cancel' and method == 'POST':
                 self.reply(200, {'job': service.cancel_job(owner, job_id)})
             elif len(parts) == 5 and parts[4] == 'download' and method == 'GET':
@@ -375,7 +476,9 @@ class AppHandler(BaseHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/octet-stream')
                 self.send_header('Content-Length', str(file.stat().st_size))
-                self.send_header('Content-Disposition', "attachment; filename*=UTF-8''" + quote(name, safe=''))
+                self.send_header(
+                    'Content-Disposition', "attachment; filename*=UTF-8''" + quote(name, safe='')
+                )
                 self.end_headers()
                 with file.open('rb') as source:
                     while block := source.read(1024 * 1024):
@@ -394,6 +497,8 @@ class AppHandler(BaseHTTPRequestHandler):
             raise NotFound('Not found')
 
 
+# Plain HTTP is intentional for this trusted LAN lab.
+# noinspection HttpUrlsUsage
 def main(argv=None):
     """Run the web application server CLI.
 
@@ -406,10 +511,16 @@ def main(argv=None):
         3. Instantiates AppServer and runs server.serve_forever() until interrupted.
     """
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--host', default='0.0.0.0', help='IPv4 bind address (default: all interfaces; use 127.0.0.1 for local only)')
+    parser.add_argument(
+        '--host',
+        default='0.0.0.0',
+        help='IPv4 bind address (default: all interfaces; use 127.0.0.1 for local only)',
+    )
     parser.add_argument('--port', type=int, default=8080)
     parser.add_argument('--data-dir', type=Path, default=Path('app-data'))
-    parser.add_argument('--demo', action='store_true', help='Start an automatically connected local FTP device')
+    parser.add_argument(
+        '--demo', action='store_true', help='Start an automatically connected local FTP device'
+    )
     args = parser.parse_args(argv)
     if not 0 <= args.port <= 65535:
         parser.error('Port must be between 0 and 65535')
@@ -420,15 +531,17 @@ def main(argv=None):
     service = AppService(args.data_dir, demo=args.demo)
     if host != '0.0.0.0' and not IPv4Address(host).is_loopback and service.db.setup_required():
         service.close()
-        parser.error('Create the owner account first: start with --host 127.0.0.1 using the same '
-                     '--data-dir and --port, complete setup there, then restart with the LAN address')
+        parser.error(
+            'Create the owner account first: start with --host 127.0.0.1 using the same '
+            '--data-dir and --port, complete setup there, then restart with the LAN address'
+        )
     try:
         server = AppServer((host, args.port), service)
     except OSError:
         service.close()
         raise
 
-    def interrupt(signum, frame):
+    def interrupt(_signum, _frame):
         """Translate SIGTERM signal to KeyboardInterrupt for graceful shutdown.
 
         What it does:
@@ -445,8 +558,14 @@ def main(argv=None):
             port = server.address[1]
             if host == '0.0.0.0':
                 print(f'On this computer: http://127.0.0.1:{port}', flush=True)
-                print(f'Other devices: http://<this computer\'s LAN IPv4 address>:{port}', flush=True)
-                print('Listening on all IPv4 interfaces. Use a trusted LAN; HTTP and FTP are plaintext.', flush=True)
+                print(
+                    f'Other devices: http://<this computer\'s LAN IPv4 address>:{port}', flush=True
+                )
+                print(
+                    'Listening on all IPv4 interfaces. Use a trusted LAN; '
+                    'HTTP and FTP are plaintext.',
+                    flush=True,
+                )
             else:
                 print(f'Open http://{host}:{port}', flush=True)
             server.serve_forever(poll_interval=0.1)

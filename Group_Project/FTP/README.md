@@ -21,17 +21,49 @@ below are this project's design, beyond that brief assignment requirement.
 ## Requirements
 
 - Python **3.11+** on Linux/POSIX with `dir_fd`, `O_DIRECTORY`, and `O_NOFOLLOW`.
-- No pip packages or virtual environment required for the app or FTP tools.
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) manages the project's `.venv` and locked Python dependencies.
+- The FTP client/server and browser app use only the Python standard library.
 - Optional: Node.js for frontend helper tests, FFmpeg/ffprobe for generated
   media, and Matplotlib for exported benchmark PNG/SVG plots.
-- `make` is optional; every entry point also works with `python3`.
+- `make` is optional; equivalent `uv run --locked ...` commands are shown below.
+
+## Set up the environment
+
+From the repository root:
+
+```bash
+cd Group_Project/FTP
+uv sync --locked --extra plots
+```
+
+`pyproject.toml` declares Python 3.11+ compatibility, the default `dev` group
+(Pylint), and the optional `plots` extra (Matplotlib). `uv.lock` fixes direct
+and transitive dependency versions, including Python-version-specific choices.
+Both files belong in version control. The project runs from its source tree;
+it does not need a build or editable package installation.
+
+`uv sync --locked --extra plots` (also `make sync`) prepares linting and all
+Python tests, including PNG/SVG chart exports. For only the standard-library
+app and FTP tools, use `uv sync --locked --no-dev`, then the `--no-dev` launch
+commands below. No environment activation is required. In PyCharm, select
+this project's `.venv/bin/python` as the interpreter.
+
+Initial setup may download Python or dependencies. After they are available
+locally, add `--offline` to `uv run` or `uv sync` to prevent network access.
+Node.js and FFmpeg/ffprobe are separate system tools; uv does not install them.
+
+To change dependencies, use `uv add --dev NAME` for development tools or
+`uv add --optional plots NAME` for plot dependencies. To update locked
+versions, run `uv lock --upgrade`, then `uv sync --locked --extra plots` and
+`make lint test`. `uv lock --check` verifies that the lock matches the manifest.
+Use `--locked` for normal work so a stale lock is reported instead of rewritten.
 
 ## Quick start: browser app
 
 ```bash
 cd Group_Project/FTP
 make app
-# Equivalent: python3 -m ftp_lab.webapp --demo
+# Equivalent: uv run --locked --no-dev python -m ftp_lab.webapp --demo
 ```
 
 On the host computer, open **http://127.0.0.1:8080** and create your workspace account.
@@ -61,7 +93,7 @@ own session; profiles, host-folder files, and history are shared.
 The first account can only be created through loopback on the host.
 Other devices show a setup instruction until it exists. **Host computer**
 means the computer running Python, including when viewed from a phone.
-For local-only access, run `python3 -m ftp_lab.webapp --demo --host 127.0.0.1`.
+For local-only access, run `uv run --locked --no-dev python -m ftp_lab.webapp --demo --host 127.0.0.1`.
 
 This is plaintext HTTP/FTP for a trusted lab LAN. The browser workflow
 needs TCP port 8080 at the host; direct FTP clients additionally need the
@@ -78,7 +110,7 @@ for use on a network.
 
 ```bash
 cd Group_Project/FTP
-FTP_PASSWORD=lab-demo python3 -m ftp_lab.server
+FTP_PASSWORD=lab-demo uv run --locked --no-dev python -m ftp_lab.server
 ```
 
 Terminal 2 creates an example file and connects. Enter the same password
@@ -88,7 +120,7 @@ when prompted; it will not be echoed.
 cd Group_Project/FTP
 mkdir -p downloads
 printf 'Hello from our FTP project!\n' > downloads/hello.txt
-python3 -m ftp_lab.client --trace
+uv run --locked --no-dev python -m ftp_lab.client --trace
 ```
 
 At the `ftp>` prompt:
@@ -122,9 +154,10 @@ Files and example download directories are ignored by Git.
 
 ## Connect from another PC through the terminal
 
-Connect both PCs to the same trusted Wi-Fi or LAN. Install Python and copy
-or clone this project on both PCs. The terminal client/server use Python's
-standard library and need no additional packages.
+Connect both PCs to the same trusted Wi-Fi or LAN. Install uv and copy or
+clone this project on both PCs, then run `uv sync --locked --no-dev` from
+`Group_Project/FTP` on each. The terminal client/server use Python's standard
+library and need no third-party runtime packages.
 
 ### 1. Start the server on the PC that will share files
 
@@ -132,7 +165,7 @@ From the repository root, run:
 
 ```bash
 cd Group_Project/FTP
-FTP_PASSWORD='choose-a-password' python3 -m ftp_lab.server \
+FTP_PASSWORD='choose-a-password' uv run --locked --no-dev python -m ftp_lab.server \
   --host 0.0.0.0 --port 2121 --root server-data --user student
 ```
 
@@ -159,13 +192,14 @@ From that PC's copy of the repository:
 cd Group_Project/FTP
 mkdir -p downloads
 printf 'Hello from the client PC!\n' > downloads/hello.txt
-python3 -m ftp_lab.client \
+uv run --locked --no-dev python -m ftp_lab.client \
   --host 192.168.1.10 --port 2121 --user student --trace
 ```
 
 Replace `192.168.1.10` with the server PC's actual LAN IP. Enter the same
 password you chose when starting the server. This example uses a Bash
-terminal; the client command can use `py` instead of `python3` on Windows.
+terminal; uv selects the project interpreter on Windows too. The server
+requires the Linux/POSIX filesystem APIs listed above.
 
 ### 3. Upload and download files
 
@@ -225,7 +259,7 @@ does not change the client's chosen file-transfer type.
 Batch commands work via `--script file` or `--script -` for stdin:
 
 ```bash
-FTP_PASSWORD=lab-demo python3 -m ftp_lab.client --script - <<'EOF'
+FTP_PASSWORD=lab-demo uv run --locked --no-dev python -m ftp_lab.client --script - <<'EOF'
 pwd
 nlst
 quit
@@ -317,7 +351,7 @@ In Terminal 1, start the server using the default sandbox root (`server-data`):
 
 ```bash
 cd Group_Project/FTP
-FTP_PASSWORD=lab-demo python3 -m ftp_lab.server
+FTP_PASSWORD=lab-demo uv run --locked --no-dev python -m ftp_lab.server
 ```
 
 The server binds to `127.0.0.1:2121`, serving `Group_Project/FTP/server-data/`.
@@ -329,7 +363,7 @@ In Terminal 2, create a clean local download directory and start the client with
 ```bash
 cd Group_Project/FTP
 mkdir -p downloads
-python3 -m ftp_lab.client --trace
+uv run --locked --no-dev python -m ftp_lab.client --trace
 ```
 
 Enter password `lab-demo` when prompted.
@@ -393,7 +427,7 @@ In Terminal 2, inspect the retrieved demonstration files:
 cat downloads/demo_A_F_S.txt
 
 # Verify EBCDIC CP037 decoding (IBM mainframe character translation):
-python3 -c "print(open('downloads/demo_E_R_S.ebcdic', 'rb').read().decode('cp037'))"
+uv run --locked --no-dev python -c "print(open('downloads/demo_E_R_S.ebcdic', 'rb').read().decode('cp037'))"
 
 # Verify binary block headers with hexdump (reveals descriptor byte 0x40 and length):
 xxd downloads/demo_I_R_B.dat
@@ -402,12 +436,12 @@ xxd downloads/demo_I_R_B.dat
 gzip -dc downloads/demo_I_F_C.gz | file -
 ```
 
-#### Step 5: Automated Demonstration of All 27 Permutations
+#### Step 5: Batch Negotiation and Automated Permutation Tests
 
-You can demonstrate all 27 permutations sequentially with a single batch command:
+You can negotiate selected parameter combinations in one batch session:
 
 ```bash
-FTP_PASSWORD=lab-demo python3 -m ftp_lab.client --script - <<'EOF'
+FTP_PASSWORD=lab-demo uv run --locked --no-dev python -m ftp_lab.client --script - <<'EOF'
 cd samples
 type A
 stru F
@@ -427,14 +461,14 @@ EOF
 
 All 27 permutations are also validated by the automated test suite:
 ```bash
-python3 -m unittest discover -s tests -p "test_permutations.py"
+uv run --locked --extra plots python -m unittest discover -s tests -p "test_permutations.py"
 ```
 
 #### Step 6: Browser UI Demonstration
 
 Start the local web application:
 ```bash
-python3 -m ftp_lab.webapp --demo
+uv run --locked --no-dev python -m ftp_lab.webapp --demo
 ```
 Open **http://127.0.0.1:8080** and navigate to the **RFC 959 Command Explorer** section. Click on the **TYPE**, **STRU**, or **MODE** cards to view interactive syntax, parameter options, and animated protocol message exchanges in the command stream.
 
@@ -518,11 +552,19 @@ operator; this is not an OS-level isolation boundary against local users.
 
 ## Tests
 
-From this directory:
+From `Group_Project/FTP`:
 
 ```bash
+uv sync --locked --extra plots
+make lint
 make test
 ```
+
+`make test` selects the `plots` extra, so chart-export tests run when its
+locked dependencies are available. Node.js enables the frontend helper tests;
+FFmpeg and ffprobe enable generated-media checks. Those system tools remain
+optional. The normal test run skips the real LAN-interface case unless
+`FTP_TEST_LAN_HOST` is set.
 
 Without make (from the repository root):
 
@@ -530,7 +572,9 @@ Without make (from the repository root):
 mkdir -p Group_Project/FTP/build/tmp
 TMPDIR="$PWD/Group_Project/FTP/build/tmp" TMP="$PWD/Group_Project/FTP/build/tmp" TEMP="$PWD/Group_Project/FTP/build/tmp" \
   PYTHONPATH="$PWD/Group_Project/FTP" \
-  python3 -W error::ResourceWarning -m unittest discover -s Group_Project/FTP/tests -v
+  uv run --project Group_Project/FTP --locked --extra plots python \
+  -W error::ResourceWarning -m unittest discover -s Group_Project/FTP/tests -v
+node Group_Project/FTP/tests/test_frontend.cjs
 ```
 
 Tests use dynamically assigned loopback ports and isolated directories under
@@ -545,7 +589,7 @@ files, active/passive mode, ASCII conversion, UTF-8/spaces/quotes, concurrent
 sessions, authentication, malformed commands, root confinement, reset
 uploads, timeout recovery, and failed-download preservation.
 
-The current suite contains **70 Python tests** and **8 frontend helper tests**
+The current suite contains **79 Python tests** and **10 frontend helper tests**
 (the latter run when Node.js is available). Additional coverage includes
 local authentication, persistent devices/history, request protections,
 streamed sources, cancellation, gzip, benchmark verification, oversized
@@ -561,7 +605,9 @@ LAN IPv4 address when running `make test`. It is otherwise reported skipped.
 | `ftp_lab/server.py` | Commands, session state, concurrency and server CLI |
 | `ftp_lab/client.py` | Socket client, active/passive transfers and terminal UI |
 | `ftp_lab/webapp/` | Local HTTP API, SQLite, background jobs, offline browser UI |
-| `ftp_lab/benchmark.py` | Original/gzip comparisons, verification and report exports |
+| `pyproject.toml`, `uv.lock` | Dependency declarations and reproducible Python environment |
+| `ftp_lab/benchmark.py` | Original/gzip comparisons, verification and CSV/JSON report exports |
+| `ftp_lab/plots.py` | Optional Matplotlib PNG/SVG report rendering |
 | `tools/media_fixtures.py` | Offline playable audio/video fixture generation |
 | `tests/` | Core, interoperability, error and CLI tests |
 | `docs/LOCAL_APP.md` | Browser workflow and detailed app architecture |

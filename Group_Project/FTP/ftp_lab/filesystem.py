@@ -20,7 +20,9 @@ def valid_name(name: str) -> bool:
         ('.ftp-upload-') and contains no unprintable ASCII control characters (ASCII < 32
         or DEL 127). Returns True if valid, False otherwise.
     """
-    return not name.startswith(STAGING_PREFIX) and not any(ord(c) < 32 or ord(c) == 127 for c in name)
+    return not name.startswith(STAGING_PREFIX) and not any(
+        ord(c) < 32 or ord(c) == 127 for c in name
+    )
 
 
 class Sandbox:
@@ -63,7 +65,8 @@ class Sandbox:
 
         How it does:
             1. Validates string length (<= 4096 UTF-8 bytes) and verifies no illegal control chars.
-            2. If path starts with '/', begins resolution from root (); otherwise begins from self.cwd.
+            2. If path starts with '/', begins resolution from root (); otherwise begins from
+                self.cwd.
             3. Splits the path by '/' and processes segments: ignores empty parts and '.', and pops
                the last segment on '..'. If '..' is encountered at root, raises PermissionError.
             4. Validates that the reconstructed virtual path length does not exceed 4096 bytes.
@@ -149,7 +152,8 @@ class Sandbox:
         """Change the current virtual working directory.
 
         What it does:
-            Updates the session's virtual working directory if the target path exists and is a directory.
+            Updates the session's virtual working directory if the target path exists and is a
+                directory.
 
         How it does:
             Normalizes path to component parts and verifies existence/traversability by opening
@@ -192,11 +196,13 @@ class Sandbox:
             1. Resolves parent directory descriptor and target filename via self.parent(path).
             2. If the destination already exists, verifies it is a regular file.
             3. Generates a unique staging filename (.ftp-upload-<uuid>) in the parent directory.
-            4. Opens staging file with os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW and 0o600 mode.
+            4. Opens staging file with os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW and
+                0o600 mode.
             5. Yields the binary file object for incoming chunks.
             6. On clean exit, flushes the stream and atomically moves staging to destination using
                os.replace(src_dir_fd=parent, dst_dir_fd=parent).
-            7. In the finally block, unlinks the staging file if still present (e.g., on socket error,
+            7. In the finally block, unlinks the staging file if still present (e.g., on socket
+                error,
                abort, or timeout), keeping any pre-existing destination file unmodified.
         """
         with self.parent(path) as (parent, name):
@@ -208,7 +214,9 @@ class Sandbox:
                 if not stat.S_ISREG(info.st_mode):
                     raise PermissionError('Only regular files can be replaced')
             staging = STAGING_PREFIX + uuid.uuid4().hex
-            fd = os.open(staging, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=parent)
+            fd = os.open(
+                staging, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=parent
+            )
             try:
                 with os.fdopen(fd, 'wb') as target:
                     yield target
@@ -234,7 +242,8 @@ class Sandbox:
             3. Generates a unique staging filename (.ftp-upload-<uuid>) in parent directory.
             4. Copies existing file content (if any) into the staging file.
             5. Yields the binary file object for incoming chunks to append.
-            6. On clean exit, flushes and atomically moves staging to destination using os.replace().
+            6. On clean exit, flushes and atomically moves staging to destination using
+                os.replace().
             7. In finally block, unlinks the staging file if still present.
         """
         with self.parent(path) as (parent, name):
@@ -247,7 +256,9 @@ class Sandbox:
             except FileNotFoundError:
                 pass
             staging = STAGING_PREFIX + uuid.uuid4().hex
-            fd = os.open(staging, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=parent)
+            fd = os.open(
+                staging, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=parent
+            )
             try:
                 with os.fdopen(fd, 'wb') as target:
                     if exists:
@@ -355,11 +366,16 @@ class Sandbox:
 
         How it does:
             1. Resolves parent directory descriptors and names for old_path and new_path.
-            2. Verifies old_name exists and is a regular file or directory without following symlinks.
+            2. Verifies old_name exists and is a regular file or directory without following
+                symlinks.
             3. Verifies new_name complies with valid_name rules.
-            4. Uses os.replace() with src_dir_fd and dst_dir_fd to rename the entry safely within the root.
+            4. Uses os.replace() with src_dir_fd and dst_dir_fd to rename the entry safely within
+                the root.
         """
-        with self.parent(old_path) as (old_dir_fd, old_name), self.parent(new_path) as (new_dir_fd, new_name):
+        with self.parent(old_path) as (old_dir_fd, old_name), self.parent(new_path) as (
+            new_dir_fd,
+            new_name,
+        ):
             old_info = os.stat(old_name, dir_fd=old_dir_fd, follow_symlinks=False)
             if not (stat.S_ISREG(old_info.st_mode) or stat.S_ISDIR(old_info.st_mode)):
                 raise PermissionError('Only regular files or directories can be renamed')

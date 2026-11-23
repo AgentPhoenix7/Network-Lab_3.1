@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Automated pipeline to regenerate all FTP report evidence artifacts.
+"""Automated pipeline to regenerate the FTP report evidence artifacts.
+
+Run from Group_Project/FTP with:
+    uv run --locked --extra plots python tools/generate_report_evidences.py
+
+This explicitly rewrites the sibling Group_Project/report artifacts. Child
+processes reuse sys.executable, retaining the interpreter selected by uv.
 
 What it does:
     1. Executes the 58 terminal-focused protocol and benchmark tests and saves output
@@ -13,23 +19,27 @@ What it does:
     5. Updates report-provenance.json, report-validation.json, and recomputes SHA256SUMS.
 """
 
-import os
-import sys
-import json
-import time
-import shutil
 import hashlib
-import tempfile
+import json
+import os
+import shutil
+import socket
 import subprocess
+import sys
+import time
+from datetime import date
 from pathlib import Path
+from platform import python_version
 
+RUN_DATE = date.today().isoformat()
 FTP_DIR = Path(__file__).resolve().parent.parent
-REPO_ROOT = FTP_DIR.parent
-REPORT_DIR = REPO_ROOT / "report"
+GROUP_PROJECT_DIR = FTP_DIR.parent
+REPORT_DIR = GROUP_PROJECT_DIR / "report"
 EVIDENCE_DIR = REPORT_DIR / "evidence"
 DATA_DIR = REPORT_DIR / "data"
 CODE_DIR = REPORT_DIR / "code" / "ftp_lab"
-SCRATCH_TMP = FTP_DIR / ".scratch" / "tmp"
+# The Git root is the parent of Group_Project in this repository layout.
+SCRATCH_TMP = GROUP_PROJECT_DIR.parent / ".scratch" / "tmp"
 SCRATCH_TMP.mkdir(parents=True, exist_ok=True)
 
 ENV = os.environ.copy()
@@ -55,18 +65,33 @@ def run_tests():
     print("==> [1/5] Running terminal FTP test suite...")
     cmd = [
         sys.executable,
-        "-W", "error::ResourceWarning",
-        "-m", "unittest",
-        "test_core", "test_server", "test_client", "test_cli", "test_benchmark",
-        "-v"
+        "-W",
+        "error::ResourceWarning",
+        "-m",
+        "unittest",
+        "test_core",
+        "test_server",
+        "test_client",
+        "test_cli",
+        "test_benchmark",
+        "-v",
     ]
-    proc = subprocess.run(cmd, cwd=str(FTP_DIR), env=ENV, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    proc = subprocess.run(
+        cmd,
+        cwd=str(FTP_DIR),
+        env=ENV,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+    )
     if proc.returncode != 0:
         print(proc.stdout)
         raise RuntimeError(f"Tests failed with exit code {proc.returncode}")
 
     cleaned = [
-        line for line in proc.stdout.splitlines()
+        line
+        for line in proc.stdout.splitlines()
         if "matplotlib is not a writable directory" not in line
         and "Matplotlib created a temporary cache" not in line
     ]
@@ -75,6 +100,8 @@ def run_tests():
     print(f"    Saved {target} ({len(cleaned)} lines)")
 
 
+# Independent evidence and plot panels intentionally repeat these examples.
+# noinspection DuplicatedCode
 def run_terminal_demo():
     """Execute live loopback terminal session to capture real protocol traces.
 
@@ -89,6 +116,8 @@ def run_terminal_demo():
         4. Verifies SHA-256 round-trip integrity for both binary and text payloads.
         5. Writes evidence/ftp_terminal_demo.txt and evidence/ftp_terminal_verification.json.
     """
+    # Record a complete demonstration and its verification evidence in one sequence.
+    # pylint: disable=too-many-locals
     print("==> [2/5] Running live loopback terminal FTP demonstration...")
     server_dir = SCRATCH_TMP / "demo_server_root"
     client_dir = SCRATCH_TMP / "demo_client_cwd"
@@ -129,53 +158,83 @@ def run_terminal_demo():
         "delete text.txt",
         "cdup",
         "rmdir experiment",
-        "quit"
+        "quit",
     ]
     cmd_text = "\n".join(commands) + "\n"
     (EVIDENCE_DIR / "ftp_terminal_commands.txt").write_text(cmd_text)
     (client_dir / "commands.txt").write_text(cmd_text)
 
-    import socket
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
 
-    server_proc = subprocess.Popen(
-        [sys.executable, "-m", "ftp_lab.server", "--host", "127.0.0.1", "--port", str(port), "--root", str(server_dir)],
-        cwd=str(FTP_DIR), env=ENV
-    )
-    time.sleep(0.5)
+    with subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "ftp_lab.server",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+            "--root",
+            str(server_dir),
+        ],
+        cwd=str(FTP_DIR),
+        env=ENV,
+    ) as server_proc:
+        time.sleep(0.5)
 
-    try:
-        client_proc = subprocess.run(
-            [sys.executable, "-m", "ftp_lab.client", "--host", "127.0.0.1", "--port", str(port), "--trace", "--script", str(client_dir / "commands.txt")],
-            cwd=str(client_dir), env=ENV, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
-        )
-        (EVIDENCE_DIR / "ftp_terminal_demo.txt").write_text(client_proc.stdout)
+        try:
+            # This independent report fixture intentionally repeats the tested CLI invocation.
+            # pylint: disable=duplicate-code
+            client_proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "ftp_lab.client",
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    str(port),
+                    "--trace",
+                    "--script",
+                    str(client_dir / "commands.txt"),
+                ],
+                cwd=str(client_dir),
+                env=ENV,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                check=False,
+            )
+            (EVIDENCE_DIR / "ftp_terminal_demo.txt").write_text(client_proc.stdout)
 
-        passive_copy = (client_dir / "passive-copy.bin").read_bytes()
-        active_copy = (client_dir / "active-copy.bin").read_bytes()
-        text_copy = (client_dir / "text-copy.txt").read_bytes()
+            passive_copy = (client_dir / "passive-copy.bin").read_bytes()
+            active_copy = (client_dir / "active-copy.bin").read_bytes()
+            text_copy = (client_dir / "text-copy.txt").read_bytes()
 
-        verification = {
-            "date": "2026-11-22",
-            "python": "3.14.10",
-            "transport": "real IPv4 loopback TCP",
-            "source_binary_bytes": len(source_bin),
-            "binary_sha256": bin_sha,
-            "source_text_bytes": len(source_text),
-            "text_sha256": text_sha,
-            "passive_binary_match": (hashlib.sha256(passive_copy).hexdigest() == bin_sha),
-            "active_binary_match": (hashlib.sha256(active_copy).hexdigest() == bin_sha),
-            "ascii_round_trip_match": (hashlib.sha256(text_copy).hexdigest() == text_sha),
-            "remote_cleanup_empty": len(list(server_dir.iterdir())) == 0,
-            "client_exit_code": client_proc.returncode
-        }
-        (EVIDENCE_DIR / "ftp_terminal_verification.json").write_text(json.dumps(verification, indent=2) + "\n")
-        print("    Verification result:", verification)
-    finally:
-        server_proc.terminate()
-        server_proc.wait(timeout=5)
+            verification = {
+                "date": RUN_DATE,
+                "python": python_version(),
+                "transport": "real IPv4 loopback TCP",
+                "source_binary_bytes": len(source_bin),
+                "binary_sha256": bin_sha,
+                "source_text_bytes": len(source_text),
+                "text_sha256": text_sha,
+                "passive_binary_match": (hashlib.sha256(passive_copy).hexdigest() == bin_sha),
+                "active_binary_match": (hashlib.sha256(active_copy).hexdigest() == bin_sha),
+                "ascii_round_trip_match": (hashlib.sha256(text_copy).hexdigest() == text_sha),
+                "remote_cleanup_empty": len(list(server_dir.iterdir())) == 0,
+                "client_exit_code": client_proc.returncode,
+            }
+            (EVIDENCE_DIR / "ftp_terminal_verification.json").write_text(
+                json.dumps(verification, indent=2) + "\n"
+            )
+            print("    Verification result:", verification)
+        finally:
+            server_proc.terminate()
+            server_proc.wait(timeout=5)
 
 
 def sync_code_snapshots():
@@ -209,19 +268,27 @@ def update_manifests():
     """
     print("==> [4/5] Updating provenance and validation manifests...")
     hashes = {}
-    for name in ["__init__.py", "benchmark.py", "client.py", "filesystem.py", "protocol.py", "server.py"]:
+    for name in [
+        "__init__.py",
+        "benchmark.py",
+        "client.py",
+        "filesystem.py",
+        "plots.py",
+        "protocol.py",
+        "server.py",
+    ]:
         path = CODE_DIR / name
         hashes[f"code/ftp_lab/{name}"] = hashlib.sha256(path.read_bytes()).hexdigest()
 
     prov_path = DATA_DIR / "report-provenance.json"
     prov = json.loads(prov_path.read_text())
-    prov["report_validation_date"] = "2026-11-22"
+    prov["report_validation_date"] = RUN_DATE
     prov["ftp_sources"] = hashes
     prov_path.write_text(json.dumps(prov, indent=2) + "\n")
 
     val_path = EVIDENCE_DIR / "report-validation.json"
     val = json.loads(val_path.read_text())
-    val["date"] = "2026-11-22"
+    val["date"] = RUN_DATE
     val["terminal_test_count"] = 58
     val["repository_test_count"] = 79
     val_path.write_text(json.dumps(val, indent=2) + "\n")
@@ -229,7 +296,7 @@ def update_manifests():
 
 
 def recompute_checksums():
-    """Recalculate SHA-256 checksums for all tracked report files.
+    """Refresh SHA-256 checksums for the paths already listed in the report manifest.
 
     What it does:
         Updates report/SHA256SUMS with fresh cryptographic hashes for all report artifacts.

@@ -110,8 +110,18 @@ Use failing behavior tests before implementation. Independently review the
 complete feature after integration. Verify actual browser login/device/
 upload/download/benchmark flows and large audio/video tests; do not infer
 runtime success from source inspection. Keep investigation data in .scratch.
-Current verification is 70 Python and 8 frontend tests, including seven
+Current verification discovers 79 Python tests and runs 10 frontend tests, including seven
 network cases (the real-interface case requires `FTP_TEST_LAN_HOST`). LAN
 browser verification uses a disposable workspace; the host's owner account
 is left for its user. The app/FTP path is plaintext for a trusted lab LAN;
 public internet deployment and certificate provisioning are outside scope.
+
+## Dependency management
+
+`pyproject.toml` and `uv.lock` define the source-tree project and its locked
+environment. Runtime dependencies are empty; `dev` supplies Pylint and the
+optional `plots` extra supplies Matplotlib for `ftp_lab/plots.py`. Run
+`uv sync --locked --extra plots` and `make lint test` to validate this setup.
+App and FTP entry points use `uv run --locked --no-dev python -m ...`.
+Browser SVG graphs remain independent of Matplotlib. The complete commands
+and update procedure are in the [README](../README.md#set-up-the-environment).

@@ -17,6 +17,7 @@ import json
 import os
 import struct
 from pathlib import Path
+from typing import Any
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 SERVER_DATA = BASE_DIR / "server-data"
@@ -56,8 +57,10 @@ def make_mode_c_compressed(data: bytes) -> bytes:
     How it does:
         1. Scans incoming bytes for repeated byte runs (>= 3 identical bytes, up to 64).
         2. Encodes space runs (0x20 in ASCII or 0x40 in EBCDIC) as 11xxxxxx (0xC0 | count - 1).
-        3. Encodes non-space byte runs as 10xxxxxx (0x80 | count - 1) followed by the replicated byte.
-        4. Encodes literal non-repeating byte chunks as 00xxxxxx (0x00 | count - 1) followed by raw bytes.
+        3. Encodes non-space byte runs as 10xxxxxx (0x80 | count - 1) followed by the replicated
+            byte.
+        4. Encodes literal non-repeating byte chunks as 00xxxxxx (0x00 | count - 1) followed by raw
+            bytes.
         5. Returns the resulting compressed bytearray as immutable bytes.
     """
     out = bytearray()
@@ -107,7 +110,7 @@ def make_page_payload(pages: list[tuple[int, bytes]]) -> bytes:
     """
     payload = bytearray()
     for idx, (page_num, page_bytes) in enumerate(pages):
-        is_last = (idx == len(pages) - 1)
+        is_last = idx == len(pages) - 1
         p_type = 1 if is_last else 0
         p_len = len(page_bytes)
         payload.extend(struct.pack(">BHH", p_type, page_num, p_len))
@@ -130,6 +133,8 @@ def generate_all():
         4. Writes server-data/welcome.txt in sandbox root explaining navigation.
         5. Writes server-data/samples/manifest.json and server-data/samples/README.md.
     """
+    # The fixture matrix keeps all 27 RFC permutations visible together.
+    # pylint: disable=too-many-locals
     os.makedirs(SAMPLES_DIR, exist_ok=True)
 
     # 1. Sandbox root welcome file (TYPE A, STRU F, MODE S)
@@ -170,7 +175,7 @@ def generate_all():
     ).encode("ascii")
 
     # ASCII records (CSV tabular dataset)
-    ascii_records = [
+    ascii_records: list[bytes] = [
         "rec_id,module,protocol,rfc,status,description\r\n".encode("ascii"),
         "101,control,FTP,RFC 959,PASS,Command-Reply Control Stream\r\n".encode("ascii"),
         "102,transfer,Passive,RFC 959,PASS,Passive Data Socket Listening\r\n".encode("ascii"),
@@ -181,10 +186,25 @@ def generate_all():
     ascii_rec_combined = b"".join(ascii_records)
 
     # ASCII pages
-    ascii_pages = [
-        (1, "--- RFC 959 Page 1: Architecture and Architectural Model ---\nControl Connection on TCP 2121; Data Connection dynamic.\n".encode("ascii")),
-        (2, "--- RFC 959 Page 2: State Machine and Two-Phase Commit ---\nAtomic temporary staging file replaced upon verified data EOF.\n".encode("ascii")),
-        (3, "--- RFC 959 Page 3: Concurrency and Thread Safety ---\nUp to 32 concurrent isolated sessions with sandbox path safety.\n".encode("ascii")),
+    ascii_pages: list[tuple[int, bytes]] = [
+        (
+            1,
+            '--- RFC 959 Page 1: Architecture and Architectural '
+            'Model ---\nControl Connection on TCP 2121; Data '
+            'Connection dynamic.\n'.encode("ascii"),
+        ),
+        (
+            2,
+            '--- RFC 959 Page 2: State Machine and Two-Phase Commit '
+            '---\nAtomic temporary staging file replaced upon '
+            'verified data EOF.\n'.encode("ascii"),
+        ),
+        (
+            3,
+            '--- RFC 959 Page 3: Concurrency and Thread Safety '
+            '---\nUp to 32 concurrent isolated sessions with sandbox '
+            'path safety.\n'.encode("ascii"),
+        ),
     ]
     ascii_paged_data = make_page_payload(ascii_pages)
 
@@ -195,14 +215,21 @@ def generate_all():
     bin_data = bin_header + bin_numbers + bin_bytes
 
     # Binary records (fixed 32-byte records)
-    bin_records = []
+    bin_records: list[bytes] = []
     for i in range(8):
-        rec = struct.pack(">IIff16s", i + 1, 1700000000 + i * 3600, 24.5 + i, 101.3 - i * 0.2, f"SENSOR_CH_{i:02d}".encode("ascii"))
+        rec = struct.pack(
+            ">IIff16s",
+            i + 1,
+            1700000000 + i * 3600,
+            24.5 + i,
+            101.3 - i * 0.2,
+            f"SENSOR_CH_{i:02d}".encode("ascii"),
+        )
         bin_records.append(rec)
     bin_rec_combined = b"".join(bin_records)
 
     # Binary pages
-    bin_pages = [
+    bin_pages: list[tuple[int, bytes]] = [
         (10, struct.pack(">8I", 10, 20, 30, 40, 50, 60, 70, 80) + bytes(range(64))),
         (20, struct.pack(">8I", 110, 120, 130, 140, 150, 160, 170, 180) + bytes(range(64, 128))),
         (30, struct.pack(">8I", 210, 220, 230, 240, 250, 260, 270, 280) + bytes(range(128, 192))),
@@ -226,195 +253,248 @@ def generate_all():
         "RECORD 0002: EBCDIC CARD IMAGE INPUT ROW TWO                              ",
         "/*                                                                        ",
     ]
-    ebcdic_records = [line.encode("cp037") for line in card_lines]
+    ebcdic_records: list[bytes] = [line.encode("cp037") for line in card_lines]
     ebcdic_rec_combined = b"".join(ebcdic_records)
 
     # EBCDIC pages
-    ebcdic_pages = [
+    ebcdic_pages: list[tuple[int, bytes]] = [
         (1, "EBCDIC REPORT PAGE 001 - HEADER AND JOB INITIALIZATION".encode("cp037")),
         (2, "EBCDIC REPORT PAGE 002 - DATA EXECUTION AND SOCKET TRANSMISSION".encode("cp037")),
         (3, "EBCDIC REPORT PAGE 003 - SUMMARY STATS AND SUCCESSFUL RETURN CODE".encode("cp037")),
     ]
     ebcdic_paged_data = make_page_payload(ebcdic_pages)
 
-    manifest = []
+    manifest: list[dict[str, Any]] = []
 
     # Permutations mapping
-    permutations = [
+    permutations: list[tuple[str, str, str, str, bytes, str]] = [
         # --- TYPE A (ASCII) ---
         (
-            "A", "F", "S",
+            "A",
+            "F",
+            "S",
             "type-A_stru-F_mode-S_ascii-file-stream.txt",
             ascii_text,
             "Standard ASCII text stream with continuous file structure and CRLF delimiters.",
         ),
         (
-            "A", "F", "B",
+            "A",
+            "F",
+            "B",
             "type-A_stru-F_mode-B_ascii-file-block.dat",
             make_mode_b_block(ascii_text[: len(ascii_text) // 2], eor=False)
             + make_mode_b_block(ascii_text[len(ascii_text) // 2 :], eof=True),
             "ASCII text framed into RFC 959 Mode B transmission blocks with byte-count headers.",
         ),
         (
-            "A", "F", "C",
+            "A",
+            "F",
+            "C",
             "type-A_stru-F_mode-C_ascii-file-compressed.dat",
             make_mode_c_compressed(ascii_text),
             "ASCII text compressed using RFC 959 Section 3.4.3 run-length compression byte counts.",
         ),
         (
-            "A", "R", "S",
+            "A",
+            "R",
+            "S",
             "type-A_stru-R_mode-S_ascii-record-stream.csv",
             ascii_rec_combined,
-            "ASCII record stream (CSV rows) where each line represents an RFC 959 sequential record.",
+            'ASCII record stream (CSV rows) where each line '
+            'represents an RFC 959 sequential record.',
         ),
         (
-            "A", "R", "B",
+            "A",
+            "R",
+            "B",
             "type-A_stru-R_mode-B_ascii-record-block.dat",
             b"".join(
-                make_mode_b_block(rec, eor=True, eof=(i == len(ascii_records) - 1))
+                make_mode_b_block(rec, eor=True, eof=i == len(ascii_records) - 1)
                 for i, rec in enumerate(ascii_records)
             ),
             "ASCII records packed into Mode B blocks with EOR descriptor bit set per record.",
         ),
         (
-            "A", "R", "C",
+            "A",
+            "R",
+            "C",
             "type-A_stru-R_mode-C_ascii-record-compressed.dat",
             make_mode_c_compressed(ascii_rec_combined),
             "Sequential ASCII records encoded with Mode C run-length space/byte compression.",
         ),
         (
-            "A", "P", "S",
+            "A",
+            "P",
+            "S",
             "type-A_stru-P_mode-S_ascii-page-stream.txt",
             ascii_paged_data,
             "Indexed ASCII page structure with RFC 959 page headers (page type, number, length).",
         ),
         (
-            "A", "P", "B",
+            "A",
+            "P",
+            "B",
             "type-A_stru-P_mode-B_ascii-page-block.dat",
             make_mode_b_block(ascii_paged_data, eof=True),
             "Paged ASCII data encapsulated inside RFC 959 Mode B transmission blocks.",
         ),
         (
-            "A", "P", "C",
+            "A",
+            "P",
+            "C",
             "type-A_stru-P_mode-C_ascii-page-compressed.dat",
             make_mode_c_compressed(ascii_paged_data),
             "Paged ASCII data with Mode C compressed page payloads.",
         ),
-
         # --- TYPE I (Binary / Image) ---
         (
-            "I", "F", "S",
+            "I",
+            "F",
+            "S",
             "type-I_stru-F_mode-S_binary-file-stream.bin",
             bin_data,
             "Byte-exact raw binary data containing all 256 byte values and binary structs.",
         ),
         (
-            "I", "F", "B",
+            "I",
+            "F",
+            "B",
             "type-I_stru-F_mode-B_binary-file-block.dat",
             make_mode_b_block(bin_data[: len(bin_data) // 2])
             + make_mode_b_block(bin_data[len(bin_data) // 2 :], eof=True),
             "Binary payload framed into RFC 959 Mode B transmission blocks with block headers.",
         ),
         (
-            "I", "F", "C",
+            "I",
+            "F",
+            "C",
             "type-I_stru-F_mode-C_binary-file-compressed.gz",
             gzip.compress(bin_data, compresslevel=6),
             "Genuine gzip compressed binary stream conforming to RFC 959 compressed binary mode.",
         ),
         (
-            "I", "R", "S",
+            "I",
+            "R",
+            "S",
             "type-I_stru-R_mode-S_binary-record-stream.dat",
             bin_rec_combined,
             "Binary record stream containing fixed 32-byte C-struct sensor records.",
         ),
         (
-            "I", "R", "B",
+            "I",
+            "R",
+            "B",
             "type-I_stru-R_mode-B_binary-record-block.dat",
             b"".join(
-                make_mode_b_block(rec, eor=True, eof=(i == len(bin_records) - 1))
+                make_mode_b_block(rec, eor=True, eof=i == len(bin_records) - 1)
                 for i, rec in enumerate(bin_records)
             ),
             "Fixed-width binary records packed inside Mode B blocks with EOR descriptor flags.",
         ),
         (
-            "I", "R", "C",
+            "I",
+            "R",
+            "C",
             "type-I_stru-R_mode-C_binary-record-compressed.dat",
             make_mode_c_compressed(bin_rec_combined),
             "Binary structured records compressed with Mode C run-length encoding.",
         ),
         (
-            "I", "P", "S",
+            "I",
+            "P",
+            "S",
             "type-I_stru-P_mode-S_binary-page-stream.dat",
             bin_paged_data,
             "Indexed binary page structure per RFC 959 Section 3.1.2.3 with binary page headers.",
         ),
         (
-            "I", "P", "B",
+            "I",
+            "P",
+            "B",
             "type-I_stru-P_mode-B_binary-page-block.dat",
             make_mode_b_block(bin_paged_data, eof=True),
             "Binary pages encapsulated inside RFC 959 Mode B transmission blocks.",
         ),
         (
-            "I", "P", "C",
+            "I",
+            "P",
+            "C",
             "type-I_stru-P_mode-C_binary-page-compressed.dat",
             make_mode_c_compressed(bin_paged_data),
             "Binary page structure with Mode C compressed page payloads.",
         ),
-
         # --- TYPE E (EBCDIC) ---
         (
-            "E", "F", "S",
+            "E",
+            "F",
+            "S",
             "type-E_stru-F_mode-S_ebcdic-file-stream.ebcdic",
             ebcdic_text,
             "Authentic IBM CP037 EBCDIC mainframe text stream file.",
         ),
         (
-            "E", "F", "B",
+            "E",
+            "F",
+            "B",
             "type-E_stru-F_mode-B_ebcdic-file-block.dat",
             make_mode_b_block(ebcdic_text, eof=True),
             "CP037 EBCDIC text stream partitioned into RFC 959 Mode B transmission blocks.",
         ),
         (
-            "E", "F", "C",
+            "E",
+            "F",
+            "C",
             "type-E_stru-F_mode-C_ebcdic-file-compressed.dat",
             make_mode_c_compressed(ebcdic_text),
             "EBCDIC text stream compressed with run-length byte compression.",
         ),
         (
-            "E", "R", "S",
+            "E",
+            "R",
+            "S",
             "type-E_stru-R_mode-S_ebcdic-record-stream.ebcdic",
             ebcdic_rec_combined,
             "Classic 80-column IBM mainframe punched-card records in CP037 EBCDIC.",
         ),
         (
-            "E", "R", "B",
+            "E",
+            "R",
+            "B",
             "type-E_stru-R_mode-B_ebcdic-record-block.dat",
             b"".join(
-                make_mode_b_block(rec, eor=True, eof=(i == len(ebcdic_records) - 1))
+                make_mode_b_block(rec, eor=True, eof=i == len(ebcdic_records) - 1)
                 for i, rec in enumerate(ebcdic_records)
             ),
             "80-column EBCDIC punched card records inside Mode B blocks with EOR descriptors.",
         ),
         (
-            "E", "R", "C",
+            "E",
+            "R",
+            "C",
             "type-E_stru-R_mode-C_ebcdic-record-compressed.dat",
             make_mode_c_compressed(ebcdic_rec_combined),
             "EBCDIC card records compressed with repeated byte/blank compression.",
         ),
         (
-            "E", "P", "S",
+            "E",
+            "P",
+            "S",
             "type-E_stru-P_mode-S_ebcdic-page-stream.ebcdic",
             ebcdic_paged_data,
             "EBCDIC mainframe report pages with RFC 959 page headers and CP037 body text.",
         ),
         (
-            "E", "P", "B",
+            "E",
+            "P",
+            "B",
             "type-E_stru-P_mode-B_ebcdic-page-block.dat",
             make_mode_b_block(ebcdic_paged_data, eof=True),
             "EBCDIC report pages inside RFC 959 Mode B transmission blocks.",
         ),
         (
-            "E", "P", "C",
+            "E",
+            "P",
+            "C",
             "type-E_stru-P_mode-C_ebcdic-page-compressed.dat",
             make_mode_c_compressed(ebcdic_paged_data),
             "EBCDIC report pages with Mode C compressed payloads.",
@@ -425,17 +505,22 @@ def generate_all():
         file_path = SAMPLES_DIR / filename
         file_path.write_bytes(content)
         digest = hashlib.sha256(content).hexdigest()
-        manifest.append({
-            "type": type_code,
-            "stru": stru_code,
-            "mode": mode_code,
-            "filename": filename,
-            "relative_path": f"samples/{filename}",
-            "size_bytes": len(content),
-            "sha256": digest,
-            "description": desc,
-        })
-        print(f"  [+] {filename:48s} | {len(content):5d} B | TYPE {type_code} STRU {stru_code} MODE {mode_code}")
+        manifest.append(
+            {
+                "type": type_code,
+                "stru": stru_code,
+                "mode": mode_code,
+                "filename": filename,
+                "relative_path": f"samples/{filename}",
+                "size_bytes": len(content),
+                "sha256": digest,
+                "description": desc,
+            }
+        )
+        print(
+            f"  [+] {filename:48s} | {len(content):5d} B | "
+            f"TYPE {type_code} STRU {stru_code} MODE {mode_code}"
+        )
 
     # Write manifest.json
     manifest_path = SAMPLES_DIR / "manifest.json"
@@ -456,49 +541,57 @@ def generate_all():
     for i, item in enumerate(manifest, 1):
         readme_lines.append(
             f"| {i} | `{item['type']}` | `{item['stru']}` | `{item['mode']}` | "
-            f"[`{item['filename']}`]({item['filename']}) | {item['size_bytes']} | {item['description']} |"
+            f"[`{item['filename']}`]({item['filename']}) | "
+            f"{item['size_bytes']} | {item['description']} |"
         )
-    readme_lines.extend([
-        "",
-        "## How to demonstrate each permutation in the terminal",
-        "",
-        "Connect using the FTP terminal client:",
-        "```bash",
-        "cd Group_Project/FTP",
-        "FTP_PASSWORD=lab-demo python3 -m ftp_lab.client --trace",
-        "```",
-        "",
-        "At the `ftp>` prompt, navigate to `samples` and select your parameters:",
-        "```text",
-        "cd samples",
-        "ls",
-        "",
-        "# 1. Select representation type: A (ASCII), I (Image/Binary), or E (EBCDIC)",
-        "type A",
-        "# 2. Select file structure: F (File), R (Record), or P (Page)",
-        "stru F",
-        "# 3. Select transmission mode: S (Stream), B (Block), or C (Compressed)",
-        "mode S",
-        "",
-        "# 4. Verify server parameters via STAT",
-        "stat",
-        "",
-        "# 5. Download the matching sample file",
-        "get type-A_stru-F_mode-S_ascii-file-stream.txt downloads/demo_A_F_S.txt",
-        "```",
-        "",
-        "### Inspecting EBCDIC files locally",
-        "EBCDIC files (`TYPE E`) are encoded in IBM CP037. View them in decoded plaintext with Python:",
-        "```bash",
-        "python3 -c \"print(open('downloads/type-E_stru-F_mode-S_ebcdic-file-stream.ebcdic', 'rb').read().decode('cp037'))\"",
-        "```",
-        "",
-        "### Inspecting Binary files locally",
-        "View binary files (`TYPE I`) using `hexdump` or `xxd`:",
-        "```bash",
-        "xxd downloads/type-I_stru-F_mode-S_binary-file-stream.bin",
-        "```",
-    ])
+    readme_lines.extend(
+        [
+            '',
+            '## How to demonstrate each permutation in the terminal',
+            '',
+            'Start the server as described in the [main README](../../README.md), then',
+            'connect using the FTP terminal client in the locked uv environment:',
+            '```bash',
+            'cd Group_Project/FTP',
+            'uv sync --locked --no-dev',
+            'FTP_PASSWORD=lab-demo uv run --locked --no-dev python -m ftp_lab.client --trace',
+            '```',
+            '',
+            'At the `ftp>` prompt, navigate to `samples` and select your parameters:',
+            '```text',
+            'cd samples',
+            'ls',
+            '',
+            '# 1. Select representation type: A (ASCII), I (Image/Binary), or E (EBCDIC)',
+            'type A',
+            '# 2. Select file structure: F (File), R (Record), or P (Page)',
+            'stru F',
+            '# 3. Select transmission mode: S (Stream), B (Block), or C (Compressed)',
+            'mode S',
+            '',
+            '# 4. Verify server parameters via STAT',
+            'stat',
+            '',
+            '# 5. Download the matching sample file',
+            'get type-A_stru-F_mode-S_ascii-file-stream.txt downloads/demo_A_F_S.txt',
+            '```',
+            '',
+            '### Inspecting EBCDIC files locally',
+            'EBCDIC files (`TYPE E`) are encoded in IBM CP037. View '
+            'them in decoded plaintext with Python:',
+            '```bash',
+            'uv run --locked --no-dev python -c '
+            '"print(open(\'downloads/type-E_stru-F_mode-S_ebcdic-file'
+            '-stream.ebcdic\', \'rb\').read().decode(\'cp037\'))"',
+            '```',
+            '',
+            '### Inspecting Binary files locally',
+            'View binary files (`TYPE I`) using `hexdump` or `xxd`:',
+            '```bash',
+            'xxd downloads/type-I_stru-F_mode-S_binary-file-stream.bin',
+            '```',
+        ]
+    )
     readme_path = SAMPLES_DIR / "README.md"
     readme_path.write_text("\n".join(readme_lines) + "\n", encoding="utf-8")
     print(f"Generated {readme_path}")

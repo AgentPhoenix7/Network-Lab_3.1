@@ -45,18 +45,25 @@ class FTPError(Exception):
 class FTPClient:
     """Socket-based FTP client implementing RFC 959 control and data connections."""
 
+    # A protocol client exposes the implemented FTP command surface.
+    # pylint: disable=too-many-public-methods
+
     def __init__(self, host='127.0.0.1', port=2121, *, timeout=30, passive=True, trace=None):
         """Initialize the FTP client and connect to the remote server.
 
         What it does:
-            Establishes a TCP control connection to the target server and verifies the initial greeting.
+            Establishes a TCP control connection to the target server and verifies the initial
+                greeting.
 
         How it does:
             1. Validates that timeout is positive/finite and port is in 1-65535.
-            2. Records timeout, passive mode flag, trace callback, and sets default binary mode (True).
-            3. Creates a TCP streaming socket, sets the inactivity timeout, and connects to (host, port).
+            2. Records timeout, passive mode flag, and trace callback; initializes the transfer
+               representation to Image/Binary (I), exposed by the binary property.
+            3. Creates a TCP streaming socket, sets the inactivity timeout, and connects to (host,
+                port).
             4. Wraps the socket in a ControlStream for line-oriented CRLF I/O.
-            5. Reads the server welcome reply (handling optional 120 preliminary delay) and expects code 220.
+            5. Reads the server welcome reply (handling optional 120 preliminary delay) and expects
+                code 220.
             6. Closes the socket and re-raises if any connection or greeting error occurs.
         """
         if not math.isfinite(timeout) or timeout <= 0:
@@ -107,7 +114,8 @@ class FTPClient:
             Terminates the control connection and cleans up socket descriptors.
 
         How it does:
-            Checks if self.sock is not None, invokes self.sock.close(), and resets self.sock to None.
+            Checks if self.sock is not None, invokes self.sock.close(), and resets self.sock to
+                None.
         """
         if self.sock is not None:
             self.sock.close()
@@ -117,12 +125,14 @@ class FTPClient:
         """Read and parse an FTP reply from the server.
 
         What it does:
-            Reads a complete single-line or multiline reply, logs traces, and checks for error codes.
+            Reads a complete single-line or multiline reply, logs traces, and checks for error
+                codes.
 
         How it does:
             1. Calls read_reply(self.stream) to parse the wire reply.
             2. If self.trace is set, logs each received line prefixed with 'S> '.
-            3. If reply.code >= 400: closes the socket if code is 421 (service shutting down/timeout),
+            3. If reply.code >= 400: closes the socket if code is 421 (service shutting
+                down/timeout),
                and raises FTPError(reply).
             4. Returns the parsed Reply object.
         """
@@ -159,7 +169,8 @@ class FTPClient:
 
         How it does:
             1. Capitalizes verb and ensures ASCII alphabetic format.
-            2. Formats line as 'VERB arg', checks <= 512 byte limit, and verifies no injection chars.
+            2. Formats line as 'VERB arg', checks <= 512 byte limit, and verifies no injection
+                chars.
             3. Ensures the socket connection is open.
             4. If self.trace is enabled, logs 'C> line' (masking PASS argument as '<redacted>').
             5. Transmits the line via self.stream.send_line(line) and returns self.read_response().
@@ -205,7 +216,8 @@ class FTPClient:
 
         How it does:
             Sends 'PWD', expects status 257, extracts the quoted directory using regex
-            r'^"((?:""|[^"])*)"', unescapes doubled quotes ('""' -> '"'), and returns the path string.
+            r'^"((?:""|[^"])*)"', unescapes doubled quotes ('""' -> '"'), and returns the path
+                string.
         """
         reply = self.expect(self.command('PWD'), (257,))
         match = re.match(r'^"((?:""|[^"])*)"', reply.message)
@@ -236,8 +248,10 @@ class FTPClient:
             Requests a passive data port using EPSV, falling back to PASV if unsupported.
 
         How it does:
-            1. Sends 'EPSV' expecting reply 229. If successful, parses delimiter and port from (|||port|).
-            2. If server rejects EPSV with 500, 501, 502, 504, or 522, sends 'PASV' expecting reply 227.
+            1. Sends 'EPSV' expecting reply 229. If successful, parses delimiter and port from
+                (|||port|).
+            2. If server rejects EPSV with 500, 501, 502, 504, or 522, sends 'PASV' expecting reply
+                227.
             3. For PASV, parses the 6-tuple (h1,h2,h3,h4,p1,p2) and computes port = p1 * 256 + p2.
             4. Validates that the extracted port is between 1 and 65535 and returns it.
         """
@@ -249,15 +263,21 @@ class FTPClient:
             reply = self.expect(self.command('PASV'), (227,))
             match = re.search(r'\((\d+,\d+,\d+,\d+,\d+,\d+)\)', reply.message)
             if not match:
-                raise ProtocolError('Invalid PASV reply')
+                raise ProtocolError('Invalid PASV reply') from exc
             fields = [int(part) for part in match[1].split(',')]
             if any(not 0 <= part <= 255 for part in fields):
-                raise ProtocolError('Invalid PASV endpoint')
+                raise ProtocolError('Invalid PASV endpoint') from exc
             port = fields[4] * 256 + fields[5]
         else:
             match = re.search(r'\(([^()]*)\)', reply.message)
             fields = match[1].split(match[1][0]) if match and match[1] else []
-            if len(fields) != 5 or fields[:3] != ['', '', ''] or fields[4] or not fields[3].isascii() or not fields[3].isdigit():
+            if (
+                len(fields) != 5
+                or fields[:3] != ['', '', '']
+                or fields[4]
+                or not fields[3].isascii()
+                or not fields[3].isdigit()
+            ):
                 raise ProtocolError('Invalid EPSV reply')
             port = int(fields[3])
         if not 1 <= port <= 65535:
@@ -269,14 +289,17 @@ class FTPClient:
         """Prepare and yield a configured data socket for passive or active mode.
 
         What it does:
-            Context manager establishing the data transport endpoint before issuing a transfer command.
+            Context manager establishing the data transport endpoint before issuing a transfer
+                command.
 
         How it does:
             1. Verifies the control socket is connected.
             2. Creates a TCP streaming socket with timeout inside an ExitStack.
             3. In passive mode: obtains server data port via self.passive_port(), and connects
-               directly to the control peer's IP (ignoring any untrusted IP in PASV reply for security).
-            4. In active mode: binds to the control socket's local IP on ephemeral port 0, starts listening,
+               directly to the control peer's IP (ignoring any untrusted IP in PASV reply for
+                   security).
+            4. In active mode: binds to the control socket's local IP on ephemeral port 0, starts
+                listening,
                and informs the server via EPRT (falling back to PORT on error).
             5. Yields the socket to the caller.
         """
@@ -301,14 +324,17 @@ class FTPClient:
                     if exc.reply.code not in (500, 501, 502, 504):
                         raise
                     address = local_ip.replace('.', ',')
-                    self.expect(self.command('PORT', f'{address},{port // 256},{port % 256}'), (200,))
+                    self.expect(
+                        self.command('PORT', f'{address},{port // 256},{port % 256}'), (200,)
+                    )
             yield endpoint
 
     def transfer(self, verb, remote, consume):
         """Coordinate an entire file or listing data transfer with the server.
 
         What it does:
-            Executes a data transfer operation, streams data through the consumer, and awaits completion.
+            Executes a data transfer operation, streams data through the consumer, and awaits
+                completion.
 
         How it does:
             1. Prepares the data socket via self.data_setup().
@@ -414,7 +440,8 @@ class FTPClient:
             1. Opens local file in binary read mode.
             2. Sets transfer type ('TYPE I' for binary, 'TYPE A' for ASCII).
             3. Defines a send callback reading BLOCK_SIZE chunks, converting newlines if ASCII,
-               transmitting via data.sendall(), and reporting chunk byte length to progress callback.
+               transmitting via data.sendall(), and reporting chunk byte length to progress
+                   callback.
             4. Executes self.transfer('STOR', remote, send).
         """
         with Path(local).open('rb') as source:
@@ -424,7 +451,8 @@ class FTPClient:
                 """Read and transmit file chunks over the data connection.
 
                 What it does:
-                    Streams data chunks from the local file over the socket with optional ASCII encoding.
+                    Streams data chunks from the local file over the socket with optional ASCII
+                        encoding.
 
                 How it does:
                     Reads BLOCK_SIZE chunks from source, encodes newlines if not binary mode,
@@ -452,12 +480,15 @@ class FTPClient:
             4. Executes self.transfer('RETR', remote, receive).
             5. Upon receiving successful completion reply, atomically renames staging file to
                target using os.replace().
-            6. In finally block, unlinks staging file if an error occurred before atomic replacement.
+            6. In finally block, unlinks staging file if an error occurred before atomic
+                replacement.
         """
         target = Path(local)
         staging = None
         try:
-            with tempfile.NamedTemporaryFile(prefix='.ftp-download-', dir=target.parent, delete=False) as out:
+            with tempfile.NamedTemporaryFile(
+                prefix='.ftp-download-', dir=target.parent, delete=False
+            ) as out:
                 staging = Path(out.name)
                 self.expect(self.command('TYPE', self.representation), (200,))
 
@@ -468,8 +499,10 @@ class FTPClient:
                         Reads data chunks, updates transfer progress, and writes to staging file.
 
                     How it does:
-                        Calls incoming() generator, decodes ASCII CRLF if not binary, and writes to disk.
+                        Calls incoming() generator, decodes ASCII CRLF if not binary, and writes to
+                            disk.
                     """
+
                     def incoming():
                         """Yield incoming socket chunks and track transfer progress bytes.
 
@@ -477,12 +510,13 @@ class FTPClient:
                             Streams raw chunks from the data socket and reports progress.
 
                         How it does:
-                            Iterates through socket_chunks(data), executes progress callback, and yields chunk.
+                            Iterates through socket_chunks(data), executes progress callback, and
+                                yields chunk.
                         """
-                        for chunk in socket_chunks(data):
+                        for incoming_chunk in socket_chunks(data):
                             if progress is not None:
-                                progress(len(chunk))
-                            yield chunk
+                                progress(len(incoming_chunk))
+                            yield incoming_chunk
 
                     chunks = incoming()
                     for chunk in chunks if self.binary else decode_ascii(chunks):
@@ -519,12 +553,14 @@ class FTPClient:
             1. Resolves local path and determines remote filename (defaults to local basename).
             2. Opens local file in binary read mode.
             3. Sets transfer representation ('TYPE I' or 'TYPE A').
-            4. Defines a send callback reading BLOCK_SIZE chunks and streaming them to the data connection.
+            4. Defines a send callback reading BLOCK_SIZE chunks and streaming them to the data
+                connection.
             5. Executes self.transfer('APPE', remote_name, send) and returns the completion reply.
         """
         local_path = Path(local)
         remote_name = remote or local_path.name
         with local_path.open('rb') as file:
+
             def send(data):
                 """Read and stream local file chunks to the data connection socket for appending.
 
@@ -532,7 +568,8 @@ class FTPClient:
                     Streams chunks from local file over data socket, updating progress metrics.
 
                 How it does:
-                    Reads BLOCK_SIZE chunks, applies encode_ascii if not binary, calls data.sendall(),
+                    Reads BLOCK_SIZE chunks, applies encode_ascii if not binary, calls
+                        data.sendall(),
                     and triggers the progress callback.
                 """
                 chunks = iter(lambda: file.read(BLOCK_SIZE), b'')
@@ -540,6 +577,7 @@ class FTPClient:
                     data.sendall(chunk)
                     if progress:
                         progress(len(chunk))
+
             return self.transfer('APPE', remote_name, send)
 
     def stat(self, remote=''):
@@ -549,7 +587,8 @@ class FTPClient:
             Sends an RFC 959 STAT command to query server operational status or file metadata.
 
         How it does:
-            Transmits 'STAT' with optional remote target over the control stream and returns the Reply.
+            Transmits 'STAT' with optional remote target over the control stream and returns the
+                Reply.
         """
         return self.command('STAT', remote)
 
@@ -583,7 +622,8 @@ class FTPClient:
         """Whether the client is in binary/image mode (True) or ASCII text mode (False).
 
         What it does:
-            Returns True if current transfer representation is binary/image (TYPE I or E), False if ASCII (TYPE A).
+            Returns True if current transfer representation is binary/image (TYPE I or E), False if
+                ASCII (TYPE A).
 
         How it does:
             Inspects self._representation and returns True if it differs from 'A'.
@@ -651,7 +691,8 @@ def execute(client: FTPClient, line: str) -> bool:
            - ls, nlst: fetches and prints directory entries.
            - get, put: downloads/uploads files (deriving basename if omitted).
            - append: appends local file content to remote file via APPE.
-           - type, stru, mode: sets RFC 959 transfer representation, structure, or transmission mode.
+           - type, stru, mode: sets RFC 959 transfer representation, structure, or transmission
+               mode.
            - quote, raw: transmits raw protocol command directly to control connection.
            - stat, rein: queries status or reinitializes session state.
            - ascii, binary: toggles client.binary mode.
@@ -660,6 +701,9 @@ def execute(client: FTPClient, line: str) -> bool:
         3. Raises ValueError on unrecognized syntax.
         4. Returns True to continue the interactive session.
     """
+    # Keep terminal command validation and dispatch in one auditable table of branches.
+    # pylint: disable=too-many-branches
+    # pylint: disable=too-many-statements
     words = shlex.split(line)
     if not words:
         return True
@@ -700,8 +744,8 @@ def execute(client: FTPClient, line: str) -> bool:
         print(f'Appended {args[0]} to {remote}')
     elif command == 'stat' and len(args) <= 1:
         reply = client.stat(args[0] if args else '')
-        for line in reply.lines:
-            print(line)
+        for reply_line in reply.lines:
+            print(reply_line)
     elif command == 'rein' and not args:
         print(client.rein().message)
     elif command == 'type' and len(args) == 1:
@@ -722,8 +766,8 @@ def execute(client: FTPClient, line: str) -> bool:
         verb = args[0].upper()
         arg_str = ' '.join(args[1:]) if len(args) > 1 else ''
         reply = client.command(verb, arg_str)
-        for line in reply.lines:
-            print(line)
+        for reply_line in reply.lines:
+            print(reply_line)
     elif command in ('ascii', 'binary') and not args:
         client.binary = command == 'binary'
         client.representation = 'I' if client.binary else 'A'
@@ -757,8 +801,12 @@ def main(argv=None):
     parser.add_argument('--user', default='student')
     parser.add_argument('--timeout', type=float, default=30)
     parser.add_argument('--active', action='store_true', help='Use active data connections')
-    parser.add_argument('--trace', action='store_true', help='Print control commands/replies (password redacted)')
-    parser.add_argument('--script', type=Path, help='Read batch commands from a file, or - for stdin')
+    parser.add_argument(
+        '--trace', action='store_true', help='Print control commands/replies (password redacted)'
+    )
+    parser.add_argument(
+        '--script', type=Path, help='Read batch commands from a file, or - for stdin'
+    )
     args = parser.parse_args(argv)
     password = os.environ.get('FTP_PASSWORD')
     if password is None:
@@ -771,8 +819,15 @@ def main(argv=None):
             source = sys.stdin
             if args.script is not None and str(args.script) != '-':
                 source = stack.enter_context(args.script.open(encoding='utf-8'))
-            client = stack.enter_context(FTPClient(args.host, args.port, timeout=args.timeout,
-                                                 passive=not args.active, trace=print if args.trace else None))
+            client = stack.enter_context(
+                FTPClient(
+                    args.host,
+                    args.port,
+                    timeout=args.timeout,
+                    passive=not args.active,
+                    trace=print if args.trace else None,
+                )
+            )
             client.login(args.user, password)
             if interactive:
                 print(HELP)
@@ -793,6 +848,8 @@ def main(argv=None):
     except (FTPError, OSError, EOFError, ValueError) as exc:
         print(f'Error: {exc}', file=sys.stderr)
         return 1
+    # CLI exit conventions are shared with the benchmark command.
+    # pylint: disable=duplicate-code
     except KeyboardInterrupt:
         return 130
     return 0

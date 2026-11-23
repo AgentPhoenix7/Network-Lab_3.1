@@ -2,11 +2,10 @@
 """Database and application spool cleanup utility for the Relay FTP web application.
 
 Usage:
-    python3 tools/clean_db.py [--data-dir app-data] [--all] [--force]
+    uv run --locked --no-dev python tools/clean_db.py [--data-dir app-data] [--all] [--force]
 """
 
 import argparse
-import os
 import shutil
 import sqlite3
 import sys
@@ -17,7 +16,9 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 
-def clean_database(data_dir: Path, *, clean_all: bool = False, force: bool = False, recreate: bool = False) -> int:
+def clean_database(
+    data_dir: Path, *, clean_all: bool = False, force: bool = False, recreate: bool = False
+) -> int:
     """Clean the SQLite database and optional transfer spool files.
 
     What it does:
@@ -25,12 +26,16 @@ def clean_database(data_dir: Path, *, clean_all: bool = False, force: bool = Fal
         and optionally purges transfer spool files from the specified application data directory.
 
     How it does:
-        1. Identifies targets: app.db, app.db-wal, app.db-shm, and optionally the transfers spool directory.
+        1. Identifies targets: app.db, app.db-wal, app.db-shm, and optionally the transfers spool
+            directory.
         2. Prompts user for interactive confirmation unless force is True.
         3. Removes selected files and directories with shutil.rmtree and Path.unlink.
         4. Re-initializes a fresh database schema via Database(db_path) if recreate is True.
         5. Returns exit code 0 on success or 1 on user abortion.
     """
+    # Keep the explicit cleanup inventory, confirmation, and removal sequence together.
+    # pylint: disable=too-many-locals
+    # pylint: disable=too-many-branches
     db_path = data_dir / 'app.db'
     wal_path = data_dir / 'app.db-wal'
     shm_path = data_dir / 'app.db-shm'
@@ -49,7 +54,11 @@ def clean_database(data_dir: Path, *, clean_all: bool = False, force: bool = Fal
 
     print(f"The following targets in '{data_dir}' will be removed/cleaned:")
     for t in targets:
-        size = t.stat().st_size if t.is_file() else sum(f.stat().st_size for f in t.glob('**/*') if f.is_file())
+        size = (
+            t.stat().st_size
+            if t.is_file()
+            else sum(f.stat().st_size for f in t.glob('**/*') if f.is_file())
+        )
         kind = 'directory' if t.is_dir() else 'file'
         print(f"  - {t.name} ({kind}, {size:,} bytes)")
 
@@ -80,10 +89,12 @@ def clean_database(data_dir: Path, *, clean_all: bool = False, force: bool = Fal
     if recreate:
         try:
             # Recreate blank database schema
-            from ftp_lab.webapp.database import Database
+            # Delay this optional action until after the standalone script bootstraps sys.path.
+            from ftp_lab.webapp.database import Database  # pylint: disable=import-outside-toplevel
+
             Database(db_path)
             print(f"Re-initialized empty database schema: {db_path.name}")
-        except Exception as exc:
+        except (OSError, sqlite3.Error, ValueError) as exc:
             print(f"Could not re-initialize database: {exc}", file=sys.stderr)
 
     print(f"Cleanup complete. Cleaned {removed_count} item(s).")
@@ -100,14 +111,30 @@ def main(argv=None):
         Constructs an ArgumentParser, parses CLI options (--data-dir, --all, --force, --recreate),
         and delegates execution to clean_database.
     """
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--data-dir', type=Path, default=Path('app-data'), help='Path to app-data directory (default: app-data)')
-    parser.add_argument('--all', action='store_true', help='Also empty the transfers spool directory')
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        '--data-dir',
+        type=Path,
+        default=Path('app-data'),
+        help='Path to app-data directory (default: app-data)',
+    )
+    parser.add_argument(
+        '--all', action='store_true', help='Also empty the transfers spool directory'
+    )
     parser.add_argument('--force', '-f', action='store_true', help='Do not prompt for confirmation')
-    parser.add_argument('--recreate', '-r', action='store_true', help='Re-initialize a fresh empty database schema after removal')
+    parser.add_argument(
+        '--recreate',
+        '-r',
+        action='store_true',
+        help='Re-initialize a fresh empty database schema after removal',
+    )
     args = parser.parse_args(argv)
 
-    return clean_database(args.data_dir, clean_all=args.all, force=args.force, recreate=args.recreate)
+    return clean_database(
+        args.data_dir, clean_all=args.all, force=args.force, recreate=args.recreate
+    )
 
 
 if __name__ == '__main__':

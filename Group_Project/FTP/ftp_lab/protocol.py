@@ -55,8 +55,8 @@ class ControlStream:
             if end >= 0:
                 if end + 1 > self.max_line or end == 0 or self.buffer[end - 1] != 13:
                     raise ProtocolError('Expected a bounded CRLF-terminated line')
-                wire = bytes(self.buffer[:end - 1])
-                del self.buffer[:end + 1]
+                wire = bytes(self.buffer[: end - 1])
+                del self.buffer[: end + 1]
                 if any(c < 32 and c != 9 or c == 127 for c in wire):
                     raise ProtocolError('Control character in line')
                 try:
@@ -95,6 +95,8 @@ class ControlStream:
 
 @dataclass(frozen=True)
 class Reply:
+    """Numeric FTP status and the complete control lines making up its reply."""
+
     code: int
     lines: tuple[str, ...]
 

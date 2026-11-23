@@ -1,3 +1,6 @@
+"""Verify FTP commands, concurrency, confinement, and transfer shutdown."""
+
+import errno
 import ftplib
 import io
 import socket
@@ -8,22 +11,31 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
-from ftp_lab.protocol import ControlStream, read_reply
 from support import connect, running_server
+
+from ftp_lab.protocol import ControlStream, read_reply, socket_chunks
+from ftp_lab.server import FTPSession
 
 
 class ServerTests(unittest.TestCase):
+    """FTP command and concurrent session integration tests."""
+
+    # Keep the FTP command conformance cases in a single unittest fixture.
+    # pylint: disable=too-many-public-methods
+
     def setUp(self):
         self.context = running_server()
         self.server, self.root = self.context.__enter__()
         self.addCleanup(self.context.__exit__, None, None, None)
 
     def ftp(self, **options):
+        """Connect a test client and register connection cleanup."""
         ftp = connect(self.server, **options)
         self.addCleanup(ftp.close)
         return ftp
 
     def test_login_sequence_and_reauthentication_revoke_access(self):
+        """Verify login sequence and reauthentication revoke access."""
         ftp = self.ftp(login=False)
         for command in ("PASS lab-test", "PWD", "RETR file", "PASV"):
             with self.subTest(command=command), self.assertRaises(ftplib.error_perm):
@@ -37,18 +49,15 @@ class ServerTests(unittest.TestCase):
             ftp.pwd()
 
     def test_binary_roundtrip_empty_all_bytes_and_large_active_and_passive(self):
+        """Verify binary roundtrip empty all bytes and large active and passive."""
         ftp = self.ftp()
         for passive in (True, False):
             ftp.set_pasv(passive)
-            for index, payload in enumerate(
-                (b"", bytes(range(256)), bytes(range(256)) * 8193)
-            ):
+            for index, payload in enumerate((b"", bytes(range(256)), bytes(range(256)) * 8193)):
                 with self.subTest(passive=passive, size=len(payload)):
                     name = f"file-{index}"
                     self.assertTrue(
-                        ftp.storbinary(f"STOR {name}", io.BytesIO(payload)).startswith(
-                            "226"
-                        )
+                        ftp.storbinary(f"STOR {name}", io.BytesIO(payload)).startswith("226")
                     )
                     received = bytearray()
                     ftp.retrbinary(f"RETR {name}", received.extend)
@@ -57,6 +66,7 @@ class ServerTests(unittest.TestCase):
                     self.assertEqual(ftp.size(name), len(payload))
 
     def test_ascii_transfers_convert_posix_newlines(self):
+        """Verify ascii transfers convert posix newlines."""
         ftp = self.ftp()
         ftp.storlines("STOR text", io.BytesIO(b"first\nsecond\n"))
         self.assertEqual((self.root / "text").read_bytes(), b"first\nsecond\n")
@@ -65,6 +75,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(lines, ["first", "second"])
 
     def test_directories_listings_spaces_quotes_and_utf8(self):
+        """Verify directories listings spaces quotes and utf8."""
         ftp = self.ftp()
         name = 'folder "quoted" café'
         ftp.mkd(name)
@@ -82,6 +93,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(ftp.nlst(), [])
 
     def test_long_quoted_directory_creation_returns_success(self):
+        """Verify long quoted directory creation returns success."""
         ftp = self.ftp()
         name = '"' * 255
         self.assertEqual(ftp.mkd(name), "/" + name)
@@ -90,6 +102,7 @@ class ServerTests(unittest.TestCase):
         self.assertTrue((self.root / name).is_dir())
 
     def test_deep_working_directory_can_be_reported(self):
+        """Verify deep working directory can be reported."""
         ftp = self.ftp()
         parts = []
         for index in range(4):
@@ -100,6 +113,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(ftp.pwd(), "/" + "/".join(parts))
 
     def test_missing_file_does_not_break_control_session(self):
+        """Verify missing file does not break control session."""
         ftp = self.ftp()
         with self.assertRaisesRegex(ftplib.error_perm, "^550"):
             ftp.retrbinary("RETR absent", lambda block: None)
@@ -107,6 +121,7 @@ class ServerTests(unittest.TestCase):
         ftp.storbinary("STOR valid", io.BytesIO(b"ok"))
 
     def test_path_escape_symlinks_and_listing_injection_are_denied(self):
+        """Verify path escape symlinks and listing injection are denied."""
         ftp = self.ftp()
         outside = self.root.parent / "secret"
         outside.write_bytes(b"private")
@@ -130,6 +145,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(outside.read_bytes(), b"private")
 
     def test_data_setup_required_and_consumed_on_failed_transfer(self):
+        """Verify data setup required and consumed on failed transfer."""
         ftp = self.ftp()
         with self.assertRaisesRegex(ftplib.error_temp, "^425"):
             ftp.sendcmd("LIST")
@@ -140,6 +156,7 @@ class ServerTests(unittest.TestCase):
             ftp.sendcmd("LIST")
 
     def test_active_bounce_bad_ports_and_extended_commands(self):
+        """Verify active bounce bad ports and extended commands."""
         ftp = self.ftp()
         for command in (
             "PORT 8,8,8,8,8,8",
@@ -165,6 +182,7 @@ class ServerTests(unittest.TestCase):
             ftp.sendcmd("PASV")
 
     def test_rnfr_rnto_rename_sequence(self):
+        """Verify rnfr rnto rename sequence."""
         ftp = self.ftp()
         (self.root / "report.old").write_bytes(b"content to rename")
         with self.assertRaisesRegex(ftplib.error_perm, "^503"):
@@ -177,6 +195,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual((self.root / "report.new").read_bytes(), b"content to rename")
 
     def test_protocol_pdf_table_commands(self):
+        """Verify protocol PDF table commands."""
         ftp = self.ftp()
         # Table 10.4 TYPE options: A, E, I (and EBCDIC)
         self.assertTrue(ftp.sendcmd("TYPE A").startswith("200"))
@@ -194,12 +213,32 @@ class ServerTests(unittest.TestCase):
         # HELP lists Table 10.4 commands including RNFR and RNTO
         help_reply = ftp.sendcmd("HELP")
         self.assertTrue(help_reply.startswith("214"))
-        for cmd in ("USER", "PASS", "QUIT", "ABOR", "PWD", "CWD", "CDUP", "LIST",
-                    "MKD", "RMD", "DELE", "RNFR", "RNTO", "RETR", "STOR",
-                    "STRU", "TYPE", "PORT", "PASV", "MODE"):
+        for cmd in (
+            "USER",
+            "PASS",
+            "QUIT",
+            "ABOR",
+            "PWD",
+            "CWD",
+            "CDUP",
+            "LIST",
+            "MKD",
+            "RMD",
+            "DELE",
+            "RNFR",
+            "RNTO",
+            "RETR",
+            "STOR",
+            "STRU",
+            "TYPE",
+            "PORT",
+            "PASV",
+            "MODE",
+        ):
             self.assertIn(cmd, help_reply)
 
     def test_rfc959_commands(self):
+        """Verify rfc959 commands."""
         ftp = self.ftp()
         # STOU stores a unique file
         self.assertTrue(ftp.storbinary("STOU", io.BytesIO(b"unique payload")).startswith("250"))
@@ -246,17 +285,22 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(ftp.pwd(), "/")
 
     def test_additional_rfc959_response_codes(self):
+        """Verify additional rfc959 response codes."""
         ftp = self.ftp()
         (self.root / "sample.txt").write_bytes(b"content")
         (self.root / "subfolder").mkdir(exist_ok=True)
 
         # 212: STAT on directory
         dir_stat = ftp.sendcmd("STAT subfolder")
-        self.assertTrue(dir_stat.startswith("212"), f"Expected 212 for directory status, got: {dir_stat}")
+        self.assertTrue(
+            dir_stat.startswith("212"), f"Expected 212 for directory status, got: {dir_stat}"
+        )
 
         # 213: STAT on regular file
         file_stat = ftp.sendcmd("STAT sample.txt")
-        self.assertTrue(file_stat.startswith("213"), f"Expected 213 for file status, got: {file_stat}")
+        self.assertTrue(
+            file_stat.startswith("213"), f"Expected 213 for file status, got: {file_stat}"
+        )
 
         # 553: RNTO with invalid destination name
         ftp.sendcmd("RNFR sample.txt")
@@ -268,22 +312,30 @@ class ServerTests(unittest.TestCase):
             ftp.sendcmd("STOR .ftp-upload-forbidden")
 
         # Simulated errno mappings
-        import errno
-        from ftp_lab.server import FTPSession
 
         # 450: File busy (EBUSY)
-        with patch.object(FTPSession, 'authenticated_command', side_effect=OSError(errno.EBUSY, "Device or resource busy")):
+        with patch.object(
+            FTPSession,
+            'authenticated_command',
+            side_effect=OSError(errno.EBUSY, "Device or resource busy"),
+        ):
             with self.assertRaisesRegex(ftplib.error_temp, "^450"):
                 ftp.sendcmd("DELE sample.txt")
 
         # 452: Insufficient storage space (ENOSPC)
-        with patch.object(FTPSession, 'authenticated_command', side_effect=OSError(errno.ENOSPC, "No space left on device")):
+        with patch.object(
+            FTPSession,
+            'authenticated_command',
+            side_effect=OSError(errno.ENOSPC, "No space left on device"),
+        ):
             with self.assertRaisesRegex(ftplib.error_temp, "^452"):
                 ftp.sendcmd("STOR sample.txt")
 
         # 552: Exceeded storage allocation (EDQUOT)
         edquot = getattr(errno, 'EDQUOT', 122)
-        with patch.object(FTPSession, 'authenticated_command', side_effect=OSError(edquot, "Disk quota exceeded")):
+        with patch.object(
+            FTPSession, 'authenticated_command', side_effect=OSError(edquot, "Disk quota exceeded")
+        ):
             with self.assertRaisesRegex(ftplib.error_perm, "^552"):
                 ftp.sendcmd("STOR sample.txt")
 
@@ -295,6 +347,7 @@ class ServerTests(unittest.TestCase):
             data.close()
 
     def test_timeout_waiting_for_passive_data_connection_and_recovery(self):
+        """Verify timeout waiting for passive data connection and recovery."""
         ftp = self.ftp()
         ftp.sendcmd("PASV")
         ftp.putcmd("LIST")
@@ -304,6 +357,7 @@ class ServerTests(unittest.TestCase):
         self.assertTrue(ftp.sendcmd("NOOP").startswith("200"))
 
     def test_reset_upload_preserves_original_and_cleans_staging_file(self):
+        """Verify reset upload preserves original and cleans staging file."""
         ftp = self.ftp()
         (self.root / "file").write_bytes(b"original")
         data = ftp.transfercmd("STOR file")
@@ -316,26 +370,26 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(list(self.root.iterdir()), [self.root / "file"])
 
     def test_fragmented_pipelined_and_oversized_commands(self):
+        """Verify fragmented pipelined and oversized commands."""
         with socket.create_connection(self.server.address, timeout=3) as sock:
             stream = ControlStream(sock)
             self.assertEqual(read_reply(stream).code, 220)
             sock.sendall(b"US")
             sock.sendall(b"ER student\r\nPASS lab-test\r\nPWD\r\n")
-            self.assertEqual(
-                [read_reply(stream).code for _ in range(3)], [331, 230, 257]
-            )
+            self.assertEqual([read_reply(stream).code for _ in range(3)], [331, 230, 257])
             sock.sendall(b"x" * 513)
             self.assertEqual(read_reply(stream).code, 500)
             self.assertEqual(sock.recv(1), b"")
 
     def test_independent_concurrent_working_directories(self):
+        """Verify independent concurrent working directories."""
         for name in ("one", "two", "three", "four"):
             (self.root / name).mkdir()
 
-        def transfer(name):
+        def transfer(directory_name):
             with connect(self.server) as ftp:
-                ftp.cwd(name)
-                ftp.storbinary("STOR file", io.BytesIO(name.encode()))
+                ftp.cwd(directory_name)
+                ftp.storbinary("STOR file", io.BytesIO(directory_name.encode()))
                 return ftp.pwd()
 
         with ThreadPoolExecutor(max_workers=4) as pool:
@@ -347,11 +401,15 @@ class ServerTests(unittest.TestCase):
             self.assertEqual((self.root / name / "file").read_text(), name)
 
     def test_shutdown_closes_idle_sessions_promptly(self):
+        """Verify shutdown closes idle sessions promptly."""
         ftp = self.ftp()
         finished = threading.Event()
-        closer = threading.Thread(
-            target=lambda: (self.server.server_close(), finished.set())
-        )
+
+        def close_server():
+            self.server.server_close()
+            finished.set()
+
+        closer = threading.Thread(target=close_server)
         closer.start()
         self.assertTrue(finished.wait(2))
         closer.join(2)
@@ -360,9 +418,10 @@ class ServerTests(unittest.TestCase):
 
 
 class CapacityTests(unittest.TestCase):
-    def test_shutdown_eof_does_not_publish_a_staged_upload(self):
-        from ftp_lab.protocol import socket_chunks
+    """Server capacity limits and interrupted transfer cleanup tests."""
 
+    def test_shutdown_eof_does_not_publish_a_staged_upload(self):
+        """Verify shutdown eof does not publish a staged upload."""
         with running_server() as (server, root), connect(server) as ftp:
             (root / 'waiting').write_bytes(b'original')
 
@@ -372,18 +431,22 @@ class CapacityTests(unittest.TestCase):
                 # Keep that ordering deterministic instead of timing a thread.
                 server.closing.set()
 
-            with patch('ftp_lab.server.socket_chunks', closing_chunks), self.assertRaisesRegex(ftplib.error_temp, '^426'):
+            with patch('ftp_lab.server.socket_chunks', closing_chunks), self.assertRaisesRegex(
+                ftplib.error_temp, '^426'
+            ):
                 ftp.storbinary('STOR waiting', io.BytesIO(b'replacement'))
             self.assertEqual((root / 'waiting').read_bytes(), b'original')
             self.assertEqual(list(root.iterdir()), [root / 'waiting'])
 
     def test_capacity_limit_rejects_additional_clients(self):
+        """Verify capacity limit rejects additional clients."""
         with running_server(max_clients=1) as (server, _root), connect(server) as first:
             with self.assertRaisesRegex(ftplib.error_temp, "^421"):
                 connect(server, login=False)
             self.assertEqual(first.pwd(), "/")
 
     def test_shutdown_interrupts_data_receive_before_long_timeout(self):
+        """Verify shutdown interrupts data receive before long timeout."""
         with running_server(timeout=10) as (server, root):
             (root / "waiting").write_bytes(b"original")
             with connect(server) as ftp:
@@ -393,9 +456,7 @@ class CapacityTests(unittest.TestCase):
                     payload = b"x" * (1024 * 1024)
                     data.sendall(payload)
                     deadline = time.monotonic() + 2
-                    while not any(
-                        p.stat().st_size > 0 for p in root.glob(".ftp-upload-*")
-                    ):
+                    while not any(p.stat().st_size > 0 for p in root.glob(".ftp-upload-*")):
                         snapshot = [(p.name, p.stat().st_size) for p in root.iterdir()]
                         self.assertLess(
                             time.monotonic(),
@@ -404,9 +465,12 @@ class CapacityTests(unittest.TestCase):
                         )
                         time.sleep(0.005)
                     finished = threading.Event()
-                    closer = threading.Thread(
-                        target=lambda: (server.server_close(), finished.set())
-                    )
+
+                    def close_server():
+                        server.server_close()
+                        finished.set()
+
+                    closer = threading.Thread(target=close_server)
                     closer.start()
                     self.assertTrue(
                         finished.wait(2),

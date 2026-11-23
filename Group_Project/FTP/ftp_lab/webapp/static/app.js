@@ -1,3 +1,4 @@
+/* global module */
 /* Relay: offline, dependency-free browser client. */
 (() => {
   'use strict';
@@ -667,10 +668,10 @@
   if (typeof module !== 'undefined' && module.exports) module.exports = {formatBytes, formatDuration, joinPath, parentPath, throughputSeries, comparisonMetrics, benchmarkRowValues, downloadPresentation, createSessionGate, commandCatalog, GUIDED_SCENARIOS};
   if (typeof document === 'undefined') return;
 
-  const $ = id => document.getElementById(id);
+  const byId = id => document.getElementById(id);
   const terminal = new Set(['completed', 'failed', 'cancelled']);
   const active = job => !terminal.has(job.status);
-  const state = {session: null, devices: [], jobs: [], selectedId: null, path: '/', selectedFile: null, view: 'transfers', sending: false, sendGeneration: 0, staging: new Map(), sources: new Map(), requests: new Map(), filesGeneration: 0, polling: null, pollGeneration: 0, jobsGeneration: 0, benchmarkId: '', retryTarget: null, protoCategory: 'scenarios', protoCommand: 'USER', protoScenario: 'auth_flow', protoSearch: '', protoRunning: false};
+  const state = {session: /** @type {?{user?: {username: string}, csrf?: string, setup_required?: boolean, setup_allowed?: boolean}} */ (null), devices: [], jobs: [], selectedId: null, path: '/', selectedFile: null, view: 'transfers', sending: false, sendGeneration: 0, staging: new Map(), sources: new Map(), requests: new Map(), filesGeneration: 0, polling: null, pollGeneration: 0, jobsGeneration: 0, benchmarkId: '', retryTarget: null, protoCategory: 'scenarios', protoCommand: 'USER', protoScenario: 'auth_flow', protoSearch: '', protoRunning: false};
   const sessionGate = createSessionGate();
   let noticeTimer;
   let confirmCallback = null;
@@ -710,12 +711,12 @@
   }
   function showNotice(message, error = false) {
     clearTimeout(noticeTimer);
-    $('notice').textContent = message;
-    $('notice').classList.toggle('error', error);
-    $('notice').hidden = false;
-    noticeTimer = setTimeout(() => { $('notice').hidden = true; }, error ? 11000 : 5500);
+    byId('notice').textContent = message;
+    byId('notice').classList.toggle('error', error);
+    byId('notice').hidden = false;
+    noticeTimer = setTimeout(() => { byId('notice').hidden = true; }, error ? 11000 : 5500);
   }
-  function formError(id, message = '') { $(id).textContent = message; $(id).hidden = !message; }
+  function formError(id, message = '') { byId(id).textContent = message; byId(id).hidden = !message; }
   function selectedDevice() { return state.devices.find(device => String(device.id) === String(state.selectedId)); }
   async function api(path, options = {}) {
     const headers = {...options.headers};
@@ -750,7 +751,7 @@
     state.selectedFile = null;
     state.retryTarget = null;
     state.benchmarkId = '';
-    $('file-input').value = '';
+    byId('file-input').value = '';
     state.jobs = [];
     state.devices = [];
     state.selectedId = null;
@@ -760,45 +761,45 @@
     state.staging.clear();
     state.sending = false;
     for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();
-    $('app-shell').hidden = true;
-    $('auth-screen').hidden = false;
+    byId('app-shell').hidden = true;
+    byId('auth-screen').hidden = false;
     configureAuth(false);
   }
   function configureAuth(setup, setupAllowed = true) {
-    $('auth-title').textContent = setup ? 'Make yourself at home.' : 'Welcome back.';
-    $('auth-description').textContent = setup ? 'Create your local account. Your files have places to be.' : 'Sign in to pick up where your files left off.';
-    $('auth-submit').replaceChildren(document.createTextNode(setup ? 'Create workspace' : 'Sign in'), element('span', '', '↗'));
-    $('auth-password').autocomplete = setup ? 'new-password' : 'current-password';
-    $('auth-password').minLength = setup ? 8 : 1;
-    $('auth-password').placeholder = setup ? 'At least 8 characters' : 'Your password';
-    $('auth-form').dataset.setup = setup ? 'true' : 'false';
-    $('auth-form').hidden = false;
-    $('session-retry').hidden = true;
+    byId('auth-title').textContent = setup ? 'Make yourself at home.' : 'Welcome back.';
+    byId('auth-description').textContent = setup ? 'Create your local account. Your files have places to be.' : 'Sign in to pick up where your files left off.';
+    byId('auth-submit').replaceChildren(document.createTextNode(setup ? 'Create workspace' : 'Sign in'), element('span', '', '↗'));
+    byId('auth-password').autocomplete = setup ? 'new-password' : 'current-password';
+    byId('auth-password').minLength = setup ? 8 : 1;
+    byId('auth-password').placeholder = setup ? 'At least 8 characters' : 'Your password';
+    byId('auth-form').dataset.setup = setup ? 'true' : 'false';
+    byId('auth-form').hidden = false;
+    byId('session-retry').hidden = true;
     if (setup && !setupAllowed) {
-      $('auth-title').textContent = 'The host goes first.';
-      $('auth-description').textContent = 'Create the workspace account on the host computer at http://127.0.0.1' + (location.port ? ':' + location.port : '') + '. Then come back here to sign in.';
-      $('auth-form').hidden = true;
-      $('session-retry').hidden = false;
+      byId('auth-title').textContent = 'The host goes first.';
+      byId('auth-description').textContent = 'Create the workspace account on the host computer at http://127.0.0.1' + (location.port ? ':' + location.port : '') + '. Then come back here to sign in.';
+      byId('auth-form').hidden = true;
+      byId('session-retry').hidden = false;
     }
   }
   async function loadSession() {
-    $('session-retry').hidden = true;
+    byId('session-retry').hidden = true;
     try {
       state.session = await api('/api/session');
       if (state.session.user) await enterWorkspace();
       else configureAuth(state.session.setup_required, state.session.setup_allowed);
     } catch (error) {
-      $('auth-title').textContent = 'A small connection hiccup.';
-      $('auth-description').textContent = error.message;
-      $('session-retry').hidden = false;
+      byId('auth-title').textContent = 'A small connection hiccup.';
+      byId('auth-description').textContent = error.message;
+      byId('session-retry').hidden = false;
     }
   }
   async function enterWorkspace() {
     sessionGate.invalidate();
-    $('auth-screen').hidden = true;
-    $('app-shell').hidden = false;
-    $('auth-password').value = '';
-    $('account-name').textContent = state.session.user.username;
+    byId('auth-screen').hidden = true;
+    byId('app-shell').hidden = false;
+    byId('auth-password').value = '';
+    byId('account-name').textContent = state.session.user.username;
     formError('auth-error');
     updateFileSelection();
     try {
@@ -826,34 +827,34 @@
     dialog.addEventListener('close', () => { if (dialogOpener?.isConnected) dialogOpener.focus(); });
   }
   function confirmAction(title, description, label, callback) {
-    $('confirm-title').textContent = title;
-    $('confirm-description').textContent = description;
-    $('confirm-action').textContent = label;
+    byId('confirm-title').textContent = title;
+    byId('confirm-description').textContent = description;
+    byId('confirm-action').textContent = label;
     confirmCallback = callback;
-    openDialog($('confirm-dialog'));
+    openDialog(byId('confirm-dialog'));
   }
-  $('confirm-action').addEventListener('click', async () => {
+  byId('confirm-action').addEventListener('click', async () => {
     const callback = confirmCallback;
-    $('confirm-action').disabled = true;
-    try { if (callback) await callback(); $('confirm-dialog').close(); }
+    byId('confirm-action').disabled = true;
+    try { if (callback) await callback(); byId('confirm-dialog').close(); }
     catch (error) { showNotice(error.message, true); }
-    finally { $('confirm-action').disabled = false; }
+    finally { byId('confirm-action').disabled = false; }
   });
-  $('session-retry').addEventListener('click', loadSession);
-  $('auth-form').addEventListener('submit', async event => {
+  byId('session-retry').addEventListener('click', loadSession);
+  byId('auth-form').addEventListener('submit', async event => {
     event.preventDefault();
-    const submit = $('auth-submit');
+    const submit = byId('auth-submit');
     submit.disabled = true;
     formError('auth-error');
     try {
-      const endpoint = $('auth-form').dataset.setup === 'true' ? '/api/setup' : '/api/login';
-      state.session = await api(endpoint, {method: 'POST', body: {username: $('auth-username').value.trim(), password: $('auth-password').value}});
+      const endpoint = byId('auth-form').dataset.setup === 'true' ? '/api/setup' : '/api/login';
+      state.session = await api(endpoint, {method: 'POST', body: {username: byId('auth-username').value.trim(), password: byId('auth-password').value}});
       await enterWorkspace();
     } catch (error) { formError('auth-error', error.message); }
     finally { submit.disabled = false; }
   });
-  $('logout').addEventListener('click', () => {
-    const logout = async () => { await api('/api/logout', {method: 'POST'}); expireSession(); $('auth-password').value = ''; $('auth-username').focus(); };
+  byId('logout').addEventListener('click', () => {
+    const logout = async () => { await api('/api/logout', {method: 'POST'}); expireSession(); byId('auth-password').value = ''; byId('auth-username').focus(); };
     if (state.jobs.some(active)) confirmAction('Sign out with files in motion?', 'Your active transfers may be interrupted. You can sign in again to check their status.', 'Sign out', logout);
     else logout().catch(error => showNotice(error.message, true));
   });
@@ -866,20 +867,20 @@
   function updateControls() {
     const device = selectedDevice();
     const ready = Boolean(device?.ready);
-    $('upload-button').disabled = !ready || !state.selectedFile || state.sending;
-    $('benchmark-button').disabled = !ready || !state.selectedFile || state.sending;
-    $('refresh-files').disabled = !ready;
-    $('parent-folder').disabled = !ready || state.path === '/';
-    $('connection-dot').classList.toggle('muted', !ready);
-    $('connection-label').textContent = device ? `${ready ? 'Connected to' : 'Connect'} ${device.name}` : 'Choose a device';
-    $('upload-destination').textContent = device ? `Destination: ${device.name} · ${state.path}${$('compress').checked ? ' · .gz file' : ''}` : 'Choose a connected device to get started.';
-    $('current-path').textContent = state.path;
-    $('current-path').title = state.path;
+    byId('upload-button').disabled = !ready || !state.selectedFile || state.sending;
+    byId('benchmark-button').disabled = !ready || !state.selectedFile || state.sending;
+    byId('refresh-files').disabled = !ready;
+    byId('parent-folder').disabled = !ready || state.path === '/';
+    byId('connection-dot').classList.toggle('muted', !ready);
+    byId('connection-label').textContent = device ? `${ready ? 'Connected to' : 'Connect'} ${device.name}` : 'Choose a device';
+    byId('upload-destination').textContent = device ? `Destination: ${device.name} · ${state.path}${byId('compress').checked ? ' · .gz file' : ''}` : 'Choose a connected device to get started.';
+    byId('current-path').textContent = state.path;
+    byId('current-path').title = state.path;
   }
   function renderDevices() {
-    $('device-count').textContent = state.devices.length;
-    $('device-list').replaceChildren();
-    if (!state.devices.length) $('device-list').append(element('p', 'aside-description', 'Add your first device to get moving.'));
+    byId('device-count').textContent = String(state.devices.length);
+    byId('device-list').replaceChildren();
+    if (!state.devices.length) byId('device-list').append(element('p', 'aside-description', 'Add your first device to get moving.'));
     for (const device of state.devices) {
       const row = element('div', 'device-row');
       const button = actionButton('', `device-item${String(device.id) === String(state.selectedId) ? ' selected' : ''}`, () => selectDevice(device), `device-${device.id}`);
@@ -896,7 +897,7 @@
         remove.setAttribute('aria-label', `Remove ${device.name}`); remove.title = `Remove ${device.name}`;
         row.append(remove);
       }
-      $('device-list').append(row);
+      byId('device-list').append(row);
     }
     updateControls();
   }
@@ -909,13 +910,13 @@
     else {
       renderFilesEmpty('Almost there.', 'Connect this device to see its files and start a transfer.');
       connectDeviceId = device.id;
-      $('connect-dialog-title').textContent = `Connect ${device.name}`;
-      $('connect-description').textContent = `${device.username} at ${device.host}:${device.port}`;
-      $('connect-password').value = '';
-      $('connect-password').required = !device.local;
+      byId('connect-dialog-title').textContent = `Connect ${device.name}`;
+      byId('connect-description').textContent = `${device.username} at ${device.host}:${device.port}`;
+      byId('connect-password').value = '';
+      byId('connect-password').required = !device.local;
       formError('connect-error');
-      openDialog($('connect-dialog'));
-      $('connect-password').focus();
+      openDialog(byId('connect-dialog'));
+      byId('connect-password').focus();
     }
   }
   function removeDevice(device) {
@@ -927,42 +928,42 @@
       showNotice('Device removed.');
     });
   }
-  $('add-device').addEventListener('click', () => { $('device-form').reset(); formError('device-error'); openDialog($('device-dialog')); $('device-name').focus(); });
-  $('device-form').addEventListener('submit', async event => {
+  byId('add-device').addEventListener('click', () => { byId('device-form').reset(); formError('device-error'); openDialog(byId('device-dialog')); byId('device-name').focus(); });
+  byId('device-form').addEventListener('submit', async event => {
     event.preventDefault();
-    const submit = $('device-form').querySelector('[type=submit]');
+    const submit = byId('device-form').querySelector('[type=submit]');
     submit.disabled = true;
     formError('device-error');
     try {
-      const {device} = await api('/api/devices', {method: 'POST', body: {name: $('device-name').value.trim(), host: $('device-host').value.trim(), port: Number($('device-port').value), username: $('device-username').value.trim()}});
-      $('device-dialog').close();
+      const {device} = await api('/api/devices', {method: 'POST', body: {name: byId('device-name').value.trim(), host: byId('device-host').value.trim(), port: Number(byId('device-port').value), username: byId('device-username').value.trim()}});
+      byId('device-dialog').close();
       await refreshDevices();
       await selectDevice(state.devices.find(saved => String(saved.id) === String(device.id)) || device);
     } catch (error) { formError('device-error', error.message); }
     finally { submit.disabled = false; }
   });
-  $('connect-form').addEventListener('submit', async event => {
+  byId('connect-form').addEventListener('submit', async event => {
     event.preventDefault();
-    const submit = $('connect-form').querySelector('[type=submit]');
+    const submit = byId('connect-form').querySelector('[type=submit]');
     submit.disabled = true;
     formError('connect-error');
     try {
-      await api(`/api/devices/${encodeURIComponent(connectDeviceId)}/connect`, {method: 'POST', body: {password: $('connect-password').value}});
-      $('connect-password').value = '';
-      $('connect-dialog').close();
+      await api(`/api/devices/${encodeURIComponent(connectDeviceId)}/connect`, {method: 'POST', body: {password: byId('connect-password').value}});
+      byId('connect-password').value = '';
+      byId('connect-dialog').close();
       await refreshDevices();
       await loadFiles();
       showNotice('Connected. Your files are ready.');
     } catch (error) { formError('connect-error', error.message); }
     finally { submit.disabled = false; }
   });
-  $('connect-dialog').addEventListener('close', () => { $('connect-password').value = ''; });
+  byId('connect-dialog').addEventListener('close', () => { byId('connect-password').value = ''; });
   function renderFilesEmpty(title, description) {
     const empty = element('div', 'empty-state');
     const image = element('span', 'empty-icon', '▱'); image.setAttribute('aria-hidden', 'true');
     empty.append(image, element('h3', '', title), element('p', '', description));
-    $('remote-files').replaceChildren(empty);
-    $('files-count').textContent = 'No files to show';
+    byId('remote-files').replaceChildren(empty);
+    byId('files-count').textContent = 'No files to show';
     updateControls();
   }
   async function loadFiles(path = state.path) {
@@ -970,7 +971,7 @@
     const generation = ++state.filesGeneration;
     if (!device?.ready) { renderFilesEmpty('A place for everything.', 'Choose a connected device to explore its files.'); return; }
     renderFilesEmpty('Opening your folder…', 'Just a moment.');
-    $('refresh-files').disabled = true;
+    byId('refresh-files').disabled = true;
     try {
       const data = await api(`/api/devices/${encodeURIComponent(device.id)}/files?path=${encodeURIComponent(path)}`);
       if (generation !== state.filesGeneration || !state.session?.user) return;
@@ -981,7 +982,7 @@
     } finally { if (generation === state.filesGeneration) updateControls(); }
   }
   function renderFiles(entries) {
-    $('remote-files').replaceChildren();
+    byId('remote-files').replaceChildren();
     if (!entries.length) renderFilesEmpty('Room for something new.', 'This folder is empty. Send a file to make yourself at home.');
     const ordered = [...entries].sort((a, b) => Number(b.directory) - Number(a.directory) || a.name.localeCompare(b.name));
     for (const entry of ordered) {
@@ -999,13 +1000,13 @@
         download.setAttribute('aria-label', `Download ${entry.name}`); download.title = `Download ${entry.name}`;
         row.append(copy, download);
       }
-      $('remote-files').append(row);
+      byId('remote-files').append(row);
     }
-    $('files-count').textContent = `${entries.length} ${entries.length === 1 ? 'item' : 'items'}`;
+    byId('files-count').textContent = `${entries.length} ${entries.length === 1 ? 'item' : 'items'}`;
     updateControls();
   }
-  $('refresh-files').addEventListener('click', () => loadFiles());
-  $('parent-folder').addEventListener('click', () => loadFiles(parentPath(state.path)));
+  byId('refresh-files').addEventListener('click', () => loadFiles());
+  byId('parent-folder').addEventListener('click', () => loadFiles(parentPath(state.path)));
 
   function chooseFile(file) {
     if (!file) return;
@@ -1015,23 +1016,23 @@
       const original = state.retryTarget;
       state.retryTarget = null;
       if (file.name !== original.name || file.size !== original.size) { showNotice(`To retry, choose the original ${original.name} (${formatBytes(original.size)}).`, true); return; }
-      sendFile(original.kind, original);
+      void sendFile(original.kind, original);
     }
   }
   function updateFileSelection() {
     const file = state.selectedFile;
-    $('dropzone').classList.toggle('has-file', Boolean(file));
-    $('drop-title').textContent = file ? file.name : 'A new home for your files';
-    $('drop-description').textContent = file ? 'All picked out. Ready when you are.' : 'Drop a file here, or choose one below';
-    $('selected-file-meta').textContent = file ? `${formatBytes(file.size)} · ${file.type || 'File'}` : 'Audio, video, documents — make it yours.';
+    byId('dropzone').classList.toggle('has-file', Boolean(file));
+    byId('drop-title').textContent = file ? file.name : 'A new home for your files';
+    byId('drop-description').textContent = file ? 'All picked out. Ready when you are.' : 'Drop a file here, or choose one below';
+    byId('selected-file-meta').textContent = file ? `${formatBytes(file.size)} · ${file.type || 'File'}` : 'Audio, video, documents — make it yours.';
     updateControls();
   }
-  $('file-input').addEventListener('change', () => { chooseFile($('file-input').files[0]); $('file-input').value = ''; });
-  $('file-input').addEventListener('cancel', () => { state.retryTarget = null; });
-  $('dropzone').addEventListener('dragover', event => { event.preventDefault(); $('dropzone').classList.add('drag-over'); });
-  $('dropzone').addEventListener('dragleave', event => { if (!$('dropzone').contains(event.relatedTarget)) $('dropzone').classList.remove('drag-over'); });
-  $('dropzone').addEventListener('drop', event => {
-    event.preventDefault(); $('dropzone').classList.remove('drag-over');
+  byId('file-input').addEventListener('change', () => { chooseFile(byId('file-input').files[0]); byId('file-input').value = ''; });
+  byId('file-input').addEventListener('cancel', () => { state.retryTarget = null; });
+  byId('dropzone').addEventListener('dragover', event => { event.preventDefault(); byId('dropzone').classList.add('drag-over'); });
+  byId('dropzone').addEventListener('dragleave', event => { if (!byId('dropzone').contains(event.relatedTarget)) byId('dropzone').classList.remove('drag-over'); });
+  byId('dropzone').addEventListener('drop', event => {
+    event.preventDefault(); byId('dropzone').classList.remove('drag-over');
     const files = event.dataTransfer.files;
     if (files.length > 1) { showNotice('Choose one file at a time. You can send another once this file has been staged.'); return; }
     chooseFile(files[0]);
@@ -1039,9 +1040,9 @@
   // Prevent a dropped file outside the drop area from navigating away.
   document.addEventListener('dragover', event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault(); });
   document.addEventListener('drop', event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault(); });
-  $('compress').addEventListener('change', updateControls);
-  $('upload-button').addEventListener('click', () => sendFile('upload'));
-  $('benchmark-button').addEventListener('click', () => sendFile('benchmark'));
+  byId('compress').addEventListener('change', updateControls);
+  byId('upload-button').addEventListener('click', () => sendFile('upload'));
+  byId('benchmark-button').addEventListener('click', () => sendFile('benchmark'));
 
   function upsertJob(job) {
     state.jobsGeneration++;
@@ -1090,7 +1091,7 @@
     state.sending = true; updateControls();
     let created;
     try {
-      const request = original ? {device_id: original.device_id, kind: original.kind, name: file.name, size: file.size, remote_path: original.remote_path, compress: original.compress, unpack: original.unpack} : {device_id: device.id, kind, name: file.name, size: file.size, remote_path: state.path, compress: kind === 'upload' && $('compress').checked, unpack: false};
+      const request = original ? {device_id: original.device_id, kind: original.kind, name: file.name, size: file.size, remote_path: original.remote_path, compress: original.compress, unpack: original.unpack} : {device_id: device.id, kind, name: file.name, size: file.size, remote_path: state.path, compress: kind === 'upload' && byId('compress').checked, unpack: false};
       created = (await api('/api/jobs', {method: 'POST', body: request})).job;
       state.sources.set(String(created.id), file);
       upsertJob(created);
@@ -1116,7 +1117,7 @@
     const device = selectedDevice();
     if (!device?.ready) return;
     try {
-      const {job} = await api('/api/jobs', {method: 'POST', body: {device_id: device.id, kind: 'download', name: entry.name, size: entry.size, remote_path: joinPath(state.path, entry.name), compress: false, unpack: $('unpack').checked && entry.name.toLowerCase().endsWith('.gz')}});
+      const {job} = await api('/api/jobs', {method: 'POST', body: {device_id: device.id, kind: 'download', name: entry.name, size: entry.size, remote_path: joinPath(state.path, entry.name), compress: false, unpack: byId('unpack').checked && entry.name.toLowerCase().endsWith('.gz')}});
       upsertJob(job); renderJobs(); startPolling();
       showNotice('Getting your file from the device. Save it when it is ready.');
     } catch (error) { showNotice(error.message, true); }
@@ -1141,7 +1142,7 @@
     if (file) { await sendFile(job.kind, job, file); return; }
     state.retryTarget = job;
     showNotice(`Choose the original ${job.name} to retry.`);
-    $('file-input').click();
+    byId('file-input').click();
   }
   async function deleteJob(job) {
     confirmAction('Remove this history item?', 'This removes the record and its local download or report. Files on your FTP device stay where they are.', 'Remove record', async () => {
@@ -1207,16 +1208,16 @@
     const focusKey = document.activeElement?.dataset.focusKey;
     const activeJobs = state.jobs.filter(active);
     const finishedJobs = state.jobs.filter(job => !active(job));
-    $('active-count').textContent = activeJobs.length;
-    $('history-count').textContent = finishedJobs.length;
-    $('active-jobs').replaceChildren();
+    byId('active-count').textContent = String(activeJobs.length);
+    byId('history-count').textContent = String(finishedJobs.length);
+    byId('active-jobs').replaceChildren();
     // Keep a few recent results visible so a finished download's Save button stays easy to find.
     const current = [...activeJobs, ...finishedJobs.slice(0, 2)];
-    if (!current.length) $('active-jobs').append(element('div', 'job-empty', 'Nothing in motion just yet. Your next file is a good place to start.'));
-    for (const job of current) $('active-jobs').append(jobCard(job));
-    $('history-jobs').replaceChildren();
-    if (!finishedJobs.length) $('history-jobs').append(element('div', 'job-empty', 'A fresh start. Your finished transfers will appear here.'));
-    for (const job of finishedJobs) $('history-jobs').append(jobCard(job, true));
+    if (!current.length) byId('active-jobs').append(element('div', 'job-empty', 'Nothing in motion just yet. Your next file is a good place to start.'));
+    for (const job of current) byId('active-jobs').append(jobCard(job));
+    byId('history-jobs').replaceChildren();
+    if (!finishedJobs.length) byId('history-jobs').append(element('div', 'job-empty', 'A fresh start. Your finished transfers will appear here.'));
+    for (const job of finishedJobs) byId('history-jobs').append(jobCard(job, true));
     if (state.view === 'performance') renderPerformance();
     if (focusKey) {
       for (const button of document.querySelectorAll('[data-focus-key]')) if (button.dataset.focusKey === focusKey && button.closest('[hidden]') === null) { button.focus({preventScroll: true}); break; }
@@ -1253,7 +1254,7 @@
       finally { if (generation === state.pollGeneration) startPolling(); }
     }, state.jobs.some(active) || state.sending ? 1000 : 8000);
   }
-  $('refresh-history').addEventListener('click', () => refreshJobs().catch(error => showNotice(error.message, true)));
+  byId('refresh-history').addEventListener('click', () => refreshJobs().catch(error => showNotice(error.message, true)));
   function switchView(view) {
     state.view = view;
     for (const button of document.querySelectorAll('[data-view]')) {
@@ -1261,7 +1262,7 @@
       button.classList.toggle('active', chosen);
       if (chosen) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
     }
-    for (const name of ['transfers', 'history', 'performance', 'protocol']) $(`view-${name}`).hidden = name !== view;
+    for (const name of ['transfers', 'history', 'performance', 'protocol']) byId(`view-${name}`).hidden = name !== view;
     if (view === 'performance') renderPerformance();
     if (view === 'protocol') renderProtocol();
   }
@@ -1333,7 +1334,7 @@
   }
   function renderPerformance() {
     const benchmarks = state.jobs.filter(job => job.kind === 'benchmark');
-    const selector = $('benchmark-select');
+    const selector = byId('benchmark-select');
     const selection = benchmarks.find(job => String(job.id) === state.benchmarkId) || benchmarks.find(job => job.status === 'completed') || benchmarks[0];
     state.benchmarkId = selection ? String(selection.id) : '';
     const optionsKey = JSON.stringify(benchmarks.map(job => [job.id, job.name, job.status]));
@@ -1348,11 +1349,11 @@
     }
     if (selection) selector.value = state.benchmarkId;
     selector.disabled = !benchmarks.length;
-    $('performance-results').replaceChildren();
-    if (!selection) { $('performance-results').append(element('div', 'job-empty', 'A little curiosity goes a long way. Run your first comparison to see real results.')); return; }
+    byId('performance-results').replaceChildren();
+    if (!selection) { byId('performance-results').append(element('div', 'job-empty', 'A little curiosity goes a long way. Run your first comparison to see real results.')); return; }
     if (selection.status !== 'completed') {
-      $('performance-results').append(jobCard(selection));
-      if (selection.samples?.length) $('performance-results').append(throughputChart(selection));
+      byId('performance-results').append(jobCard(selection));
+      if (selection.samples?.length) byId('performance-results').append(throughputChart(selection));
       return;
     }
     const runs = selection.result?.runs || [];
@@ -1376,9 +1377,9 @@
     }
     table.append(body); summary.append(table);
     const actions = element('div', 'report-actions'); actions.append(element('p', '', 'Preparation includes connection setup and gzip work. Effective speed uses original bytes and total time.'), attachment(selection, 'report.csv', 'Download results .csv ↓')); summary.append(actions);
-    $('performance-results').append(metrics, charts, summary);
+    byId('performance-results').append(metrics, charts, summary);
   }
-  $('benchmark-select').addEventListener('change', () => { state.benchmarkId = $('benchmark-select').value; renderPerformance(); });
+  byId('benchmark-select').addEventListener('change', () => { state.benchmarkId = byId('benchmark-select').value; renderPerformance(); });
 
   function escapeHtml(text) {
     const div = document.createElement('div');
@@ -1408,8 +1409,7 @@
       const q = state.protoSearch.toLowerCase();
       return allScenarios.filter(s => s.title.toLowerCase().includes(q) || s.subtitle.toLowerCase().includes(q) || s.description.toLowerCase().includes(q));
     }
-    const allCommands = Object.values(commandCatalog);
-    let items = allCommands;
+    let items = Object.values(commandCatalog);
     if (state.protoCategory && state.protoCategory !== 'all') {
       items = items.filter(c => c.category === state.protoCategory);
     }
@@ -1421,12 +1421,12 @@
   }
 
   function renderProtoCatalog() {
-    const list = $('proto-catalog-list');
+    const list = byId('proto-catalog-list');
     if (!list) return;
     list.replaceChildren();
     const items = getProtoItems();
-    if ($('proto-count-badge')) {
-      $('proto-count-badge').textContent = state.protoCategory === 'scenarios' ? `${items.length} flow${items.length === 1 ? '' : 's'}` : `${items.length} command${items.length === 1 ? '' : 's'}`;
+    if (byId('proto-count-badge')) {
+      byId('proto-count-badge').textContent = state.protoCategory === 'scenarios' ? `${items.length} flow${items.length === 1 ? '' : 's'}` : `${items.length} command${items.length === 1 ? '' : 's'}`;
     }
 
     if (!items.length) {
@@ -1471,14 +1471,14 @@
     const isScenario = state.protoCategory === 'scenarios';
     if (isScenario) {
       const scenario = GUIDED_SCENARIOS[state.protoScenario] || GUIDED_SCENARIOS.auth_flow;
-      if ($('proto-active-verb')) $('proto-active-verb').textContent = 'FLOW';
-      if ($('proto-active-rfc')) $('proto-active-rfc').textContent = 'RFC 959 Guided Scenario';
-      if ($('proto-active-channel')) $('proto-active-channel').textContent = 'Multi-Command Workflow';
-      if ($('proto-active-title')) $('proto-active-title').textContent = scenario.title;
-      if ($('proto-active-desc')) $('proto-active-desc').textContent = scenario.description;
-      if ($('proto-arg-container')) $('proto-arg-container').hidden = true;
+      if (byId('proto-active-verb')) byId('proto-active-verb').textContent = 'FLOW';
+      if (byId('proto-active-rfc')) byId('proto-active-rfc').textContent = 'RFC 959 Guided Scenario';
+      if (byId('proto-active-channel')) byId('proto-active-channel').textContent = 'Multi-Command Workflow';
+      if (byId('proto-active-title')) byId('proto-active-title').textContent = scenario.title;
+      if (byId('proto-active-desc')) byId('proto-active-desc').textContent = scenario.description;
+      if (byId('proto-arg-container')) byId('proto-arg-container').hidden = true;
 
-      const repliesList = $('proto-replies-list');
+      const repliesList = byId('proto-replies-list');
       if (repliesList) {
         repliesList.replaceChildren();
         for (const step of scenario.steps) {
@@ -1491,23 +1491,23 @@
       }
     } else {
       const cmd = commandCatalog[state.protoCommand] || commandCatalog.USER;
-      if ($('proto-active-verb')) $('proto-active-verb').textContent = cmd.verb;
-      if ($('proto-active-rfc')) $('proto-active-rfc').textContent = cmd.rfc;
-      if ($('proto-active-channel')) $('proto-active-channel').textContent = cmd.channel === 'control' ? 'Control Connection' : 'Data Connection';
-      if ($('proto-active-title')) $('proto-active-title').textContent = `${cmd.verb} — ${cmd.name}`;
-      if ($('proto-active-desc')) $('proto-active-desc').textContent = cmd.description;
+      if (byId('proto-active-verb')) byId('proto-active-verb').textContent = cmd.verb;
+      if (byId('proto-active-rfc')) byId('proto-active-rfc').textContent = cmd.rfc;
+      if (byId('proto-active-channel')) byId('proto-active-channel').textContent = cmd.channel === 'control' ? 'Control Connection' : 'Data Connection';
+      if (byId('proto-active-title')) byId('proto-active-title').textContent = `${cmd.verb} — ${cmd.name}`;
+      if (byId('proto-active-desc')) byId('proto-active-desc').textContent = cmd.description;
 
-      if ($('proto-arg-container')) {
+      if (byId('proto-arg-container')) {
         if (cmd.hasArg) {
-          $('proto-arg-container').hidden = false;
-          if ($('proto-arg-input')) $('proto-arg-input').value = cmd.defaultArg || '';
-          if ($('proto-syntax-hint')) $('proto-syntax-hint').textContent = `Syntax: ${cmd.syntax}`;
+          byId('proto-arg-container').hidden = false;
+          if (byId('proto-arg-input')) byId('proto-arg-input').value = cmd.defaultArg || '';
+          if (byId('proto-syntax-hint')) byId('proto-syntax-hint').textContent = `Syntax: ${cmd.syntax}`;
         } else {
-          $('proto-arg-container').hidden = true;
+          byId('proto-arg-container').hidden = true;
         }
       }
 
-      const repliesList = $('proto-replies-list');
+      const repliesList = byId('proto-replies-list');
       if (repliesList) {
         repliesList.replaceChildren();
         for (const reply of cmd.replies || []) {
@@ -1523,7 +1523,7 @@
   }
 
   function appendTerminal(html) {
-    const term = $('proto-terminal-body');
+    const term = byId('proto-terminal-body');
     if (!term) return;
     const line = document.createElement('div');
     line.innerHTML = html;
@@ -1532,17 +1532,17 @@
   }
 
   async function animatePacket(step) {
-    const clientNode = $('host-client');
-    const serverNode = $('host-server');
-    const clientState = $('client-state-pill');
-    const serverState = $('server-state-pill');
-    const controlPacket = $('control-packet');
-    const packetText = $('packet-text');
-    const dataStream = $('data-stream');
-    const dataLine = $('data-line');
-    const dataPipeStatus = $('data-pipe-status');
-    const serverDataPort = $('server-data-port');
-    const clientDataPort = $('client-data-port');
+    const clientNode = byId('host-client');
+    const serverNode = byId('host-server');
+    const clientState = byId('client-state-pill');
+    const serverState = byId('server-state-pill');
+    const controlPacket = byId('control-packet');
+    const packetText = byId('packet-text');
+    const dataStream = byId('data-stream');
+    const dataLine = byId('data-line');
+    const dataPipeStatus = byId('data-pipe-status');
+    const serverDataPort = byId('server-data-port');
+    const clientDataPort = byId('client-data-port');
 
     if (step.dataPort && serverDataPort) serverDataPort.textContent = `Data: :${step.dataPort}`;
     if (step.clientPort && clientDataPort) clientDataPort.textContent = `Data: :${step.clientPort}`;
@@ -1613,17 +1613,29 @@
     }
   }
 
+  function resetProtocolPeers() {
+    if (byId('client-state-pill')) {
+      byId('client-state-pill').textContent = 'IDLE';
+      byId('client-state-pill').classList.remove('active');
+    }
+    if (byId('server-state-pill')) {
+      byId('server-state-pill').textContent = 'LISTENING';
+      byId('server-state-pill').classList.remove('active');
+    }
+    if (byId('control-packet')) byId('control-packet').hidden = true;
+  }
+
   async function runProtocolFlow() {
     if (state.protoRunning) return;
     state.protoRunning = true;
-    const runBtn = $('proto-run-btn');
+    const runBtn = byId('proto-run-btn');
     if (runBtn) {
       runBtn.disabled = true;
       runBtn.textContent = 'Running…';
     }
 
     try {
-      let steps = [];
+      let steps;
       const isScenario = state.protoCategory === 'scenarios';
       if (isScenario) {
         const scenario = GUIDED_SCENARIOS[state.protoScenario] || GUIDED_SCENARIOS.auth_flow;
@@ -1631,7 +1643,7 @@
         appendTerminal(`<span class="term-dim">--- Running Scenario: ${escapeHtml(scenario.title)} ---</span>`);
       } else {
         const cmd = commandCatalog[state.protoCommand] || commandCatalog.USER;
-        const arg = $('proto-arg-input') ? $('proto-arg-input').value.trim() : '';
+        const arg = byId('proto-arg-input') ? byId('proto-arg-input').value.trim() : '';
         steps = cmd.run(arg);
         appendTerminal(`<span class="term-dim">--- Executing: ${escapeHtml(cmd.verb)} (${escapeHtml(cmd.name)}) ---</span>`);
       }
@@ -1643,15 +1655,7 @@
       }
       appendTerminal(`<span class="term-dim"># Command completed. Ready.</span>`);
     } finally {
-      if ($('client-state-pill')) {
-        $('client-state-pill').textContent = 'IDLE';
-        $('client-state-pill').classList.remove('active');
-      }
-      if ($('server-state-pill')) {
-        $('server-state-pill').textContent = 'LISTENING';
-        $('server-state-pill').classList.remove('active');
-      }
-      if ($('control-packet')) $('control-packet').hidden = true;
+      resetProtocolPeers();
       state.protoRunning = false;
       if (runBtn) {
         runBtn.disabled = false;
@@ -1662,26 +1666,19 @@
 
   function resetProtocol() {
     state.protoRunning = false;
-    if ($('client-state-pill')) {
-      $('client-state-pill').textContent = 'IDLE';
-      $('client-state-pill').classList.remove('active');
-    }
-    if ($('server-state-pill')) {
-      $('server-state-pill').textContent = 'LISTENING';
-      $('server-state-pill').classList.remove('active');
-    }
-    if ($('client-data-port')) $('client-data-port').textContent = 'Data: Dynamic';
-    if ($('server-data-port')) $('server-data-port').textContent = 'Data: :0 (Dynamic)';
-    if ($('control-packet')) $('control-packet').hidden = true;
-    if ($('data-stream')) $('data-stream').hidden = true;
-    if ($('data-line')) $('data-line').classList.remove('active-stream');
-    if ($('data-pipe-status')) $('data-pipe-status').textContent = 'IDLE (Closed)';
-    const runBtn = $('proto-run-btn');
+    resetProtocolPeers();
+    if (byId('client-data-port')) byId('client-data-port').textContent = 'Data: Dynamic';
+    if (byId('server-data-port')) byId('server-data-port').textContent = 'Data: :0 (Dynamic)';
+    if (byId('control-packet')) byId('control-packet').hidden = true;
+    if (byId('data-stream')) byId('data-stream').hidden = true;
+    if (byId('data-line')) byId('data-line').classList.remove('active-stream');
+    if (byId('data-pipe-status')) byId('data-pipe-status').textContent = 'IDLE (Closed)';
+    const runBtn = byId('proto-run-btn');
     if (runBtn) {
       runBtn.disabled = false;
       runBtn.innerHTML = 'Run &amp; Animate <span aria-hidden="true">▶</span>';
     }
-    const term = $('proto-terminal-body');
+    const term = byId('proto-terminal-body');
     if (term) {
       term.innerHTML = '<span class="term-dim"># Connecting to FTP control listener at 127.0.0.1:2121...</span>\n<span class="term-srv">S&gt; 220 Python socket FTP lab ready</span>\n<span class="term-hint"># Select any command or scenario and click "Run &amp; Animate".</span>';
     }
@@ -1697,7 +1694,7 @@
       });
     }
 
-    const searchInput = $('proto-search');
+    const searchInput = byId('proto-search');
     if (searchInput) {
       searchInput.addEventListener('input', () => {
         state.protoSearch = searchInput.value.trim();
@@ -1705,16 +1702,16 @@
       });
     }
 
-    const runBtn = $('proto-run-btn');
+    const runBtn = byId('proto-run-btn');
     if (runBtn) runBtn.addEventListener('click', runProtocolFlow);
 
-    const resetBtn = $('proto-reset-btn');
+    const resetBtn = byId('proto-reset-btn');
     if (resetBtn) resetBtn.addEventListener('click', resetProtocol);
 
-    const clearTermBtn = $('proto-clear-term');
+    const clearTermBtn = byId('proto-clear-term');
     if (clearTermBtn) {
       clearTermBtn.addEventListener('click', () => {
-        const term = $('proto-terminal-body');
+        const term = byId('proto-terminal-body');
         if (term) term.replaceChildren();
       });
     }
@@ -1723,5 +1720,5 @@
   }
 
   initProtocolExplorer();
-  loadSession();
+  void loadSession();
 })();

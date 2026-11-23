@@ -15,11 +15,12 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from ..benchmark import csv_report, run_benchmark
 from ..client import FTPClient, FTPError
 from ..server import FTPServer
 from .database import Database, now, token_hash
 
-MAX_BYTES = 8 * 1024 ** 3
+MAX_BYTES = 8 * 1024**3
 CHUNK = 1024 * 1024
 TERMINAL = {'completed', 'failed', 'cancelled'}
 
@@ -42,7 +43,13 @@ def filename(value: Any) -> str:
         Checks that value is a non-empty string, not '.' or '..', contains no '/' or '\\',
         is at most 255 bytes long, and contains no ASCII control characters.
     """
-    if not isinstance(value, str) or not value or value in ('.', '..') or '/' in value or '\\' in value:
+    if (
+        not isinstance(value, str)
+        or not value
+        or value in ('.', '..')
+        or '/' in value
+        or '\\' in value
+    ):
         raise ValueError('Choose a valid filename without directory components')
     if len(value.encode()) > 255 or any(ord(c) < 32 or ord(c) == 127 for c in value):
         raise ValueError('Filename is too long or contains control characters')
@@ -67,7 +74,10 @@ def remote_path(value: Any) -> str:
 
 
 class AppService:
-    """Backend service managing background transfer queues, active FTP sessions, and device targets."""
+    """Manage background transfer queues, active FTP sessions, and device targets."""
+
+    # The service owns the worker pool and synchronized workspace lifecycle state.
+    # pylint: disable=too-many-instance-attributes
 
     def __init__(self, data_dir: Path, *, demo: bool = False):
         """Initialize the application service and background thread pool.
@@ -79,7 +89,8 @@ class AppService:
         How it does:
             1. Creates data_dir and spool folders with 0700 permissions.
             2. Instantiates Database and recovers unfinished jobs (marking them failed on restart).
-            3. Initializes synchronization locks, state tracking dictionaries, and a 2-worker ThreadPoolExecutor.
+            3. Initializes synchronization locks, state tracking dictionaries, and a 2-worker
+                ThreadPoolExecutor.
             4. If demo is True, launches an isolated loopback FTPServer in a background thread.
         """
         self.data_dir = data_dir.resolve()
@@ -100,7 +111,11 @@ class AppService:
         self.closed = False
         for owner, job in self.db.all_jobs():
             if job['status'] not in TERMINAL:
-                job.update(status='failed', phase='Interrupted', error='The app restarted before this transfer finished.')
+                job.update(
+                    status='failed',
+                    phase='Interrupted',
+                    error='The app restarted before this transfer finished.',
+                )
                 self.db.save_job(owner, job)
                 shutil.rmtree(self.spool / job['id'], ignore_errors=True)
         if demo:
@@ -108,9 +123,15 @@ class AppService:
             shared.mkdir(exist_ok=True)
             welcome = shared / 'Welcome.txt'
             if not welcome.exists():
-                welcome.write_text('Your local FTP device is ready. Upload a file or download this one.\n')
-            self.demo_server = FTPServer(('127.0.0.1', 0), shared, 'local', self.demo_password, timeout=60)
-            self.demo_thread = threading.Thread(target=self.demo_server.serve_forever, kwargs={'poll_interval': 0.05})
+                welcome.write_text(
+                    'Your local FTP device is ready. Upload a file or download this one.\n'
+                )
+            self.demo_server = FTPServer(
+                ('127.0.0.1', 0), shared, 'local', self.demo_password, timeout=60
+            )
+            self.demo_thread = threading.Thread(
+                target=self.demo_server.serve_forever, kwargs={'poll_interval': 0.05}
+            )
             self.demo_thread.start()
 
     def close(self):
@@ -136,7 +157,13 @@ class AppService:
         with self.lock:
             for job_id, job in self.live.items():
                 if job['status'] not in TERMINAL:
-                    self._update(self.owners[job_id][0], job_id, status='cancelled', phase='Cancelled', error='App closed')
+                    self._update(
+                        self.owners[job_id][0],
+                        job_id,
+                        status='cancelled',
+                        phase='Cancelled',
+                        error='App closed',
+                    )
                     shutil.rmtree(self.spool / job_id, ignore_errors=True)
         if self.demo_server is not None:
             self.demo_server.shutdown()
@@ -148,15 +175,19 @@ class AppService:
         """Purge cached FTP device credentials and cancel user jobs on logout.
 
         What it does:
-            Clears in-memory plaintext FTP passwords and triggers cancellation for the logging-out user.
+            Clears in-memory plaintext FTP passwords and triggers cancellation for the logging-out
+                user.
 
         How it does:
-            Hashes token with token_hash(), removes matching credential entries from self.credentials,
+            Hashes token with token_hash(), removes matching credential entries from
+                self.credentials,
             and signals cancellation events for all transfers initiated by that session.
         """
         digest = token_hash(token)
         with self.lock:
-            self.credentials = {key: value for key, value in self.credentials.items() if key[0] != digest}
+            self.credentials = {
+                key: value for key, value in self.credentials.items() if key[0] != digest
+            }
             for job_id, (_owner, session) in self.owners.items():
                 if session == digest:
                     self.events[job_id].set()
@@ -213,7 +244,12 @@ class AppService:
         """
         for key in ('name', 'host', 'username'):
             value = data.get(key)
-            if not isinstance(value, str) or not value.strip() or len(value) > 253 or any(ord(c) < 32 for c in value):
+            if (
+                not isinstance(value, str)
+                or not value.strip()
+                or len(value) > 253
+                or any(ord(c) < 32 for c in value)
+            ):
                 raise ValueError(f'Enter a valid device {key}')
         if any(c in data['host'] for c in '/\\:@ '):
             raise ValueError('Enter an IPv4 address or hostname without a URL or port')
@@ -250,7 +286,9 @@ class AppService:
             the stored password or None.
         """
         with self.lock:
-            self.credentials = {key: value for key, value in self.credentials.items() if value[1] > time.time()}
+            self.credentials = {
+                key: value for key, value in self.credentials.items() if value[1] > time.time()
+            }
             entry = self.credentials.get((token_hash(token), device_id))
             return entry[0] if entry else None
 
@@ -273,7 +311,9 @@ class AppService:
             client.login(device['username'], password)
             yield client
 
-    def connect_device(self, owner: int, token: str, device_id: int, password: str) -> dict[str, Any]:
+    def connect_device(
+        self, owner: int, token: str, device_id: int, password: str
+    ) -> dict[str, Any]:
         """Test FTP credentials and cache them upon successful handshake.
 
         What it does:
@@ -307,11 +347,15 @@ class AppService:
         device = self._device(owner, device_id)
         if device['local']:
             raise ValueError('The built-in local device is managed by the app')
-        if any(j['device_id'] == device_id and j['status'] not in TERMINAL for j in self.jobs(owner)):
+        if any(
+            j['device_id'] == device_id and j['status'] not in TERMINAL for j in self.jobs(owner)
+        ):
             raise ValueError('Finish or cancel this device\'s transfers first')
         self.db.delete_device(owner, device_id)
         with self.lock:
-            self.credentials = {key: value for key, value in self.credentials.items() if key[1] != device_id}
+            self.credentials = {
+                key: value for key, value in self.credentials.items() if key[1] != device_id
+            }
 
     def files(self, owner: int, token: str, device_id: int, path: str) -> dict[str, Any]:
         """List files and subdirectories on a remote FTP device.
@@ -342,7 +386,10 @@ class AppService:
                 else:
                     entries.append({'name': name, 'directory': True, 'size': 0})
                     client.command('CWD', actual)
-            return {'path': actual, 'entries': sorted(entries, key=lambda e: (not e['directory'], e['name'].lower()))}
+            return {
+                'path': actual,
+                'entries': sorted(entries, key=lambda e: (not e['directory'], e['name'].lower())),
+            }
 
     def jobs(self, owner: int) -> list[dict[str, Any]]:
         """Retrieve all transfer jobs for a user, overlaying active in-memory progress.
@@ -372,7 +419,11 @@ class AppService:
             Validates 32-character hex ID, queries database, overlays live progress under lock,
             and returns a deep copy.
         """
-        if not isinstance(job_id, str) or len(job_id) != 32 or any(c not in '0123456789abcdef' for c in job_id):
+        if (
+            not isinstance(job_id, str)
+            or len(job_id) != 32
+            or any(c not in '0123456789abcdef' for c in job_id)
+        ):
             raise NotFound('Transfer not found')
         stored = self.db.job(owner, job_id)
         if stored is None:
@@ -387,7 +438,8 @@ class AppService:
         """Initialize a new upload, download, or benchmark transfer job.
 
         What it does:
-            Validates transfer parameters, creates a staging spool, and enqueues or awaits file upload.
+            Validates transfer parameters, creates a staging spool, and enqueues or awaits file
+                upload.
 
         How it does:
             1. Validates device connection, transfer type ('upload', 'download', 'benchmark'),
@@ -399,6 +451,8 @@ class AppService:
         if self.closed:
             raise ValueError('The app is shutting down')
         device_id = data.get('device_id')
+        if not isinstance(device_id, int):
+            raise ValueError('A numeric device ID is required')
         device = self._device(owner, device_id)
         if self._password(token, device_id) is None:
             raise ValueError('Connect this device before starting a transfer')
@@ -419,11 +473,29 @@ class AppService:
         if data.get('compress') and len((name + '.gz').encode()) > 255:
             raise ValueError('Compressed filename is too long')
         job_id = uuid.uuid4().hex
-        job = {'id': job_id, 'device_id': device_id, 'device_name': device['name'], 'kind': kind, 'name': name,
-               'size': size, 'remote_path': path, 'compress': bool(data.get('compress')), 'unpack': bool(data.get('unpack')),
-               'status': 'queued' if kind == 'download' else 'awaiting_upload', 'phase': 'Waiting for file',
-               'done': 0, 'total': size, 'percent': 0, 'speed_bps': 0, 'eta_seconds': None, 'elapsed_seconds': 0,
-               'created': now(), 'error': '', 'result': {}, 'samples': []}
+        job = {
+            'id': job_id,
+            'device_id': device_id,
+            'device_name': device['name'],
+            'kind': kind,
+            'name': name,
+            'size': size,
+            'remote_path': path,
+            'compress': bool(data.get('compress')),
+            'unpack': bool(data.get('unpack')),
+            'status': 'queued' if kind == 'download' else 'awaiting_upload',
+            'phase': 'Waiting for file',
+            'done': 0,
+            'total': size,
+            'percent': 0,
+            'speed_bps': 0,
+            'eta_seconds': None,
+            'elapsed_seconds': 0,
+            'created': now(),
+            'error': '',
+            'result': {},
+            'samples': [],
+        }
         with self.lock:
             if self.closed or sum(j['status'] not in TERMINAL for j in self.jobs(owner)) >= 8:
                 raise ValueError('There are already 8 pending transfers, or the app is closing')
@@ -463,7 +535,9 @@ class AppService:
         if self.closed or self.events[job_id].is_set():
             raise Cancelled('Transfer cancelled')
 
-    def receive_source(self, owner: int, token: str, job_id: str, stream, length: int) -> dict[str, Any]:
+    def receive_source(
+        self, owner: int, token: str, job_id: str, stream, length: int
+    ) -> dict[str, Any]:
         """Stream uploaded client file bytes into the job spool directory.
 
         What it does:
@@ -494,7 +568,13 @@ class AppService:
                     out.write(block)
                     done += len(block)
                     if time.monotonic() - last >= 0.2:
-                        self._update(owner, job_id, persist=False, done=done, percent=100 * done / max(1, length))
+                        self._update(
+                            owner,
+                            job_id,
+                            persist=False,
+                            done=done,
+                            percent=100 * done / max(1, length),
+                        )
                         last = time.monotonic()
             self.check_cancel(job_id)
             self._queue(owner, token, job_id)
@@ -519,7 +599,9 @@ class AppService:
             self._update(owner, job_id, status='queued', phase='Queued', done=0, percent=0)
             self.futures[job_id] = self.pool.submit(self._work, owner, token, job_id)
 
-    def _meter(self, owner: int, job_id: str, total: int, phase: str = 'Transferring', mode: str = 'plain'):
+    def _meter(
+        self, owner: int, job_id: str, total: int, phase: str = 'Transferring', mode: str = 'plain'
+    ):
         """Construct a progress callback measuring instantaneous and average transfer speeds.
 
         What it does:
@@ -537,7 +619,8 @@ class AppService:
             """Advance transfer byte counter, enforce limits, and record progress metrics.
 
             What it does:
-                Checks for cancellation, verifies byte bounds, and periodically updates job progress.
+                Checks for cancellation, verifies byte bounds, and periodically updates job
+                    progress.
 
             How it does:
                 1. Calls self.check_cancel(job_id).
@@ -558,16 +641,37 @@ class AppService:
                 interval_speed = (done - previous) / max(timestamp - previous_time, 1e-9)
                 with self.lock:
                     samples = self.live[job_id]['samples']
-                    samples.append({'elapsed': elapsed, 'bytes': done, 'speed_bps': interval_speed, 'mode': mode})
+                    samples.append(
+                        {
+                            'elapsed': elapsed,
+                            'bytes': done,
+                            'speed_bps': interval_speed,
+                            'mode': mode,
+                        }
+                    )
                     del samples[:-2000]
-                self._update(owner, job_id, phase=phase, done=done, total=total,
-                             percent=min(99, 100 * done / max(total, 1)), speed_bps=speed,
-                             eta_seconds=max(0, total - done) / speed if speed else None,
-                             elapsed_seconds=elapsed)
+                self._update(
+                    owner,
+                    job_id,
+                    phase=phase,
+                    done=done,
+                    total=total,
+                    percent=min(99, 100 * done / max(total, 1)),
+                    speed_bps=speed,
+                    eta_seconds=max(0, total - done) / speed if speed else None,
+                    elapsed_seconds=elapsed,
+                )
                 previous, previous_time, saved = done, timestamp, timestamp
 
-        self._update(owner, job_id, phase=phase, done=0, total=total, percent=0,
-                     samples=[{'elapsed': 0, 'bytes': 0, 'speed_bps': 0, 'mode': mode}])
+        self._update(
+            owner,
+            job_id,
+            phase=phase,
+            done=0,
+            total=total,
+            percent=0,
+            samples=[{'elapsed': 0, 'bytes': 0, 'speed_bps': 0, 'mode': mode}],
+        )
         return advance
 
     def _work(self, owner: int, token: str, job_id: str):
@@ -578,10 +682,15 @@ class AppService:
 
         How it does:
             - Benchmark: invokes run_benchmark() measuring plain vs gzip speeds.
-            - Upload: optionally compresses file with gzip, measures transfer, and executes client.upload().
+            - Upload: optionally compresses file with gzip, measures transfer, and executes
+                client.upload().
             - Download: executes client.download(), optionally decompresses gzip with bound checks.
             - Updates final status to 'completed' or 'failed'/'cancelled', and cleans spool files.
         """
+        # One worker transaction owns cancellation, status, and cleanup for all transfer kinds.
+        # pylint: disable=too-many-locals
+        # pylint: disable=too-many-branches
+        # pylint: disable=too-many-statements
         folder = self.spool / job_id
         job = self.job(owner, job_id)
         started = time.monotonic()
@@ -591,20 +700,20 @@ class AppService:
             self.check_cancel(job_id)
             self._update(owner, job_id, status='running', phase='Connecting')
             if job['kind'] == 'benchmark':
-                from ..benchmark import run_benchmark
 
                 def factory():
                     """Instantiate an authenticated FTPClient context for benchmark operations.
 
                     What it does:
-                        Yields a connected and authenticated client connected to the configured device.
+                        Yields a connected and authenticated client connected to the configured
+                            device.
 
                     How it does:
                         Invokes self.client(owner, token, job['device_id']).
                     """
                     return self.client(owner, token, job['device_id'])
 
-                def measured(mode, done, total, elapsed):
+                def measured(mode, done, payload_total, elapsed):
                     """Record benchmark progress samples and update live job progress.
 
                     What it does:
@@ -618,18 +727,45 @@ class AppService:
                     self.check_cancel(job_id)
                     with self.lock:
                         samples = self.live[job_id]['samples']
-                        samples.append({'elapsed': elapsed, 'bytes': done, 'speed_bps': done / max(elapsed, 1e-9), 'mode': mode})
+                        samples.append(
+                            {
+                                'elapsed': elapsed,
+                                'bytes': done,
+                                'speed_bps': done / max(elapsed, 1e-9),
+                                'mode': mode,
+                            }
+                        )
                         del samples[:-2000]
-                    self._update(owner, job_id, persist=False, phase='Comparing compression', done=done, total=total,
-                                 percent=min(99, (50 if mode == 'gzip' else 0) + 45 * done / max(total, 1)),
-                                 speed_bps=done / max(elapsed, 1e-9), elapsed_seconds=time.monotonic() - started)
+                    self._update(
+                        owner,
+                        job_id,
+                        persist=False,
+                        phase='Comparing compression',
+                        done=done,
+                        total=payload_total,
+                        percent=min(
+                            99, (50 if mode == 'gzip' else 0) + 45 * done / max(payload_total, 1)
+                        ),
+                        speed_bps=done / max(elapsed, 1e-9),
+                        elapsed_seconds=time.monotonic() - started,
+                    )
 
                 self._update(owner, job_id, phase='Comparing compression')
-                result = run_benchmark(folder / 'source', factory, folder / 'benchmark',
-                                       remote_dir=job['remote_path'], progress=measured,
-                                       cancel=lambda: self.check_cancel(job_id))
+                result = run_benchmark(
+                    folder / 'source',
+                    factory,
+                    folder / 'benchmark',
+                    remote_dir=job['remote_path'],
+                    progress=measured,
+                    cancel=lambda: self.check_cancel(job_id),
+                )
                 result['source_name'] = job['name']
-                self._update(owner, job_id, result=result, samples=result.get('samples', self.live[job_id]['samples']))
+                self._update(
+                    owner,
+                    job_id,
+                    result=result,
+                    samples=result.get('samples', self.live[job_id]['samples']),
+                )
             elif job['kind'] == 'upload':
                 source = folder / 'source'
                 remote_name = job['name']
@@ -642,15 +778,31 @@ class AppService:
                             self.check_cancel(job_id)
                             out.write(block)
                             processed += len(block)
-                            self._update(owner, job_id, persist=False, done=processed, percent=100 * processed / max(1, job['size']))
+                            self._update(
+                                owner,
+                                job_id,
+                                persist=False,
+                                done=processed,
+                                percent=100 * processed / max(1, job['size']),
+                            )
                     source = packed
                     remote_name += '.gz'
                 total = source.stat().st_size
-                callback = self._meter(owner, job_id, total, mode='gzip' if job['compress'] else 'plain')
+                callback = self._meter(
+                    owner, job_id, total, mode='gzip' if job['compress'] else 'plain'
+                )
                 with self.client(owner, token, job['device_id']) as client:
                     client.command('CWD', job['remote_path'])
                     client.upload(source, remote_name, progress=callback)
-                self._update(owner, job_id, result={'remote_name': remote_name, 'source_bytes': job['size'], 'payload_bytes': total})
+                self._update(
+                    owner,
+                    job_id,
+                    result={
+                        'remote_name': remote_name,
+                        'source_bytes': job['size'],
+                        'payload_bytes': total,
+                    },
+                )
             else:
                 received = folder / 'received'
                 with self.client(owner, token, job['device_id']) as client:
@@ -660,7 +812,9 @@ class AppService:
                     callback = self._meter(owner, job_id, total, 'Receiving file')
                     client.download(job['remote_path'], received, progress=callback)
                     if received.stat().st_size != total:
-                        raise ValueError('Downloaded file size changed. Refresh the device files and try again.')
+                        raise ValueError(
+                            'Downloaded file size changed. Refresh the device files and try again.'
+                        )
                 output = folder / 'output'
                 if job['unpack']:
                     self._update(owner, job_id, phase='Unpacking file')
@@ -674,23 +828,44 @@ class AppService:
                                     raise ValueError('Unpacked file exceeds the 8 GiB limit')
                                 out.write(block)
                     except (gzip.BadGzipFile, EOFError, zlib.error) as exc:
-                        raise ValueError('Could not unpack this gzip file: it is damaged or incomplete. '
-                                         'Turn off unpacking to download the original file.') from exc
+                        raise ValueError(
+                            'Could not unpack this gzip file: it is damaged or incomplete. '
+                            'Turn off unpacking to download the original file.'
+                        ) from exc
                 else:
                     os.replace(received, output)
                 received.unlink(missing_ok=True)
-                self._update(owner, job_id, result={'filename': job['name'][:-3] if job['unpack'] else job['name'],
-                                                   'bytes': output.stat().st_size})
+                self._update(
+                    owner,
+                    job_id,
+                    result={
+                        'filename': job['name'][:-3] if job['unpack'] else job['name'],
+                        'bytes': output.stat().st_size,
+                    },
+                )
             self.check_cancel(job_id)
             success = True
-            self._update(owner, job_id, status='completed', phase='Complete', percent=100, eta_seconds=0,
-                         elapsed_seconds=time.monotonic() - started)
+            self._update(
+                owner,
+                job_id,
+                status='completed',
+                phase='Complete',
+                percent=100,
+                eta_seconds=0,
+                elapsed_seconds=time.monotonic() - started,
+            )
         except (OSError, ValueError, RuntimeError, FTPError, EOFError, Cancelled) as exc:
             status = 'cancelled' if isinstance(exc, Cancelled) else 'failed'
             error = str(exc).replace(password, '<redacted>') if password else str(exc)
             shutil.rmtree(folder, ignore_errors=True)
-            self._update(owner, job_id, status=status, phase=status.title(), error=error,
-                         elapsed_seconds=time.monotonic() - started)
+            self._update(
+                owner,
+                job_id,
+                status=status,
+                phase=status.title(),
+                error=error,
+                elapsed_seconds=time.monotonic() - started,
+            )
         finally:
             if job['kind'] != 'download' or not success:
                 shutil.rmtree(folder, ignore_errors=True)
@@ -715,7 +890,9 @@ class AppService:
             idle = job['status'] == 'awaiting_upload'
             cancelled_queue = job['status'] == 'queued' and pending is not None and pending.cancel()
             if idle or cancelled_queue:
-                self._update(owner, job_id, status='cancelled', phase='Cancelled', error='Transfer cancelled')
+                self._update(
+                    owner, job_id, status='cancelled', phase='Cancelled', error='Transfer cancelled'
+                )
                 shutil.rmtree(self.spool / job_id, ignore_errors=True)
             else:
                 self._update(owner, job_id, phase='Cancelling')
@@ -767,10 +944,9 @@ class AppService:
             Returns formatted CSV metrics for a completed comparison task.
 
         How it does:
-            Verifies job is a completed benchmark, imports csv_report from benchmark module,
+            Verifies job is a completed benchmark, uses csv_report from the benchmark module,
             and formats the job's result dictionary.
         """
-        from ..benchmark import csv_report
         job = self.job(owner, job_id)
         if job['kind'] != 'benchmark' or job['status'] != 'completed':
             raise ValueError('This comparison is not ready')

@@ -116,13 +116,15 @@ at their own upload time zero and include final completion latency.
 
 ## Reproduce locally
 
-From `Group_Project/FTP`, with Python 3.11+, FFmpeg and FFprobe installed:
+With uv, Python 3.11+, FFmpeg and FFprobe available, start at the repository
+root and select the plotting extra:
 
 ```bash
 cd Group_Project/FTP
-python3 tools/media_fixtures.py \
+uv sync --locked --extra plots
+uv run --locked --no-dev python tools/media_fixtures.py \
   --output benchmarks/generated-media --mib 128 --mp4
-python3 -m ftp_lab.benchmark --local \
+uv run --locked --no-dev --extra plots python -m ftp_lab.benchmark --local \
   benchmarks/generated-media/audio.wav \
   benchmarks/generated-media/video.avi \
   benchmarks/generated-media/video.mp4 \
@@ -134,8 +136,10 @@ directories for a new observation. WAV and AVI are each at least the requested
 size; MP4 is allowed to be much smaller after encoding. Keep enough disk
 space for sources, gzip, server copies, and downloads.
 
-`--plots` requires Matplotlib in the interpreter's environment. Omit that
-option for standard-library-only CSV/JSON exports. The browser's built-in
+`--plots` uses Matplotlib from the locked `plots` extra and delegates
+rendering to `ftp_lab/plots.py`. Select that extra on the `uv run` command
+as shown above. Omit both `--extra plots` and `--plots` for standard-library
+CSV/JSON exports. The browser's built-in
 SVG graphs do not require Matplotlib. FFmpeg is only a fixture-generation
 dependency; existing user-selected media works without it.
 
@@ -170,3 +174,12 @@ loopback FTP server. To measure a second computer's FTP server, use the
 documented remote-server options above, not the browser HTTP port 8080.
 Record those new results in a separate output directory instead of
 overwriting the original observations.
+
+## Current development checks
+
+`pyproject.toml` and `uv.lock` manage the Python environment. From the FTP
+directory, `uv sync --locked --extra plots` and `make lint test` run linting
+and the 79 Python / 10 frontend regression tests; the real-interface case
+is opt-in. This setup does not change the preserved measurement rows or
+rerun the large-media study. For dependency upgrades and offline operation,
+see the [main setup guide](../README.md#set-up-the-environment).

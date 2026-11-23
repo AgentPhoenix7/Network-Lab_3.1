@@ -60,6 +60,8 @@ def password_hash(password: str, salt: bytes) -> bytes:
     return hashlib.scrypt(password.encode(), salt=salt, n=16384, r=8, p=1, maxmem=64 * 1024 * 1024)
 
 
+# SQLite files are created per workspace; no IDE data source is required.
+# noinspection SqlNoDataSourceInspection
 class Database:
     """SQLite persistence layer for users, sessions, saved devices, and transfer jobs."""
 
@@ -107,7 +109,8 @@ class Database:
 
         How it does:
             Connects via sqlite3.connect(timeout=10), sets sqlite3.Row row_factory, enables
-            foreign keys, yields db, commits transactions, rolls back on error, and closes in finally.
+            foreign keys, yields db, commits transactions, rolls back on error, and closes in
+                finally.
         """
         db = sqlite3.connect(self.path, timeout=10)
         db.row_factory = sqlite3.Row
@@ -137,7 +140,8 @@ class Database:
         """Register the primary owner account during initial setup.
 
         What it does:
-            Validates and registers the sole administrative owner account with scrypt salt and verifier.
+            Validates and registers the sole administrative owner account with scrypt salt and
+                verifier.
 
         How it does:
             1. Validates username (2-64 chars) and password (8-256 chars).
@@ -157,8 +161,10 @@ class Database:
             db.execute('BEGIN IMMEDIATE')
             if db.execute('SELECT COUNT(*) FROM users').fetchone()[0]:
                 raise ValueError('This app already has an owner. Please sign in.')
-            cursor = db.execute('INSERT INTO users(username,salt,verifier,created) VALUES(?,?,?,?)',
-                                (username, salt, verifier, now()))
+            cursor = db.execute(
+                'INSERT INTO users(username,salt,verifier,created) VALUES(?,?,?,?)',
+                (username, salt, verifier, now()),
+            )
             return {'id': cursor.lastrowid, 'username': username}
 
     def login(self, username: str, password: str) -> dict[str, Any] | None:
@@ -169,7 +175,8 @@ class Database:
 
         How it does:
             1. Queries the user record by trimmed username.
-            2. Uses the user's salt (or dummy 16 zero-bytes if user not found to prevent timing clues).
+            2. Uses the user's salt (or dummy 16 zero-bytes if user not found to prevent timing
+                clues).
             3. Derives scrypt hash of the candidate password.
             4. Verifies hash using hmac.compare_digest against the stored verifier.
             5. Returns user dict on success or None on failure.
@@ -197,7 +204,10 @@ class Database:
         token = secrets.token_urlsafe(32)
         with self.connection() as db:
             db.execute('DELETE FROM sessions WHERE expires<=?', (time.time(),))
-            db.execute('INSERT INTO sessions VALUES(?,?,?)', (token_hash(token), user_id, time.time() + ttl))
+            db.execute(
+                'INSERT INTO sessions VALUES(?,?,?)',
+                (token_hash(token), user_id, time.time() + ttl),
+            )
         return token
 
     def session(self, token: str) -> dict[str, Any] | None:
@@ -213,9 +223,11 @@ class Database:
         if not token:
             return None
         with self.connection() as db:
-            row = db.execute('''SELECT users.id, users.username FROM sessions JOIN users
+            row = db.execute(
+                '''SELECT users.id, users.username FROM sessions JOIN users
                 ON users.id=sessions.user_id WHERE digest=? AND expires>?''',
-                             (token_hash(token), time.time())).fetchone()
+                (token_hash(token), time.time()),
+            ).fetchone()
             return dict(row) if row else None
 
     def delete_session(self, token: str):
@@ -240,7 +252,10 @@ class Database:
             Executes SELECT * FROM devices WHERE user_id=? ORDER BY id, returning dictionaries.
         """
         with self.connection() as db:
-            return [dict(row) for row in db.execute('SELECT * FROM devices WHERE user_id=? ORDER BY id', (owner,))]
+            return [
+                dict(row)
+                for row in db.execute('SELECT * FROM devices WHERE user_id=? ORDER BY id', (owner,))
+            ]
 
     def device(self, owner: int, device_id: int) -> dict[str, Any] | None:
         """Retrieve a specific device configuration by ID.
@@ -252,7 +267,9 @@ class Database:
             Queries devices table by user_id and device_id; returns dict or None.
         """
         with self.connection() as db:
-            row = db.execute('SELECT * FROM devices WHERE user_id=? AND id=?', (owner, device_id)).fetchone()
+            row = db.execute(
+                'SELECT * FROM devices WHERE user_id=? AND id=?', (owner, device_id)
+            ).fetchone()
             return dict(row) if row else None
 
     def add_device(self, owner: int, device: dict[str, Any]) -> dict[str, Any]:
@@ -266,9 +283,20 @@ class Database:
             and returns the saved record.
         """
         with self.connection() as db:
-            result = db.execute('INSERT INTO devices(user_id,name,host,port,username,local) VALUES(?,?,?,?,?,?)',
-                                (owner, device['name'], device['host'], device['port'], device['username'], device.get('local', 0)))
+            result = db.execute(
+                'INSERT INTO devices(user_id,name,host,port,username,local) VALUES(?,?,?,?,?,?)',
+                (
+                    owner,
+                    device['name'],
+                    device['host'],
+                    device['port'],
+                    device['username'],
+                    device.get('local', 0),
+                ),
+            )
             device_id = result.lastrowid
+            if device_id is None:
+                raise RuntimeError('Device insert did not return an ID')
         saved = self.device(owner, device_id)
         if saved is None:
             raise RuntimeError('Device could not be saved')
@@ -284,7 +312,10 @@ class Database:
             Executes UPDATE devices SET last_connected = now() WHERE user_id=? AND id=?.
         """
         with self.connection() as db:
-            db.execute('UPDATE devices SET last_connected=? WHERE user_id=? AND id=?', (now(), owner, device_id))
+            db.execute(
+                'UPDATE devices SET last_connected=? WHERE user_id=? AND id=?',
+                (now(), owner, device_id),
+            )
 
     def local_device(self, owner: int, address: tuple[str, int]) -> dict[str, Any]:
         """Register or update the local host computer's FTP service endpoint.
@@ -299,16 +330,26 @@ class Database:
         existing = next((d for d in self.devices(owner) if d['local']), None)
         if existing:
             with self.connection() as db:
-                db.execute('''UPDATE devices SET host=?,port=?,
+                db.execute(
+                    '''UPDATE devices SET host=?,port=?,
                     name=CASE WHEN name='This computer' THEN 'Host computer' ELSE name END
                     WHERE id=? AND user_id=?''',
-                           (address[0], address[1], existing['id'], owner))
+                    (address[0], address[1], existing['id'], owner),
+                )
             saved = self.device(owner, existing['id'])
             if saved is None:
                 raise RuntimeError('Local device could not be saved')
             return saved
-        return self.add_device(owner, {'name': 'Host computer', 'host': address[0], 'port': address[1],
-                                       'username': 'local', 'local': 1})
+        return self.add_device(
+            owner,
+            {
+                'name': 'Host computer',
+                'host': address[0],
+                'port': address[1],
+                'username': 'local',
+                'local': 1,
+            },
+        )
 
     def delete_device(self, owner: int, device_id: int):
         """Remove a saved device configuration.
@@ -333,8 +374,10 @@ class Database:
             ... ON CONFLICT(id) DO UPDATE SET data=excluded.data.
         """
         with self.connection() as db:
-            db.execute('INSERT INTO jobs VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',
-                       (job['id'], owner, json.dumps(job, allow_nan=False)))
+            db.execute(
+                'INSERT INTO jobs VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',
+                (job['id'], owner, json.dumps(job, allow_nan=False)),
+            )
 
     def job(self, owner: int, job_id: str) -> dict[str, Any] | None:
         """Fetch a specific transfer job by ID.
@@ -346,7 +389,9 @@ class Database:
             Queries jobs table by user_id and id, deserializing the JSON string if found.
         """
         with self.connection() as db:
-            row = db.execute('SELECT data FROM jobs WHERE user_id=? AND id=?', (owner, job_id)).fetchone()
+            row = db.execute(
+                'SELECT data FROM jobs WHERE user_id=? AND id=?', (owner, job_id)
+            ).fetchone()
             return json.loads(row[0]) if row else None
 
     def jobs(self, owner: int) -> list[dict[str, Any]]:
@@ -359,7 +404,12 @@ class Database:
             Queries jobs table ordered by rowid DESC LIMIT 100, deserializing each JSON payload.
         """
         with self.connection() as db:
-            return [json.loads(row[0]) for row in db.execute('SELECT data FROM jobs WHERE user_id=? ORDER BY rowid DESC LIMIT 100', (owner,))]
+            return [
+                json.loads(row[0])
+                for row in db.execute(
+                    'SELECT data FROM jobs WHERE user_id=? ORDER BY rowid DESC LIMIT 100', (owner,)
+                )
+            ]
 
     def all_jobs(self) -> list[tuple[int, dict[str, Any]]]:
         """Fetch all transfer jobs across all users for background worker restoration.
@@ -371,13 +421,16 @@ class Database:
             Executes SELECT user_id, data FROM jobs and deserializes each job's JSON payload.
         """
         with self.connection() as db:
-            return [(row['user_id'], json.loads(row['data'])) for row in db.execute('SELECT user_id,data FROM jobs')]
+            return [
+                (row['user_id'], json.loads(row['data']))
+                for row in db.execute('SELECT user_id,data FROM jobs')
+            ]
 
     def delete_job(self, owner: int, job_id: str):
         """Delete a transfer job record.
 
         What it does:
-            Removes a completed or cancelled job from the database.
+            Removes a completed or canceled job from the database.
 
         How it does:
             Executes DELETE FROM jobs WHERE user_id=? AND id=?.
